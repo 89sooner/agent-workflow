@@ -1,0 +1,13 @@
+
+> pr-search@0.1.0 test:regression /home/roqkf/pr-search-wt/agent-workflow-wp061
+> vitest run --config vitest.regression.config.ts
+
+
+ RUN  v4.1.11 /home/roqkf/pr-search-wt/agent-workflow-wp061
+
+
+ Test Files  13 passed (13)
+      Tests  533 passed (533)
+   Start at  15:32:51
+   Duration  108.48s (transform 1.01s, setup 0ms, import 1.58s, tests 105.87s, environment 1ms)
+

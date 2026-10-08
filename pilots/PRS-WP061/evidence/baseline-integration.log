@@ -1,0 +1,18 @@
+
+ RUN  v4.1.11 /home/roqkf/pr-search-wt/agent-workflow-wp061
+
+(node:3139359) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ apps/gh-executor/integration/executor.test.ts (13 tests) 11160ms
+     ✓ 시작 전 취소는 cancelled_before_start, 실행 중 취소는 프로세스를 3초 안에 끝낸다  1173ms
+     ✓ 시간 상한을 넘기면 timed_out이다  954ms
+(node:3142577) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ apps/search-api/integration/gh/routes.test.ts (14 tests) 1060ms
+
+ Test Files  2 passed (2)
+      Tests  27 passed (27)
+   Start at  15:26:22
+   Duration  14.27s (transform 1.18s, setup 0ms, import 1.89s, tests 12.22s, environment 0ms)
+
+JSON report written to /home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-integration.json

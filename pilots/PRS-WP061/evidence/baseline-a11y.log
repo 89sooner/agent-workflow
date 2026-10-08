@@ -1,0 +1,17 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.a11y.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+ RUN  v4.1.11 /home/roqkf/pr-search-wt/agent-workflow-wp061/apps/web
+
+ ✓ a11y/gh.test.tsx (26 tests) 2998ms
+     ✓ QA-GH-02: 위반이 있으면 실행 버튼이 닫히고 미리보기 요청이 **나가지 않는다**  475ms
+     ✓ 유효한 폼 → 미리보기 argv → 실행 → 결과 표 (FR-GH-002 AC-3·AC-4·AC-10)  1796ms
+     ✓ QA-GH-14: 같은 버튼을 두 번 눌러도 실행 요청은 하나다  336ms
+
+ Test Files  1 passed (1)
+      Tests  26 passed (26)
+   Start at  15:28:08
+   Duration  4.32s (transform 437ms, setup 86ms, import 741ms, tests 3.00s, environment 405ms)
+
+JSON report written to /home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-a11y.json

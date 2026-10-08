@@ -1,0 +1,13 @@
+
+> katakuri-band-ops-web@0.1.0 test
+> vitest run tests/risk.render.test.tsx tests/risk.control.test.tsx tests/audit.link.test.tsx --maxWorkers=2
+
+
+ RUN  v4.1.11 /home/roqkf/katakuri-band-o-audit-current-link/web
+
+
+ Test Files  3 passed (3)
+      Tests  68 passed (68)
+   Start at  16:27:01
+   Duration  3.20s (transform 850ms, setup 296ms, import 1.33s, tests 3.19s, environment 734ms)
+

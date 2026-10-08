@@ -1,0 +1,10 @@
+{
+  "ports": {
+    "pg": 32770,
+    "redis": 32771
+  },
+  "containers": [
+    "awp-prs-wp061-pg",
+    "awp-prs-wp061-redis"
+  ]
+}

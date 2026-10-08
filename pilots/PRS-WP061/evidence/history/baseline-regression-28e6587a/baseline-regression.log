@@ -1,0 +1,78 @@
+
+> pr-search@0.1.0 test:regression /home/roqkf/pr-search-wt/agent-workflow-wp061
+> vitest run --config vitest.regression.config.ts
+
+
+ RUN  v4.1.11 /home/roqkf/pr-search-wt/agent-workflow-wp061
+
+ ❯ regression/releases-vs-git.test.ts (5 tests | 5 skipped) 10ms
+ ❯ regression/range-vs-git.test.ts (14 tests | 14 skipped) 11ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  regression/range-vs-git.test.ts [ regression/range-vs-git.test.ts ]
+Error: connect ECONNREFUSED 127.0.0.1:5432
+ ❯ node_modules/.pnpm/pg-pool@3.14.0_pg@8.23.0/node_modules/pg-pool/index.js:45:11
+ ❯ ensureMigrationTable packages/db/src/migrate.ts:43:3
+     41|
+     42| async function ensureMigrationTable(pool: Pool): Promise<void> {
+     43|   await pool.query(`
+       |   ^
+     44|     CREATE TABLE IF NOT EXISTS schema_migration (
+     45|       version    TEXT        PRIMARY KEY,
+ ❯ appliedVersions packages/db/src/migrate.ts:53:3
+ ❯ migrateUp packages/db/src/migrate.ts:62:27
+ ❯ regression/range-vs-git.test.ts:89:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  regression/range-vs-git.test.ts [ regression/range-vs-git.test.ts ]
+Error: connect ECONNREFUSED 127.0.0.1:5432
+ ❯ node_modules/.pnpm/pg-pool@3.14.0_pg@8.23.0/node_modules/pg-pool/index.js:45:11
+ ❯ clearMergeSequence packages/db/integration/helpers.ts:97:3
+     95| ): Promise<void> {
+     96|   const suffix = where === '' ? '' : ` WHERE ${where}`;
+     97|   await pool.query(`DELETE FROM mnumber_evidence${suffix}`, [...params…
+       |   ^
+     98|   await pool.query(`DELETE FROM merge_sequence${suffix}`, [...params]);
+     99| }
+ ❯ regression/range-vs-git.test.ts:123:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  regression/releases-vs-git.test.ts [ regression/releases-vs-git.test.ts ]
+Error: connect ECONNREFUSED 127.0.0.1:5432
+ ❯ node_modules/.pnpm/pg-pool@3.14.0_pg@8.23.0/node_modules/pg-pool/index.js:45:11
+ ❯ ensureMigrationTable packages/db/src/migrate.ts:43:3
+     41|
+     42| async function ensureMigrationTable(pool: Pool): Promise<void> {
+     43|   await pool.query(`
+       |   ^
+     44|     CREATE TABLE IF NOT EXISTS schema_migration (
+     45|       version    TEXT        PRIMARY KEY,
+ ❯ appliedVersions packages/db/src/migrate.ts:53:3
+ ❯ migrateUp packages/db/src/migrate.ts:62:27
+ ❯ regression/releases-vs-git.test.ts:100:3
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  regression/releases-vs-git.test.ts [ regression/releases-vs-git.test.ts ]
+Error: connect ECONNREFUSED 127.0.0.1:5432
+ ❯ node_modules/.pnpm/pg-pool@3.14.0_pg@8.23.0/node_modules/pg-pool/index.js:45:11
+ ❯ regression/releases-vs-git.test.ts:173:3
+    171|
+    172| afterAll(async () => {
+    173|   await pool?.query('DELETE FROM release WHERE repository_id = $1', [R…
+       |   ^
+    174|   if (pool !== undefined) await clearMergeSequence(pool, 'repository_i…
+    175|   await pool?.query('DELETE FROM sequence_space WHERE repository_id = …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  2 failed | 11 passed (13)
+      Tests  514 passed | 19 skipped (533)
+   Start at  15:28:10
+   Duration  106.60s (transform 1.11s, setup 0ms, import 1.46s, tests 104.12s, environment 1ms)
+
+ ELIFECYCLE  Command failed with exit code 1.

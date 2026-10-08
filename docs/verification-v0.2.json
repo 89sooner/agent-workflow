@@ -1,0 +1,71 @@
+{
+  "version": "0.2.0",
+  "verified_at": "2026-10-07T15:48:28.969154+00:00",
+  "unit_tests": {
+    "count": 50,
+    "passed": true,
+    "log": "unit-tests-v0.2.log"
+  },
+  "local_e2e": {
+    "task": "DEMO-RELEASE",
+    "trigger": "dashboard POST -> durable queue -> worker subprocess",
+    "job_status": "succeeded",
+    "release_stage": "deployed",
+    "candidate_commit": "40a7859d64e141b91748a3d6222e597a7886caed",
+    "merge_commit": "62dddb876783192058bebfa5e66044756e5a9154",
+    "deployed_revision": "62dddb876783192058bebfa5e66044756e5a9154",
+    "deployment_exit": 0,
+    "health_exit": 0,
+    "remote": "/home/roqkf/.local/state/agent-workflow/demo/remote.git"
+  },
+  "daemon": {
+    "pid": 2534358,
+    "process_identity": "50321661",
+    "started_at": "2026-10-07T15:46:42+00:00",
+    "url": "http://127.0.0.1:8776",
+    "running": true
+  },
+  "daemon_restart": "passed; prior job retained; final daemon left running",
+  "browser": {
+    "desktop": {
+      "width": 1440,
+      "screenshot": "../artifacts/ui/dashboard-desktop-final.png"
+    },
+    "mobile": {
+      "width": 390,
+      "document_width": 390,
+      "screenshot": "../artifacts/ui/dashboard-mobile.png"
+    },
+    "queue_release": "passed",
+    "search_empty_state": "passed",
+    "demo_page": "passed",
+    "console_errors": 0,
+    "failed_requests": 0
+  },
+  "github": {
+    "authentication": "verified with existing gh login",
+    "live_push_merge_deploy": false,
+    "reason": "No real target repository or deployment command was supplied; GitHub API boundaries tested with fixtures."
+  },
+  "independent_review": "release tests identified staged-only allowlist escape; fixed and regression passed. Integration review found no additional major issue.",
+  "source_sha256": {
+    "agent_workflow/core.py": "889cbc61677f751cddffe6c0b108d5de1d19983316f8ae6b4bfe92c1ed0d931c",
+    "agent_workflow/cli.py": "92faedaae18e75459325c6888d4893615933a387c32dd2938eda2428210d2f98",
+    "agent_workflow/daemon.py": "d3e33079a18ce0fb14db5028b7a717254d6918be3904816bd840b0769011f8d1",
+    "agent_workflow/runner.py": "9e3802e27693bb3153eda134ccf133b104aa59d1911967f798317dd511f955f7",
+    "agent_workflow/server.py": "302371e27a0b6c868bb9d781c326bd84544656de36ab77386d548b82dc5ce1e4",
+    "agent_workflow/__main__.py": "6d8b7d7846a845059d7a3107143f11131f63c5511d669b44085b15ec5e3d2279",
+    "agent_workflow/demo.py": "36bdca21fd1160584d962e08fa8faa08f2c6f42262a1a7584bb6f7180aacf25e",
+    "agent_workflow/release.py": "db201a915cb6895b82c7381d23c053acb642bea632025da1908e99f222d70da6",
+    "agent_workflow/__init__.py": "555f06e015360df5557909482d592966102d763331ec326e81513ffbca8fdd34",
+    "agent_workflow/static/index.html": "2a06a1d5f3d78ac6cd3cede4eca3508273570278f5a65bd5ce0d573f657dee2e",
+    "agent_workflow/static/app.js": "148ef4bc89c3d346422b20bc2541ac1c300cf89900052c2cdd108eb3394551e7",
+    "agent_workflow/static/styles.css": "ff11f55cc8b8acda33dd57e350bf5d2a6c2e5777df15a0ba2fa08f884b0849b4",
+    "tests/test_daemon.py": "9588ca49b39dd5fd1fafbcb1c935bd1315dadcc1a0ccd71cdb5888398654f9e7",
+    "tests/test_server.py": "b0111a7c689f3f5cd0f50264f751efbfaacab0123f7b477ae886ff9a09a63f88",
+    "tests/test_release.py": "a01721de983b3e55ec069a4aa2cad143bcdbcfe6a2ec6e0c065770127eb3ef4c",
+    "tests/test_workflow.py": "c76d0cf5f296552ac3d7d33eb0bc68d64eec6f3dd2b323f9687928b9ddb72357",
+    "tests/live_smoke.py": "0cd88611429291b6ec8b81e5d0731b96e4023b16509f084106523d2cbdc89bed"
+  },
+  "daemon_check": "Verified by loopback HTTP in the daemon host namespace; sandbox /proc visibility differs."
+}

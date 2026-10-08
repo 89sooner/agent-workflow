@@ -1,0 +1,57 @@
+{
+  "task_id": "PRS-WP061",
+  "project": "/home/roqkf/pr-search-wt/agent-workflow-wp061",
+  "owner": "claude",
+  "reviewer": "codex",
+  "checks": [
+    [
+      "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+      "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+      "gate",
+      "typecheck"
+    ],
+    [
+      "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+      "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+      "gate",
+      "lint"
+    ],
+    [
+      "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+      "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+      "gate",
+      "dependencies"
+    ],
+    [
+      "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+      "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+      "gate",
+      "unit"
+    ],
+    [
+      "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+      "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+      "gate",
+      "integration"
+    ],
+    [
+      "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+      "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+      "gate",
+      "a11y"
+    ],
+    [
+      "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+      "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+      "gate",
+      "regression"
+    ],
+    [
+      "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+      "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+      "closure"
+    ]
+  ],
+  "handoff": "/home/roqkf/.local/state/agent-workflow/tasks/PRS-WP061/handoff",
+  "enqueued": false
+}

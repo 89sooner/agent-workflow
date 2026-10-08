@@ -1,0 +1,13 @@
+
+ RUN  v4.1.11 /home/roqkf/pr-search-wt/agent-workflow-wp061
+
+ ✓ packages/gh-cli/src/constraints.test.ts (12 tests) 8ms
+ ✓ apps/web/lib/gh.test.ts (43 tests) 11ms
+ ✓ packages/gh-cli/src/argv.test.ts (8 tests) 6ms
+ ✓ apps/search-api/src/gh/executions.test.ts (8 tests) 6ms
+
+ Test Files  4 passed (4)
+      Tests  71 passed (71)
+   Start at  15:19:12
+   Duration  1.35s (transform 921ms, setup 0ms, import 1.44s, tests 31ms, environment 0ms)
+

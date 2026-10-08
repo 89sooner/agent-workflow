@@ -1,0 +1,57 @@
+{
+  "verified_at": "2026-10-07T15:21:15.257635+00:00",
+  "version": "0.1.0",
+  "unit_tests": {
+    "count": 25,
+    "result": "passed",
+    "log": "unit-tests.log"
+  },
+  "live_smokes": [
+    {
+      "owner": "claude",
+      "reviewer": "codex",
+      "status": "completed",
+      "check_exit_codes": [
+        0
+      ],
+      "review_verdict": "pass",
+      "summary_path": "/home/roqkf/agent-workflow/artifacts/live-qg22uf9h/summary.json"
+    },
+    {
+      "owner": "codex",
+      "reviewer": "claude",
+      "status": "completed",
+      "check_exit_codes": [
+        0
+      ],
+      "review_verdict": "pass",
+      "summary_path": "/home/roqkf/agent-workflow/artifacts/live-38aoavjb/summary.json"
+    }
+  ],
+  "independent_review": {
+    "findings": 6,
+    "resolved_and_reverified": 6
+  },
+  "skill_validation": "passed",
+  "installed_profiles": [
+    ".codex",
+    ".claude",
+    ".claude-soonho",
+    ".claude-alex"
+  ],
+  "source_sha256": {
+    "install.py": "2f849540f16aa7665a8f965c80e1be34211dc5a623b8a3185438b1f8680e62df",
+    "tests/test_workflow.py": "c76d0cf5f296552ac3d7d33eb0bc68d64eec6f3dd2b323f9687928b9ddb72357",
+    "tests/live_smoke.py": "0cd88611429291b6ec8b81e5d0731b96e4023b16509f084106523d2cbdc89bed",
+    "agent_workflow/core.py": "889cbc61677f751cddffe6c0b108d5de1d19983316f8ae6b4bfe92c1ed0d931c",
+    "agent_workflow/cli.py": "008905cebe56125ec96c5c237c1864a01846fd10b19ea351db944b7fefdb8530",
+    "agent_workflow/runner.py": "05e26a2f9254c5ef369daca01dfcacd010f5ef4c9cf1ca897d76e73c8c1a1a62",
+    "agent_workflow/__main__.py": "6d8b7d7846a845059d7a3107143f11131f63c5511d669b44085b15ec5e3d2279",
+    "agent_workflow/__init__.py": "0297a4b0f09e993747b761fe5244ecd9a2659822389e8cae39d9f824c6b19c0b"
+  },
+  "limits": [
+    "Live test is a small local file creation, not a production project rollout.",
+    "No daemon, dashboard, automatic quota/account switching, push, merge or deployment.",
+    "Code identity excludes ignored files, environment and external input changes; task checks must cover those."
+  ]
+}

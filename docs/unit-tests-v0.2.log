@@ -1,0 +1,81 @@
+test_exclusive_lock_does_not_recover_active_job (test_daemon.DaemonTests.test_exclusive_lock_does_not_recover_active_job) ... ok
+test_invalid_inputs (test_daemon.DaemonTests.test_invalid_inputs) ... ok
+test_once_runs_process_records_log_and_failure (test_daemon.DaemonTests.test_once_runs_process_records_log_and_failure) ... ok
+test_queue_duplicate_cancel_and_reenqueue (test_daemon.DaemonTests.test_queue_duplicate_cancel_and_reenqueue) ... ok
+test_release_success_and_empty_once (test_daemon.DaemonTests.test_release_success_and_empty_once) ... ok
+test_restart_interrupts_running_without_retry (test_daemon.DaemonTests.test_restart_interrupts_running_without_retry) ... ok
+test_stop_terminates_running_process (test_daemon.DaemonTests.test_stop_terminates_running_process) ... ok
+test_changed_code_after_completion_is_not_committed (test_release.ReleaseTests.test_changed_code_after_completion_is_not_committed) ... check 1/1: exit=0
+ok
+test_changes_outside_allowlist_are_not_committed (test_release.ReleaseTests.test_changes_outside_allowlist_are_not_committed) ... check 1/1: exit=0
+ok
+test_failed_deploy_is_not_repeated_without_explicit_retry (test_release.ReleaseTests.test_failed_deploy_is_not_repeated_without_explicit_retry) ... check 1/1: exit=0
+ok
+test_failed_local_merge_push_can_resume_same_commit (test_release.ReleaseTests.test_failed_local_merge_push_can_resume_same_commit) ... check 1/1: exit=0
+ok
+test_github_failed_ci_never_merges (test_release.ReleaseTests.test_github_failed_ci_never_merges) ... ok
+test_github_head_mismatch_never_merges (test_release.ReleaseTests.test_github_head_mismatch_never_merges) ... ok
+test_github_merge_is_pinned_to_reviewed_sha (test_release.ReleaseTests.test_github_merge_is_pinned_to_reviewed_sha) ... ok
+test_health_retry_does_not_repeat_successful_deploy (test_release.ReleaseTests.test_health_retry_does_not_repeat_successful_deploy) ... check 1/1: exit=0
+ok
+test_missing_ci_requires_explicit_exception (test_release.ReleaseTests.test_missing_ci_requires_explicit_exception) ... ok
+test_real_commit_push_merge_deploy_and_repeat_is_idempotent (test_release.ReleaseTests.test_real_commit_push_merge_deploy_and_repeat_is_idempotent) ... check 1/1: exit=0
+ok
+test_remote_change_cannot_redirect_release (test_release.ReleaseTests.test_remote_change_cannot_redirect_release) ... check 1/1: exit=0
+ok
+test_staged_content_hidden_by_worktree_cannot_escape_allowlist (test_release.ReleaseTests.test_staged_content_hidden_by_worktree_cannot_escape_allowlist) ... check 1/1: exit=0
+ok
+test_unsafe_path_and_wrong_github_repo_rejected (test_release.ReleaseTests.test_unsafe_path_and_wrong_github_repo_rejected) ... ok
+test_live_state_and_static_assets (test_server.DashboardTests.test_live_state_and_static_assets) ... ok
+test_missing_csrf_cannot_queue (test_server.DashboardTests.test_missing_csrf_cannot_queue) ... ok
+test_no_arbitrary_file_or_release_without_config (test_server.DashboardTests.test_no_arbitrary_file_or_release_without_config) ... ok
+test_other_origin_and_host_rejected (test_server.DashboardTests.test_other_origin_and_host_rejected) ... ok
+test_queue_duplicate_and_cancel (test_server.DashboardTests.test_queue_duplicate_and_cancel) ... ok
+test_check_finish_handoff_and_restart (test_workflow.WorkflowTests.test_check_finish_handoff_and_restart) ... check 1/1: exit=0
+ok
+test_check_that_changes_code_does_not_pass (test_workflow.WorkflowTests.test_check_that_changes_code_does_not_pass) ... check 1/1: exit=0
+ok
+test_different_state_home_still_shares_project_lock (test_workflow.WorkflowTests.test_different_state_home_still_shares_project_lock) ... ok
+test_full_pipeline_through_cli_contract_subprocesses (test_workflow.WorkflowTests.test_full_pipeline_through_cli_contract_subprocesses) ... WP-001: claude implement · 로그 /tmp/workflow-test-8j8qza0_/state/tasks/WP-001/runs/2026-10-07T154558+0000-06f11e20
+check 1/1: exit=0
+WP-001: codex review · 로그 /tmp/workflow-test-8j8qza0_/state/tasks/WP-001/runs/2026-10-07T154558+0000-94b23782
+ok
+test_handoff_marks_stale_and_has_interactive_resume (test_workflow.WorkflowTests.test_handoff_marks_stale_and_has_interactive_resume) ... check 1/1: exit=0
+ok
+test_head_and_index_participate (test_workflow.WorkflowTests.test_head_and_index_participate) ... ok
+test_id_traversal_duplicate_and_empty_goal_rejected (test_workflow.WorkflowTests.test_id_traversal_duplicate_and_empty_goal_rejected) ... ok
+test_interrupted_recheck_invalidates_previous_pass (test_workflow.WorkflowTests.test_interrupted_recheck_invalidates_previous_pass) ... check 1/1: exit=0
+ok
+test_interrupted_review_resumes_without_reimplementing (test_workflow.WorkflowTests.test_interrupted_review_resumes_without_reimplementing) ... check 1/1: exit=0
+WP-001: codex review · 로그 /tmp/workflow-test-v2s3uk74/state/tasks/WP-001/runs/2026-10-07T154559+0000-af821f34
+ok
+test_invalid_agent_response_is_blocked (test_workflow.WorkflowTests.test_invalid_agent_response_is_blocked) ... WP-001: claude implement · 로그 /tmp/workflow-test-ka_sv__g/state/tasks/WP-001/runs/2026-10-07T154559+0000-96246fef
+ok
+test_metadata_failure_reaps_child (test_workflow.WorkflowTests.test_metadata_failure_reaps_child) ... ok
+test_missing_or_failed_check_cannot_finish (test_workflow.WorkflowTests.test_missing_or_failed_check_cannot_finish) ... check 1/1: exit=7
+ok
+test_other_worktree_can_lock_independently (test_workflow.WorkflowTests.test_other_worktree_can_lock_independently) ... ok
+test_repair_budget_terminates (test_workflow.WorkflowTests.test_repair_budget_terminates) ... check 1/1: exit=0
+check 1/1: exit=0
+ok
+test_result_schema_rejects_false_pass_and_missing_evidence (test_workflow.WorkflowTests.test_result_schema_rejects_false_pass_and_missing_evidence) ... ok
+test_review_needed_for_finish_and_must_be_independent (test_workflow.WorkflowTests.test_review_needed_for_finish_and_must_be_independent) ... check 1/1: exit=0
+ok
+test_shell_pipeline_not_silently_interpreted (test_workflow.WorkflowTests.test_shell_pipeline_not_silently_interpreted) ... ok
+test_source_change_invalidates_check (test_workflow.WorkflowTests.test_source_change_invalidates_check) ... check 1/1: exit=0
+ok
+test_stale_review_rejected (test_workflow.WorkflowTests.test_stale_review_rejected) ... check 1/1: exit=0
+ok
+test_stdin_and_arguments_are_literal (test_workflow.WorkflowTests.test_stdin_and_arguments_are_literal) ... ok
+test_submodule_untracked_content_changes_fingerprint (test_workflow.WorkflowTests.test_submodule_untracked_content_changes_fingerprint) ... ok
+test_timeout_stops_process (test_workflow.WorkflowTests.test_timeout_stops_process) ... ok
+test_two_stores_cannot_lock_same_project (test_workflow.WorkflowTests.test_two_stores_cannot_lock_same_project) ... ok
+test_untracked_file_content_invalidates_check (test_workflow.WorkflowTests.test_untracked_file_content_invalidates_check) ... check 1/1: exit=0
+ok
+test_valid_check_and_review_resume_directly_to_finish (test_workflow.WorkflowTests.test_valid_check_and_review_resume_directly_to_finish) ... check 1/1: exit=0
+ok
+
+----------------------------------------------------------------------
+Ran 50 tests in 9.474s
+
+OK

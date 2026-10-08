@@ -1,0 +1,46 @@
+{
+  "hash": "def0acfb",
+  "configHash": "169f7f9b",
+  "lockfileHash": "e3b0c442",
+  "browserHash": "91081bac",
+  "optimized": {
+    "react": {
+      "src": "../../../../../../katakuri-band-o-audit-current-link/web/node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "62f43d74",
+      "needsInterop": true
+    },
+    "react-dom": {
+      "src": "../../../../../../katakuri-band-o-audit-current-link/web/node_modules/react-dom/index.js",
+      "file": "react-dom.js",
+      "fileHash": "2acb69a2",
+      "needsInterop": true
+    },
+    "react/jsx-dev-runtime": {
+      "src": "../../../../../../katakuri-band-o-audit-current-link/web/node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "3652d2bb",
+      "needsInterop": true
+    },
+    "react/jsx-runtime": {
+      "src": "../../../../../../katakuri-band-o-audit-current-link/web/node_modules/react/jsx-runtime.js",
+      "file": "react_jsx-runtime.js",
+      "fileHash": "687a6098",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../../../../../katakuri-band-o-audit-current-link/web/node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "fce321d1",
+      "needsInterop": true
+    }
+  },
+  "chunks": {
+    "chunk-CYLWRSRJ": {
+      "file": "chunk-CYLWRSRJ.js"
+    },
+    "chunk-46R7AD46": {
+      "file": "chunk-46R7AD46.js"
+    }
+  }
+}

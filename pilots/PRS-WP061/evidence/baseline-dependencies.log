@@ -1,0 +1,5 @@
+
+> pr-search@0.1.0 lint:deps /home/roqkf/pr-search-wt/agent-workflow-wp061
+> node scripts/lint-deps.mjs
+
+lint:deps 통과 — 패키지 17개, 위반 0건

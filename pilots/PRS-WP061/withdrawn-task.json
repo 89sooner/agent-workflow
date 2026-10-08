@@ -1,0 +1,102 @@
+{
+  "withdrawn_at": "2026-10-08T06:50:51+00:00",
+  "reason": "사용자가 PR Search를 더 이상 사용하지 않으며 Katakuri 후보 조사를 지시함",
+  "task": {
+    "id": "PRS-WP061",
+    "project": "/home/roqkf/pr-search-wt/agent-workflow-wp061",
+    "goal": "PR Search WP-061 공용 제약 엔진의 남은 구현·검증·문서 동기화를 로컬에서 완료",
+    "criteria": [
+      "WP-061 D1: 13종 제약을 실제 invocation에서 평가하고 제약마다 유효/무효 입력 시험을 통과한다.",
+      "D2: 동일 manifest와 invocation은 동일 정규화·argv를 만든다.",
+      "D3: 폼을 우회한 직접 API 호출도 같은 제약 사유로 거부되고 실행에 도달하지 않는다.",
+      "D4: UI와 서버가 같은 입력 집합에 같은 판정을 낸다.",
+      "D5: 미리보기와 실행·재검증이 공용 빌더를 소비함을 시험과 독립 코드 검토로 확인한다.",
+      "기존 pr.list의 동작·인가·운영 정책을 보존하며 새로운 capability를 활성화하지 않는다.",
+      "등록된 검사 7종과 현재 코드 지문에 묶인 13종/DoD 완료 증거 검사를 통과한다.",
+      "WP·구현 원장·기존 인계를 실제 결과로 동기화한다. 부분 구현을 WP 전체 완료로 표기하지 않는다."
+    ],
+    "refs": [
+      "/home/roqkf/agent-workflow/pilots/PRS-WP061/execution-brief.md",
+      "/home/roqkf/pr-search-wt/agent-workflow-wp061/AGENTS.md",
+      "/home/roqkf/pr-search-wt/agent-workflow-wp061/CLAUDE.md",
+      "/home/roqkf/pr-search-wt/agent-workflow-wp061/docs/README.md",
+      "/home/roqkf/pr-search-wt/agent-workflow-wp061/docs/40_delivery/pr_search_work_packages.md",
+      "/home/roqkf/pr-search-wt/agent-workflow-wp061/docs/40_delivery/pr_search_implementation_traceability.md",
+      "/home/roqkf/pr-search-wt/agent-workflow-wp061/docs/10_requirements/srs_final.md",
+      "/home/roqkf/pr-search-wt/agent-workflow-wp061/docs/30_technical_architecture/pr_search_architecture_decision_records.md"
+    ],
+    "checks": [
+      [
+        "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+        "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+        "gate",
+        "typecheck"
+      ],
+      [
+        "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+        "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+        "gate",
+        "lint"
+      ],
+      [
+        "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+        "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+        "gate",
+        "dependencies"
+      ],
+      [
+        "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+        "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+        "gate",
+        "unit"
+      ],
+      [
+        "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+        "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+        "gate",
+        "integration"
+      ],
+      [
+        "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+        "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+        "gate",
+        "a11y"
+      ],
+      [
+        "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+        "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+        "gate",
+        "regression"
+      ],
+      [
+        "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+        "/home/roqkf/agent-workflow/pilots/PRS-WP061/pilot.py",
+        "closure"
+      ]
+    ],
+    "owner": "claude",
+    "reviewer": "codex",
+    "scope": "이 작업은 실행 준비 상태다. 사용자가 run/queue 또는 대화로 실행을 지시하면 전용 워크트리에서 기존 WP-061 범위의 구현·필수 검사·독립 리뷰·문서·인계까지 진행한다. 커밋·푸시·PR·병합·배포 및 새 capability 활성화는 제외. 실행 계약을 먼저 읽고 원래 DoD를 축소하지 않는다. tests/acceptance.json이 아니라 파일럿 evidence/acceptance.json에 실제 시험 근거를 작성한다.",
+    "status": "ready",
+    "baseline": {
+      "head": "2748b9c3831cc7701596bbcdac0ffb9f5915ab6a",
+      "branch": "pilot/agent-workflow-wp061",
+      "fingerprint": "bed33c74934e6a05d1908bcd5b2899336d5daeb7edc224215aa60502b1f51c1a",
+      "dirty": false,
+      "status": ""
+    },
+    "created_at": "2026-10-08T06:34:30+00:00",
+    "checkpoint": {
+      "summary": "PREPARED_NOT_STARTED: 전용 worktree·실행 계약·검사 7종·독립 검토 기준·인계 준비 완료. 기준선 단위292/통합27/a11y26/회귀533 통과. WP 구현은 아직 시작하지 않았다.",
+      "next": "실행을 원하면 agent-workflow queue PRS-WP061 --timeout 1800 --repairs 1. 최초 실행 전에 execution-brief.md를 확인한다.",
+      "at": "2026-10-08T06:38:45+00:00"
+    },
+    "verification": null,
+    "review": null,
+    "implementation": null,
+    "last_run": null,
+    "blocker": null,
+    "completed_fingerprint": null,
+    "updated_at": "2026-10-08T06:38:45+00:00"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "gate": "integration",
+  "baseline": true,
+  "argv": [
+    "pnpm",
+    "exec",
+    "vitest",
+    "run",
+    "--config",
+    "vitest.integration.config.ts",
+    "apps/search-api/integration/gh/routes.test.ts",
+    "apps/gh-executor/integration/executor.test.ts",
+    "--no-file-parallelism",
+    "--reporter=default",
+    "--reporter=json",
+    "--outputFile.json=/home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-integration.json"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 14.81,
+  "head": "2748b9c3831cc7701596bbcdac0ffb9f5915ab6a",
+  "log": "/home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-integration.log"
+}

@@ -1,0 +1,150 @@
+check 1/5: exit=0
+check 2/5: exit=0
+check 3/5: exit=0
+check 4/5: exit=0
+check 5/5: exit=0
+{
+  "task": {
+    "id": "KB-O-CURRENT-AUDIT",
+    "project": "/home/roqkf/katakuri-band-o-audit-current-link",
+    "goal": "A-002 현재 상태의 감사 ID에서 기존 감사 목록을 새 탭으로 조회",
+    "criteria": [
+      "현재 상태 ON/OFF에서 실제 감사 ID를 보존하며 KILL_SWITCH_CHANGE 및 같은 auditId로 새 탭 링크를 연다.",
+      "감사 ID 부재/현재 상태 미확인에서는 가짜 링크나 과거 ID를 표시하지 않는다.",
+      "링크를 따라가도 원래 탭의 조작 상태가 유지되고 변경성 API 요청은 추가되지 않는다.",
+      "기존 결과 상자 링크·인가·제안·확정·재시도·엔진·서버·LS 동작을 바꾸지 않는다.",
+      "독립 수용 검사, 관련 시험, 타입 검사, ESLint, 변경 범위 검사를 통과하고 Codex 독립 리뷰를 받는다.",
+      "이 O 트랙의 로컬 구현과 남은 통합 단계를 기록하고 A-001 등 다른 backlog를 완료로 처리하지 않는다."
+    ],
+    "refs": [
+      "/home/roqkf/agent-workflow/pilots/KB-O-CURRENT-AUDIT/execution-brief.md",
+      "/home/roqkf/katakuri-band-o-audit-current-link/AGENTS.md",
+      "/home/roqkf/katakuri-band-o-audit-current-link/REFACTORING_SUPREME_DIRECTIVE.md",
+      "/home/roqkf/katakuri-band-o-audit-current-link/docs/00_governance/parallel_work_protocol.md"
+    ],
+    "checks": [
+      [
+        "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+        "/home/roqkf/agent-workflow/pilots/KB-O-CURRENT-AUDIT/check.py",
+        "contract"
+      ],
+      [
+        "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+        "/home/roqkf/agent-workflow/pilots/KB-O-CURRENT-AUDIT/check.py",
+        "unit"
+      ],
+      [
+        "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+        "/home/roqkf/agent-workflow/pilots/KB-O-CURRENT-AUDIT/check.py",
+        "typecheck"
+      ],
+      [
+        "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+        "/home/roqkf/agent-workflow/pilots/KB-O-CURRENT-AUDIT/check.py",
+        "lint"
+      ],
+      [
+        "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+        "/home/roqkf/agent-workflow/pilots/KB-O-CURRENT-AUDIT/check.py",
+        "scope"
+      ]
+    ],
+    "owner": "claude",
+    "reviewer": "codex",
+    "scope": "사용자가 실행 승인한 A-002 현재 감사 ID 링크의 로컬 구현·검증·독립 리뷰·인계. 전용 O worktree와 허용 파일만 수정. 커밋·푸시·PR·병합·운영 배포·LS 호출·새 generation·다른 트랙 소유 코드 변경은 제외.",
+    "status": "needs_review",
+    "baseline": {
+      "head": "f5e77a8bd81fab309bd61fa792019c98f76fb6b5",
+      "branch": "feat/top-current-audit-link",
+      "fingerprint": "630341f8ff9d5f5031423ae4c4b1f90af85fba63258b8560e5494dfe3e708277",
+      "dirty": false,
+      "status": ""
+    },
+    "created_at": "2026-10-08T07:28:55+00:00",
+    "checkpoint": {
+      "summary": "등록됨",
+      "next": "실제 변경과 실행 로그를 확인한 후 run으로 재개",
+      "at": "2026-10-08T07:28:55+00:00"
+    },
+    "verification": {
+      "passed": true,
+      "fingerprint": "053fb5da4487deca532874d628521fa7ef2abc6099cfc5506947bb6899ecf693",
+      "code_changed_during_checks": false,
+      "results": [
+        {
+          "exit_code": 0,
+          "timed_out": false,
+          "seconds": 0.82,
+          "stdout": "/home/roqkf/.local/state/agent-workflow/tasks/KB-O-CURRENT-AUDIT/checks/52b3f1db7c854565a556f86b36c5b1f0-0/stdout.log",
+          "stderr": "/home/roqkf/.local/state/agent-workflow/tasks/KB-O-CURRENT-AUDIT/checks/52b3f1db7c854565a556f86b36c5b1f0-0/stderr.log",
+          "argv": [
+            "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+            "/home/roqkf/agent-workflow/pilots/KB-O-CURRENT-AUDIT/check.py",
+            "contract"
+          ]
+        },
+        {
+          "exit_code": 0,
+          "timed_out": false,
+          "seconds": 4.334,
+          "stdout": "/home/roqkf/.local/state/agent-workflow/tasks/KB-O-CURRENT-AUDIT/checks/4feeed2f33324cf191432bb87221678f-1/stdout.log",
+          "stderr": "/home/roqkf/.local/state/agent-workflow/tasks/KB-O-CURRENT-AUDIT/checks/4feeed2f33324cf191432bb87221678f-1/stderr.log",
+          "argv": [
+            "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+            "/home/roqkf/agent-workflow/pilots/KB-O-CURRENT-AUDIT/check.py",
+            "unit"
+          ]
+        },
+        {
+          "exit_code": 0,
+          "timed_out": false,
+          "seconds": 6.335,
+          "stdout": "/home/roqkf/.local/state/agent-workflow/tasks/KB-O-CURRENT-AUDIT/checks/ccb5a694b39e4a9e857d0a9fcf3253b7-2/stdout.log",
+          "stderr": "/home/roqkf/.local/state/agent-workflow/tasks/KB-O-CURRENT-AUDIT/checks/ccb5a694b39e4a9e857d0a9fcf3253b7-2/stderr.log",
+          "argv": [
+            "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+            "/home/roqkf/agent-workflow/pilots/KB-O-CURRENT-AUDIT/check.py",
+            "typecheck"
+          ]
+        },
+        {
+          "exit_code": 0,
+          "timed_out": false,
+          "seconds": 2.574,
+          "stdout": "/home/roqkf/.local/state/agent-workflow/tasks/KB-O-CURRENT-AUDIT/checks/d1511709955a446b8c2232f1013e1cca-3/stdout.log",
+          "stderr": "/home/roqkf/.local/state/agent-workflow/tasks/KB-O-CURRENT-AUDIT/checks/d1511709955a446b8c2232f1013e1cca-3/stderr.log",
+          "argv": [
+            "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+            "/home/roqkf/agent-workflow/pilots/KB-O-CURRENT-AUDIT/check.py",
+            "lint"
+          ]
+        },
+        {
+          "exit_code": 0,
+          "timed_out": false,
+          "seconds": 0.072,
+          "stdout": "/home/roqkf/.local/state/agent-workflow/tasks/KB-O-CURRENT-AUDIT/checks/694c6e5e3bc34e00be8ac63062641324-4/stdout.log",
+          "stderr": "/home/roqkf/.local/state/agent-workflow/tasks/KB-O-CURRENT-AUDIT/checks/694c6e5e3bc34e00be8ac63062641324-4/stderr.log",
+          "argv": [
+            "/home/roqkf/.pyenv/versions/3.12.3/bin/python3",
+            "/home/roqkf/agent-workflow/pilots/KB-O-CURRENT-AUDIT/check.py",
+            "scope"
+          ]
+        }
+      ],
+      "at": "2026-10-08T07:46:07+00:00"
+    },
+    "review": null,
+    "implementation": null,
+    "last_run": {
+      "agent": "claude",
+      "role": "implement",
+      "directory": "/home/roqkf/.local/state/agent-workflow/tasks/KB-O-CURRENT-AUDIT/runs/2026-10-08T072947+0000-bb585c78",
+      "at": "2026-10-08T07:29:48+00:00"
+    },
+    "blocker": null,
+    "completed_fingerprint": null,
+    "updated_at": "2026-10-08T07:46:07+00:00"
+  },
+  "handoff": "/home/roqkf/.local/state/agent-workflow/tasks/KB-O-CURRENT-AUDIT/handoff"
+}

@@ -1,0 +1,69 @@
+{
+  "verified_at": "2026-10-07T18:28:30.941820+00:00",
+  "change": "Dashboard visual redesign with dark/light themes and evidence-backed workflow stages",
+  "references": {
+    "visual": [
+      "https://www.dark.design/",
+      "https://macapp.supply/",
+      "https://ui.shadcn.com/"
+    ],
+    "additional_browsed": [
+      "https://supahero.io/",
+      "https://beui.dev/",
+      "https://loadmo.re/",
+      "https://github.com/kwakseongjae/oh-my-design"
+    ],
+    "not_accessible_with_web_tool": [
+      "https://getlayers.ai/",
+      "https://beautifului.dev/",
+      "https://realtimecolors.com/"
+    ]
+  },
+  "browser_tests": {
+    "script": "tests/ui_scenarios.mjs",
+    "result": "passed",
+    "uses_mock_api": true,
+    "scenarios": [
+      "search and slash shortcut",
+      "queue request CSRF and pending disabled state",
+      "cancel queued job",
+      "attention filter",
+      "stale evidence labels",
+      "literal user content without HTML execution",
+      "release request",
+      "selection and theme persistence",
+      "expanded event survives refresh",
+      "375/390/768/1440 no horizontal overflow",
+      "mobile accessible refresh",
+      "reduced motion",
+      "empty state",
+      "connection failure/recovery"
+    ]
+  },
+  "http_regression": {
+    "command": "python3 -m unittest discover -s tests -p test_server.py -v",
+    "passed": 5
+  },
+  "live_browser": {
+    "url": "http://127.0.0.1:8776",
+    "console_errors": 0,
+    "failed_requests": 0,
+    "themes": [
+      "dark",
+      "light"
+    ],
+    "screenshots": [
+      "../artifacts/redesign/dark-desktop.png",
+      "../artifacts/redesign/light-desktop.png",
+      "../artifacts/redesign/dark-mobile.png",
+      "../artifacts/redesign/light-mobile.png"
+    ]
+  },
+  "runtime_dependencies_added": [],
+  "sha256": {
+    "agent_workflow/static/index.html": "9d3c660345f9b34b233894bba02720dfb2e0246dd8b22d99bf0e09382bd4ed00",
+    "agent_workflow/static/styles.css": "be51fe288fa5b6938e952e5fc8220d8c0fcb8cf50823af41f74e45b26f18890c",
+    "agent_workflow/static/app.js": "ed42c0c647928597b1eb906975a3f4d61810d29548ecb4aff4e7c2973c09caa4",
+    "tests/ui_scenarios.mjs": "ea6c0ea53c42ae4495d97d5c901b594b092fa9c44eff925fb171688f0b09ac45"
+  }
+}

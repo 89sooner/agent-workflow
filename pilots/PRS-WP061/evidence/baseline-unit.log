@@ -1,0 +1,38 @@
+
+ RUN  v4.1.11 /home/roqkf/pr-search-wt/agent-workflow-wp061
+
+ ✓ packages/gh-cli/src/registry-policy.test.ts (23 tests) 36ms
+ ✓ packages/gh-cli/src/classification/classify.test.ts (18 tests) 10ms
+ ✓ packages/gh-cli/src/classification/results.test.ts (18 tests) 34ms
+ ✓ packages/gh-cli/src/binding.test.ts (19 tests) 8ms
+ ✓ apps/web/lib/gh.test.ts (43 tests) 11ms
+ ✓ packages/gh-cli/src/resource-ref.test.ts (13 tests) 7ms
+ ✓ packages/gh-cli/src/constraints.test.ts (12 tests) 6ms
+ ✓ packages/gh-cli/src/result.test.ts (14 tests) 8ms
+ ✓ packages/gh-cli/src/manifest.test.ts (8 tests) 19ms
+ ✓ packages/gh-cli/src/json-pointer.test.ts (10 tests) 5ms
+ ✓ packages/gh-cli/src/graph.test.ts (8 tests) 88ms
+ ✓ packages/gh-cli/src/validate.test.ts (26 tests) 2614ms
+     ✓ port의 중복 ID·없는 타입·JSON에 없는 식별 필드·방향 위조를 각각의 코드로 잡는다  350ms
+ ✓ packages/gh-cli/src/help-parse.test.ts (12 tests) 6ms
+ ✓ apps/gh-executor/src/spawn.test.ts (7 tests) 1613ms
+     ✓ 상한을 넘기면 timed_out이고 프로세스 그룹(손자 포함)이 3초 안에 죽는다  1009ms
+     ✓ 취소 요청이 오면 cancelled이고 그룹이 종료된다  505ms
+ ✓ packages/gh-cli/src/safe-output.test.ts (16 tests) 7ms
+ ✓ packages/gh-cli/src/argv.test.ts (8 tests) 5ms
+ ✓ apps/search-api/src/gh/executions.test.ts (8 tests) 5ms
+ ✓ packages/gh-cli/src/classification/commands.test.ts (5 tests) 16ms
+ ✓ apps/gh-executor/src/config.test.ts (5 tests) 5ms
+ ✓ packages/gh-cli/src/env.test.ts (5 tests) 5ms
+ ✓ apps/search-api/src/gh/identity.test.ts (3 tests) 3ms
+ ✓ apps/search-api/src/gh/context.test.ts (2 tests) 3ms
+ ✓ packages/gh-cli/src/vault.test.ts (5 tests) 6ms
+ ✓ apps/gh-executor/src/server.test.ts (4 tests) 2034ms
+     ✓ 확인이 걸리면 기다리지 않고 503이다 — 헬스체크가 매달리지 않는다  2004ms
+
+ Test Files  24 passed (24)
+      Tests  292 passed (292)
+   Start at  15:28:12
+   Duration  5.99s (transform 1.06s, setup 0ms, import 2.56s, tests 6.55s, environment 2ms)
+
+JSON report written to /home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-unit.json

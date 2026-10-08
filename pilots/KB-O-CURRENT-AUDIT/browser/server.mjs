@@ -1,0 +1,11 @@
+import { createRequire } from 'node:module';
+import { dirname,join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+const web='/home/roqkf/katakuri-band-o-audit-current-link/web';
+const require=createRequire(web+'/package.json');
+const {createServer}=await import(require.resolve('vite'));
+const react=(await import(require.resolve('@vitejs/plugin-react'))).default;
+const root=dirname(fileURLToPath(import.meta.url));
+const server=await createServer({configFile:false,root,plugins:[react()],resolve:{alias:{react:join(web,'node_modules/react'),'react-dom':join(web,'node_modules/react-dom')},dedupe:['react','react-dom']},server:{host:'127.0.0.1',port:3137,strictPort:true,fs:{allow:[root,web]}}});
+await server.listen();console.log('PILOT_BROWSER http://127.0.0.1:3137');
+const stop=async()=>{await server.close();process.exit(0);};process.on('SIGTERM',stop);process.on('SIGINT',stop);

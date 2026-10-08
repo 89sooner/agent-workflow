@@ -1,0 +1,17 @@
+{
+  "result": "PASS",
+  "environment": "isolated Vite + actual A-002 component + synthetic state and fake API",
+  "checks": [
+    "native new-tab destination and parsed query",
+    "draft reason survives navigation",
+    "pending confirmation survives navigation",
+    "no added prepare/commit/reread calls"
+  ],
+  "counts": {
+    "prepare": 1,
+    "commit": 0,
+    "reread": 0
+  },
+  "uncaught_errors": [],
+  "production_api_requests": 0
+}

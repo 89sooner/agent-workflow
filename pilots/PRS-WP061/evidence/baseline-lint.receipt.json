@@ -1,0 +1,14 @@
+{
+  "source_fingerprint": "bed33c74934e6a05d1908bcd5b2899336d5daeb7edc224215aa60502b1f51c1a",
+  "source_changed_during_check": false,
+  "gate": "lint",
+  "baseline": true,
+  "argv": [
+    "pnpm",
+    "lint"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 10.14,
+  "head": "2748b9c3831cc7701596bbcdac0ffb9f5915ab6a",
+  "log": "/home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-lint.log"
+}

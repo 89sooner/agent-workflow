@@ -1,0 +1,12 @@
+{
+  "id": "KB-O-CURRENT-AUDIT",
+  "project": "/home/roqkf/katakuri-band-o-audit-current-link",
+  "baseline": {
+    "head": "f5e77a8bd81fab309bd61fa792019c98f76fb6b5",
+    "branch": "feat/top-current-audit-link",
+    "fingerprint": "630341f8ff9d5f5031423ae4c4b1f90af85fba63258b8560e5494dfe3e708277",
+    "dirty": false,
+    "status": ""
+  },
+  "registered_at": "2026-10-08T07:28:55+00:00"
+}

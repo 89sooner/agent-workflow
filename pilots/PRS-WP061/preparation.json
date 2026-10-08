@@ -1,0 +1,87 @@
+{
+  "status": "PREPARED_NOT_STARTED",
+  "task_id": "PRS-WP061",
+  "original_wp": "WP-061",
+  "project": "PR Search",
+  "prepared_at": "2026-10-08T06:38:45.723507+00:00",
+  "original_checkout": "/home/roqkf/pr-search",
+  "worktree": "/home/roqkf/pr-search-wt/agent-workflow-wp061",
+  "branch": "pilot/agent-workflow-wp061",
+  "baseline_head": "2748b9c3831cc7701596bbcdac0ffb9f5915ab6a",
+  "remote_head_observed": "2748b9c3831cc7701596bbcdac0ffb9f5915ab6a",
+  "open_prs_observed": 0,
+  "source_fingerprint": "bed33c74934e6a05d1908bcd5b2899336d5daeb7edc224215aa60502b1f51c1a",
+  "source_changed": false,
+  "original_checkout_changed": false,
+  "owner": "claude",
+  "reviewer": "codex",
+  "queued": false,
+  "agent_implementation_calls": 0,
+  "release_configured": false,
+  "checks": {
+    "a11y": {
+      "exit_code": 0,
+      "seconds": 4.97,
+      "receipt": "/home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-a11y.receipt.json"
+    },
+    "dependencies": {
+      "exit_code": 0,
+      "seconds": 0.35,
+      "receipt": "/home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-dependencies.receipt.json"
+    },
+    "integration": {
+      "exit_code": 0,
+      "seconds": 14.81,
+      "receipt": "/home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-integration.receipt.json"
+    },
+    "lint": {
+      "exit_code": 0,
+      "seconds": 10.14,
+      "receipt": "/home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-lint.receipt.json"
+    },
+    "regression": {
+      "exit_code": 0,
+      "seconds": 109.09,
+      "receipt": "/home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-regression.receipt.json"
+    },
+    "typecheck": {
+      "exit_code": 0,
+      "seconds": 11.94,
+      "receipt": "/home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-typecheck.receipt.json"
+    },
+    "unit": {
+      "exit_code": 0,
+      "seconds": 6.72,
+      "receipt": "/home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-unit.receipt.json"
+    }
+  },
+  "baseline_passed_tests": {
+    "unit": 292,
+    "integration": 27,
+    "a11y": 26,
+    "regression": 533
+  },
+  "completion_guard": {
+    "expected_failure_before_implementation": true,
+    "exit_code": 2,
+    "reason": "acceptance.json missing; baseline success alone cannot finish WP"
+  },
+  "preparation_correction": "Regression tests also require PostgreSQL. First failure retained in evidence/history; helper now binds both integration and regression to dedicated services.",
+  "preconditions": {
+    "SRS": "baseline v2.55, FR-GH-003 approved",
+    "WP045": "partial; required manifest base exists; host support/final parity remain outside scope"
+  },
+  "not_verified": [
+    "WP-061 implementation completeness",
+    "new 13-family cases",
+    "production or internal GHES",
+    "live release/deployment"
+  ],
+  "next_command": "agent-workflow queue PRS-WP061 --timeout 1800 --repairs 1",
+  "handoff": "/home/roqkf/.local/state/agent-workflow/tasks/PRS-WP061/handoff",
+  "file_sha256": {
+    "pilot.py": "812516dd1021290de45b795ccd527f96d12560fad8ad4317fcdae69d6a1b4a20",
+    "execution-brief.md": "6e836554d0c8eaaf549a9f010ee6f768d7640c6759de5e69d79711a187e1342e",
+    "README.md": "74f06f857dd9498a48bc37dd9756d157ed683a6cfb50d60d69914db83276a921"
+  }
+}

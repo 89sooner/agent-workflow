@@ -1,0 +1,493 @@
+diff --git a/agent-context/session-handoff.md b/agent-context/session-handoff.md
+index efeaff18..ad52560f 100644
+--- a/agent-context/session-handoff.md
++++ b/agent-context/session-handoff.md
+@@ -1,5 +1,15 @@
+ # Session Handoff — 인덱스
+ 
++## O 트랙 — A-002 현재 상태 감사 ID → A-003 감사 목록 링크(로컬 구현 · 커밋 전 · 도구 작업 `KB-O-CURRENT-AUDIT`) — 2026-10-08
++
++- **범위**: 사용자 "진행해봐라" → A-002 현재 상태 상자의 감사 ID 에 결과 상자와 같은 링크(`AuditIdRef` · `of="current"` · `KILL_SWITCH_CHANGE` · 새 탭 · `noopener noreferrer`). 프로덕션 변경은 `web/components/risk/KillSwitchPanel.tsx` 한 파일(현재 상태 `auditId` 칸의 양성 갈래 · 주석 한 줄). 새 추상화 · API · 상태 · CSS · 의존성 0. ID 부재 "변경 기록 없음" 그대로 · 읽는 중/실패의 `data = null` 흐름 그대로 · UNKNOWN 특별 취급 없음.
++- **시험**: 새 `web/tests/risk.current-audit-link.test.tsx` — ON/OFF 양성(정확 URL · 새 탭 · A-003 실제 파서 수용 · 소속 current · 읽기 전용 셸) · 음성(ON/OFF/UNKNOWN ID 없음 · loading/unavailable · 실제 화면의 재조회 지연/실패 뒤 과거 ID 0) · 링크 클릭 뒤 입력 중/확인 중 상태 보존 · 쓰기 호출 0 · 재조회 0 · 결과 상자 링크(`original`)와 공존. 기존 시험 변경 0.
++- **검증 상태**: 이 블록을 쓴 시점에 제어기 검사(독립 수용 `verify-link.cjs` · Vitest 4 파일 · typecheck · ESLint · 변경 범위)와 Codex 독립 리뷰는 **아직 돌지 않았다**(이 세션은 파일 도구만 · Bash 0). 결과는 agent-workflow 원장과 외부 handoff 가 적는다.
++- **하지 않은 것**: 커밋 · push · PR · 병합 · 운영 반영 · LS · 새 generation · A-001 감사 링크 · 감사 화면 세션 오류 문구 · 공유 원장 번호(CR/ADR/구현 원장) · 다른 트랙 소유 경로.
++- **다음(허브)**: 제어기 결과 검토 → 커밋 · PR 은 별도 지시. 세션 노트 [2026-10-08-current-audit-link](sessions/2026-10-08-current-audit-link.md).
++- **좌표**: worktree `/home/roqkf/katakuri-band-o-audit-current-link` · 브랜치 `feat/top-current-audit-link`(기준 `f5e77a8b`) · 구현 담당 Claude Code. 최종 JSON 응답 전에 제어기 900초 제한으로 중단됐다. 소스·시험·기록은 보존했고, 제어기가 검사 후 Codex 리뷰로 재개한다. 호스트 도구 기록에는 별도 조언 도구 호출 근거가 없어 그 횟수는 주장하지 않는다.
++- **함정**: `[data-audit-id]` · `audit-ref-link` 가 이제 두 자리(현재 상태 · 결과 상자)에 있다 — 시험 선택자는 `[data-region='current-state']` 또는 `.killswitch-result` 로 범위를 좁힌다. jsdom 의 `_blank` 앵커 클릭은 이동 없음이라 "이 탭 무변" 단언이 성립한다.
++
+ ## O 트랙 — PR #154 병합 `a6ff7ebf` · 운영 반영 `1a2532c7` → `a6ff7ebf`(여섯 번째 "배포마다" · 중단 상한 11.8초 · 축 `HEALTHY`) — 2026-10-08 (**PR #155** · 병합은 따로 지시)
+ 
+ - **R 트랙이 알아야 할 것**: 수집기 컨테이너 ID **`bd14d785…` → `c4ad6957…`**(2026-10-08 08:08:13 KST 기동 · 재시작 0 · 다음 수집 22:00 KST 그대로). 오늘 세션 시리즈 창(18:00 ~ 21:30 KST)의 약 10시간 전 · 무장 전 · 런처 0. 감독자는 창 시작 때 수집기를 컨테이너 이름으로 읽는다(R 승인 · 검토 기록에 수집기 ID 없음). 운영 이미지에 PR #153 의 런처 파일 셋이 들어갔다(운영 컨테이너는 쓰지 않는다).
+diff --git a/agent-context/todos.md b/agent-context/todos.md
+index b8a71e85..300e319c 100644
+--- a/agent-context/todos.md
++++ b/agent-context/todos.md
+@@ -1,5 +1,15 @@
+ # TODOs — 다음 작업 / 미해결 / 확인 사항
+ 
++## [O 트랙] A-002 현재 감사 ID 링크 — 작업 중 · feat/top-current-audit-link (2026-10-08)
++
++- 작업 중 — A-002 현재 상태의 감사 ID 조회 링크. 소유: `web/components/risk/KillSwitchPanel.tsx` 및 관련 위험/감사 링크 시험.
++- 자동화 작업: `KB-O-CURRENT-AUDIT` · 로컬 구현/검증/독립 리뷰/인계. 다른 화면·엔진·LS·운영 배포 제외.
++- 기존 A-001 등 감사 링크 후보 전체의 완료를 뜻하지 않는다.
++- [x] (이 세션 · 로컬 · 커밋 전) 구현 — `CurrentState` 의 `data-field="auditId"` 칸이 감사 ID 가 있을 때 `AuditIdRef`(`of="current"` · `KILL_SWITCH_CHANGE` · 새 탭 · `noopener noreferrer`)를 그린다. 없으면 "변경 기록 없음" 그대로 · 링크 0. 새 시험 `web/tests/risk.current-audit-link.test.tsx`(ON/OFF 양성 · ID 없음 · 읽는 중/읽지 못함 · 클릭 뒤 입력 중/확인 중 상태 보존 · 쓰기 0 · 결과 상자 링크 공존). 기존 시험 변경 0. [세션 노트](sessions/2026-10-08-current-audit-link.md)
++- [ ] (제어기) 독립 수용 검사 `verify-link.cjs` · Vitest 4 파일 · typecheck · ESLint · 변경 범위 → Codex 독립 리뷰. 이 블록을 쓴 시점에 **아직 돌지 않았다** — 결과는 agent-workflow 원장 `KB-O-CURRENT-AUDIT` 가 적는다.
++- [ ] 🔴 (허브 · 사용자) 로컬 결과 검토 → 커밋 · push · PR · 병합 · 운영 반영은 별도 지시. 공유 원장 번호는 그 마지막 커밋에서 재실측해 정한다.
++- 참조: 아래 "(후속 2 에서 남김) 현재 상태 칸의 '마지막 적용 감사 ID'(A-002 등)…" 항목의 **A-002 몫**은 이 블록이 로컬로 구현했다(체크는 병합 뒤). A-001 등 다른 화면 몫은 그대로 열려 있다.
++
+ ## [O 트랙] PR #154 병합 기록 · 운영 반영 `a6ff7ebf` (2026-10-08 · PR #155 · 병합은 따로 지시)
+ 
+ - [x] PR #154 병합 `a6ff7ebf`(07:53 KST · main 이동 → SHA 병합 · 양쪽 보존) · worktree 정리. **정정**: 아래 "[O 트랙] WP-TOP-045 후속 정리 …" 블록의 "🔴 (결정자) 이 PR(#154) 병합" 은 끝났다.
+diff --git a/web/components/risk/KillSwitchPanel.tsx b/web/components/risk/KillSwitchPanel.tsx
+index 4afa912f..f0e668fe 100644
+--- a/web/components/risk/KillSwitchPanel.tsx
++++ b/web/components/risk/KillSwitchPanel.tsx
+@@ -134,6 +134,7 @@ const CURRENT_NOT_KNOWN: Record<Exclude<CurrentKnowledge, "known">, { short: str
+ /**
+  * 현재 상태 상자. 읽는 중 · 읽지 못함 · 읽음이 서로 다른 표기다. 읽지 못했을 때 마지막 스냅숏을 현재값으로 남기지 않는 원칙은
+  * `useOpsRisk` 가 이미 지키고(로딩 · 실패에서 `data = null`), 이 상자는 그 사실을 이름으로 보일 뿐이다.
++ * 응답에 실린 감사 ID 는 결과 상자와 같은 길(`AuditIdRef` · `KILL_SWITCH_CHANGE` · 새 탭)로 A-003 감사 목록을 연다 — 소속은 `current` 다.
+  */
+ function CurrentState({ state, canReread, onReread }: { state: PanelState<RiskGateState>; canReread: boolean; onReread: () => void }) {
+   const ks = state.data?.killSwitch ?? null;
+@@ -189,7 +190,13 @@ function CurrentState({ state, canReread, onReread }: { state: PanelState<RiskGa
+             </div>
+             <div className="killswitch-field" data-field="auditId">
+               <dt>감사 기록</dt>
+-              <dd>{ks.auditId !== undefined ? <code>{ks.auditId}</code> : <Absent note="변경 기록 없음" />}</dd>
++              <dd>
++                {ks.auditId !== undefined ? (
++                  <AuditIdRef auditId={ks.auditId} of="current" mode={{ kind: "link", action: RESULT_AUDIT_ACTION.killSwitch }} />
++                ) : (
++                  <Absent note="변경 기록 없음" />
++                )}
++              </dd>
+             </div>
+           </dl>
+           <MutationNotice killSwitch={ks} />
+diff --git a/agent-context/sessions/2026-10-08-current-audit-link.md b/agent-context/sessions/2026-10-08-current-audit-link.md
+new file mode 100644
+index 00000000..6cb55637
+--- /dev/null
++++ b/agent-context/sessions/2026-10-08-current-audit-link.md
+@@ -0,0 +1,88 @@
++# Session: 2026-10-08 O 트랙 — A-002 현재 상태 감사 ID → A-003 감사 목록 링크 (로컬 구현 · 병합 전 · 도구 작업 `KB-O-CURRENT-AUDIT`)
++
++> 이 노트는 **병합 전 · 커밋 전 기록**이다. 구현 세션(Claude Code · 파일 도구만 · Bash 없음)이 로컬 변경을 끝낸 시점에 썼다.
++> 제어기 검사와 Codex 독립 리뷰는 이 노트를 쓴 **뒤에** 돈다 — 그 결과는 이 노트가 아니라 agent-workflow 원장(`KB-O-CURRENT-AUDIT`)과 외부 handoff 가 적는다.
++> 공유 원장 번호(CR · ADR · 구현 원장 · WP)는 채번하지 않았다(커밋 · 병합 범위 밖 · 규약 §4). 작업은 도구 작업 ID 로만 부른다.
++> 앞 노트: [2026-10-05 O 트랙 CR-TOP-064 통합](2026-10-05-o-track-cr-top-064-integration-pr.md).
++
++## 시작 선언 (최상위 규범 §8)
++
++```text
++최상위 목적:
++실제 시장에서 비용과 위험을 통제하며 지속 가능한 순수익을 창출하는 트레이딩 엔진과, 이를 신뢰하고 운용·검증·개선할 수 있는 최고 수준의 품질을 갖춘 플랫폼 환경을 제공한다.
++
++필수 준수 원칙:
++백테스트에서 검증한 전략과 실제 실행 전략이 같음을 증명한다.
++
++이번 작업이 완성하는 공식 경로:
++운영 UI — A-002 긴급 제어 "현재 상태" 상자의 감사 ID → 기존 A-003 감사 목록 읽기 화면(새 탭). 결과 상자에만 있던 탐색 경로를 현재 상태에도 같은 계약(AuditIdRef · KILL_SWITCH_CHANGE · 같은 auditId)으로 연결한다.
++
++이번 작업의 성과 기여와 검증:
++줄일 간극 — 현재 상태의 감사 ID 는 값만 보이고 결과 상자처럼 감사 목록으로 가는 길이 없었다(todos "후속 2 에서 남김" 항목).
++기존 REQ-TOP-081(kill switch 읽기 표면) · REQ-TOP-121(감사 조회) 범위 안이며 새 요구사항을 만들지 않는다.
++관측할 결과 — ON/OFF × 감사 ID 유무에서 정확한 URL · 새 탭 · 소속 current · 링크 클릭 뒤 조작 상태 보존 · 쓰기 요청 0.
++종료 조건 — 독립 수용 검사 verify-link.cjs · 관련 Vitest · typecheck · ESLint · 변경 범위 검사 통과 + Codex 독립 리뷰(제어기가 실행).
++
++이번 작업으로 제거되는 중복 또는 불일치:
++같은 감사 ID 가 결과 상자에서는 링크이고 현재 상태에서는 값만인 두 자리의 탐색 경로 불일치. 새 URL 규칙 · 새 컴포넌트를 만들지 않고 기존 AuditIdRef · RESULT_AUDIT_ACTION.killSwitch 를 재사용한다.
++
++이번 작업에서 하지 않는 것:
++A-001 정책 화면의 감사 링크 확장 · 감사 화면 세션 오류 문구 · 서버의 감사 ID 조건 · 엔진 · 주문 · LS 호출 · 운영 배포 · 커밋 · 푸시 · PR · 병합 · 공유 원장 번호 · 다른 트랙 소유 경로.
++
++이번 작업 이후 바로 이어져야 할 통합 단계:
++제어기 검사 5종 + Codex 독립 리뷰 → 허브(사용자)의 로컬 결과 검토 → 커밋 · PR · 병합은 별도 지시.
++
++새 generation이 필요한가:
++NO
++```
++
++## Goal
++
++- 사용자 지시: "진행해봐라" — 추천한 A-002 현재 감사 ID 링크 작업을 진행(실행 브리프 `/home/roqkf/agent-workflow/pilots/KB-O-CURRENT-AUDIT/execution-brief.md`).
++- 실행 worktree `/home/roqkf/katakuri-band-o-audit-current-link` · 브랜치 `feat/top-current-audit-link` · 기준 `f5e77a8b`.
++- 범위: 프로덕션 소스 변경은 `web/components/risk/KillSwitchPanel.tsx` 하나. 새 추상화 · API · 상태 · CSS · 의존성 0. `data-field="auditId"` 보존.
++
++## Current state (이 노트를 쓴 시점)
++
++- **구현 완료(로컬 · 미검증)**: `CurrentState` 의 감사 기록 칸이 감사 ID 가 있을 때 `<code>` 대신 `AuditIdRef`(`of="current"` · `mode={{ kind: "link", action: RESULT_AUDIT_ACTION.killSwitch }}`)를 그린다. 없을 때는 기존 `Absent note="변경 기록 없음"` 그대로. `CurrentState` 주석에 한 줄을 더했다.
++- **시험 추가(로컬 · 미실행)**: `web/tests/risk.current-audit-link.test.tsx` 신설. 기존 시험 파일 변경 0 · 삭제 · 약화 0 · fixture 값 변경 0.
++- **검사 · 리뷰**: 아직 돌지 않았다. 제어기가 `check.py contract · unit · typecheck · lint · scope` 를 돌리고 Codex 독립 리뷰를 연결한다. 이 노트는 통과를 주장하지 않는다.
++- 커밋 · 푸시 · PR 0. 운영 스택 · LS · 엔진 무접촉.
++
++## Decisions
++
++1. **한 표현식 교체** — 변경은 `data-field="auditId"` 의 `<dd>` 안 조건식의 양성 갈래만이다. `AuditIdRef` 는 이미 import 돼 있고 `of` 는 string 이라 `"current"` 로 결과 상자의 `"original"` · `"retry"` 와 구분한다. 독립 수용 검사가 읽는 "칸 안의 첫 `<code>` = 감사 ID" 는 `AuditIdRef` 가 그대로 만족한다.
++2. **UNKNOWN 을 특별 취급하지 않는다** — 브리프의 "현재 상태 미확인" 은 읽는 중 · 읽지 못함(`data = null` · 칸 자체가 없다)이다. 응답이 UNKNOWN 이면서 감사 ID 를 실었다면 그것은 실제 응답의 값이므로 기존 렌더 경로 그대로 둔다(새 규칙을 만들지 않는다). 시험은 UNKNOWN · ID 없음 → 링크 없음만 고정한다.
++3. **읽기 전용 셸(세션 없음)에도 링크가 보인다** — 독립 수용 검사가 세션 · api 없이 `KillSwitchPanel` 을 렌더해 링크를 요구한다. 감사 조회 권한은 서버가 판정한다(`AuditIdRef` 주석 · A-003 "권한 없음" 응답). 조작 컨트롤은 여전히 그려지지 않는다(시험으로 고정).
++4. **시험 선택자는 자리로 좁힌다** — `[data-audit-id]` · `[data-testid="audit-ref-link"]` 가 이제 현재 상태와 결과 상자 두 자리에 있다. 기존 `risk.control.test.tsx` 의 전역 선택자 셋(결과 상자의 감사 ID 를 전역으로 찾는 줄)은 그 시나리오의 현재 상태에 감사 ID 가 없어 그대로 green 이어야 한다 — 새 시험은 전부 `[data-region='current-state']` 또는 `.killswitch-result` 로 범위를 좁혔다.
++5. **jsdom 의 `_blank` 앵커 클릭은 이동 없음** — 그래서 "링크를 눌러도 이 탭의 주소 · 입력 중 사유 · 대기 중 확인 · 호출 수가 그대로" 를 실제 클릭으로 단언한다. `preventDefault` 로 막은 클릭이 아니다.
++
++## Changed files
++
++- `web/components/risk/KillSwitchPanel.tsx` — `CurrentState` 감사 기록 칸(`data-field="auditId"`): 양성 갈래 `AuditIdRef` · 음성 갈래 그대로. 주석 한 줄. 다른 함수 · 문구 · 속성 변경 0.
++- `web/tests/risk.current-audit-link.test.tsx` — 신설. 네 묶음:
++  1. 양성 — ON · OFF 각각: 감사 ID 그대로 · `href === auditListHref(RESULT_AUDIT_ACTION.killSwitch, id)` · 정확 문자열 `/admin/access?auditAction=KILL_SWITCH_CHANGE&auditId=<id>` · `target="_blank"` · `rel` 에 `noopener` · `noreferrer` · A-003 의 실제 `parseAuditLink` 가 `ok` 로 받음 · 소속 `current` · 현재 상태 상자 안의 링크는 하나 · 이웃 칸(변경 시각 · 변경 주체) 그대로. 읽기 전용 셸(세션 없음 · `RiskClient` 단독)에서도 링크는 있고 조작 컨트롤 · 입력은 0.
++  2. 음성 — ON · OFF · UNKNOWN 에 감사 ID 가 없으면 "변경 기록 없음" · 링크 0 · `[data-audit-id]` 0. `loadingPanel()` · 실패 패널 상태에서는 칸 자체가 없다. 실제 화면(`AuthGate` + `RiskClient` + 실제 `useOpsRisk`)에서 ON(ID 있음) → 다시 읽기 지연(읽는 중) → 실패(읽지 못함) 동안 이전 ID 가 현재 상태 어디에도 없고, 다음 성공 읽기(OFF · 다른 ID)에서 링크가 새 ID 그대로다. 읽기 3 · 쓰기 0.
++  3. 읽기 전용 탐색 — 사유 입력 중 링크 클릭: 입력값 · phase `idle` · 전 호출 기록(JSON) · `window.location.href` 무변. 확인 대기 중(2단계 상자 `unsent`) 링크 클릭: 확인 ID · phase `confirming` · 확정/취소 버튼 · 호출 기록 무변 · 확정 0 · 재조회 0 · 결과 상자 0. 단독 렌더 + `onChanged: vi.fn()`: 클릭 뒤 호출 0 · 요청 0.
++  4. 공존 — 적용된 확정 뒤 재조회가 같은 감사 ID 를 현재 상태에 싣는 시나리오: 결과 상자 링크(`data-audit-of="original"`)는 작업 순서 후속 2 그대로이고, 현재 상태 링크(`"current"`)는 같은 주소 · 다른 자리. `audit-ref-link` 정확히 2 · `original` 1 · `current` 1 · `retry` 0 · `audit-ref-find` 0.
++- `agent-context/todos.md` — 맨 위 O 트랙 블록(준비자가 넣은 이 작업의 블록)에 로컬 구현 사실 · 남은 단계 · 아래 "후속 2 에서 남김" 항목과의 관계를 더했다. 다른 블록 · 아래 항목의 체크 상태는 바꾸지 않았다.
++- `agent-context/session-handoff.md` — 맨 위에 이 작업의 짧은 블록을 더했다(덧붙이기만).
++- 이 노트.
++
++## Verification — 검증된 사실과 미검증 사실
++
++- **이 세션이 직접 확인한 것(정적 읽기)**: 변경 전 독립 수용 검사 로그(`evidence/before-contract.log`)는 "Current-state audit ID must link to the audit list" 단언으로 실패했다. 변경은 그 단언이 읽는 자리(`[data-region="current-state"] [data-field="auditId"] a`)에 결과 상자와 같은 `AuditIdRef` 링크를 만든다. 기존 세 시험 파일의 전역 `[data-audit-id]` 선택자가 쓰이는 시나리오는 현재 상태에 감사 ID 가 없는 게이트(`gateWith("OFF", …)` · 재조회 중)라 영향이 없어야 한다. `assertsNoStateClaim` 이 보는 `[title]` 문구에 `AuditIdRef` 의 title 은 걸리지 않는다.
++- **미검증(제어기 몫)**: 독립 수용 검사 · Vitest(`risk.render` · `risk.control` · `audit.link` · 새 파일) · typecheck · ESLint · 변경 범위 검사 · Codex 독립 리뷰. 이 세션은 Bash 가 없어 어느 것도 실행하지 않았다. **실패하면 제품/시험을 고치거나 정확한 차단 사유를 적는다 — 검사 · 계약 파일은 고치지 않는다.**
++- 브라우저 실측 0 · 운영 반영 0.
++
++## Next steps
++
++1. (제어기) `check.py contract · unit · typecheck · lint · scope` → Codex 독립 리뷰. 결과는 agent-workflow 원장 `KB-O-CURRENT-AUDIT` 와 외부 handoff 에.
++2. (허브 · 사용자) 로컬 결과 검토 → 커밋(`SKIP_VIEWER_CHECK=1` · web · 기록만) · push · PR 은 별도 지시. 그 마지막 커밋에서만 `git fetch origin` 재실측 뒤 공유 원장 번호를 정한다(규약 §4).
++3. (별도 후보 · 이번 범위 밖) A-001 정책 화면의 현재 정책 감사 ID 링크 · 감사 화면의 세션 종료 문구(`AUTH_SESSION_REVOKED`).
++
++## 함정
++
++- `[data-audit-id]` · `[data-testid="audit-ref-link"]` 가 두 자리에 있다 — 새 시험은 선택자 범위를 좁힌다. 앞으로 현재 상태에 감사 ID 가 있는 게이트(`gateWith("ON", …)` 의 `a-current`)로 결과 상자를 전역 선택하면 현재 상태의 것을 먼저 잡는다.
++- jsdom 은 `target="_blank"` 앵커의 활성화를 이동 없이 끝낸다 — "이 탭 무변" 단언은 그 사실에 기댄다. 같은 탭 링크로 바꾸면 이 시험의 전제가 깨진다(그리고 결과 상자를 떠나게 되어 설계 의도와도 어긋난다).
++- 독립 수용 검사는 세션 · api 없이 패널을 렌더한다 — 링크를 세션 유무로 숨기면 계약이 깨진다. 권한 판정은 서버 몫이다.
+diff --git a/web/tests/risk.current-audit-link.test.tsx b/web/tests/risk.current-audit-link.test.tsx
+new file mode 100644
+index 00000000..8bbffb16
+--- /dev/null
++++ b/web/tests/risk.current-audit-link.test.tsx
+@@ -0,0 +1,326 @@
++/**
++ * [O 트랙 · A-002 현재 감사 ID 링크 · 도구 작업 KB-O-CURRENT-AUDIT] 현재 상태 상자의 감사 ID → A-003 감사 목록(새 탭).
++ *
++ * 이 파일이 지키는 것:
++ *  · 현재 상태(ON · OFF)에 감사 ID 가 실제 응답에 있으면 그 값을 그대로 보이고, 두 단계 결과 상자와 같은 길
++ *    (`AuditIdRef` · 행위 `KILL_SWITCH_CHANGE` · 같은 auditId · 새 탭 · `noopener noreferrer`)을 단다. 소속은 `current` 다.
++ *  · 감사 ID 가 없으면 "변경 기록 없음" 그대로이고 링크를 만들지 않는다. 읽는 중 · 읽지 못함에서는 과거 감사 ID 가 현재 상태로 남지 않는다
++ *    (`useOpsRisk` 의 `data = null` 흐름을 그대로 탄다).
++ *  · 링크는 읽기 전용 탐색이다 — 눌러도 제안 · 확정 · 재조회 · 어떤 쓰기 요청도 생기지 않고, 원래 탭의 입력 중 · 확인 중 상태가 그대로다.
++ *  · 결과 상자의 링크(`data-audit-of="original"` · `"retry"`)는 그대로이며 현재 상태의 것(`"current"`)과 자리가 다르다.
++ */
++import { describe, expect, it, vi } from "vitest";
++import { act, fireEvent, render, waitFor } from "@testing-library/react";
++import { RiskClient } from "../app/admin/risk/risk-client";
++import { AuthGate } from "../components/auth/AuthGate";
++import { KillSwitchPanel } from "../components/risk/KillSwitchPanel";
++import type { OpsApiResult } from "../lib/api/adapter";
++import type { KillSwitch, KillSwitchCommitResult, KillSwitchConfirmation, KillSwitchState, RiskGateState } from "../lib/api/types";
++import { RESULT_AUDIT_ACTION, auditListHref, parseAuditLink } from "../lib/audit/audit-link";
++import { loadingPanel, type PanelState } from "../lib/dashboard/model";
++import { STUB_RISK_SESSION, StubOpsApi, fail, fixtureHealth, fixtureRiskGate, fixtureSnapshot, ok, panelStatus, riskGateWith } from "./helpers";
++
++// ── 시험 도구 ──────────────────────────────────────────────────────────────────────────────────────
++
++class Deferred<T> {
++  readonly promise: Promise<T>;
++  resolve!: (value: T) => void;
++  constructor() {
++    this.promise = new Promise<T>((r) => { this.resolve = r; });
++  }
++}
++
++type Responder<T> = () => Promise<OpsApiResult<T>>;
++
++/** 게이트 읽기의 응답 순서와 시점을 정하는 어댑터 — 큐가 비면 `StubOpsApi` 의 기본 동작(`results.riskGate` · fixture)이다. */
++class GateQueueApi extends StubOpsApi {
++  readonly gateQueue: Responder<RiskGateState>[] = [];
++  async getRiskGate(opts?: { limit?: number | null }): Promise<OpsApiResult<RiskGateState>> {
++    const next = this.gateQueue.shift();
++    if (next === undefined) return super.getRiskGate(opts);
++    this.calls.riskGate.push(opts?.limit ?? null);
++    return next();
++  }
++}
++
++function immediate<T>(r: OpsApiResult<T>): Responder<T> {
++  return () => Promise.resolve(r);
++}
++
++function deferred<T>(): { responder: Responder<T>; resolve: (r: OpsApiResult<T>) => void } {
++  const d = new Deferred<OpsApiResult<T>>();
++  return { responder: () => d.promise, resolve: (r) => d.resolve(r) };
++}
++
++function stub(riskGate?: OpsApiResult<RiskGateState>) {
++  return new StubOpsApi({ health: ok(fixtureHealth), snapshot: ok(fixtureSnapshot), riskGate });
++}
++
++/** fixture 게이트(OFF · 버전 0 · 감사 ID 없음)에서 kill switch 만 바꾼 게이트 — 나머지는 fixture 그대로다(값을 지어내지 않는다). */
++function gate(state: KillSwitchState, over: Partial<KillSwitch> = {}): RiskGateState {
++  return riskGateWith({ killSwitch: { ...fixtureRiskGate.killSwitch, state, ...over } });
++}
++
++const ON_ID = "ks-current-on-01";
++const OFF_ID = "ks-current-off-02";
++const CURRENT_ON = gate("ON", { version: 2, reason: "OPERATOR_DRILL", updatedAt: "2026-10-07T09:00:00Z", updatedBy: "risk-one", auditId: ON_ID });
++const CURRENT_OFF = gate("OFF", { version: 3, updatedAt: "2026-10-07T10:00:00Z", updatedBy: "risk-two", auditId: OFF_ID });
++
++function ready(data: RiskGateState): PanelState<RiskGateState> {
++  return { status: "ready", data, failure: null, receivedAt: "2026-10-08T00:00:00Z" };
++}
++
++function unavailable(): PanelState<RiskGateState> {
++  return { status: "disconnected", data: null, failure: fail("disconnected"), receivedAt: null };
++}
++
++function confirmation(id: string, requestedState: "ON" | "OFF", expectedVersion: number): KillSwitchConfirmation {
++  return { confirmationId: id, requestedState, expectedVersion, expiresAt: "2026-10-08T00:05:00Z" };
++}
++
++function applied(auditId: string, before: KillSwitchState, after: KillSwitchState, vb: number, va: number): KillSwitchCommitResult {
++  return { outcome: "APPLIED", rejectReason: null, auditId, killSwitchBefore: before, killSwitchAfter: after, versionBefore: vb, versionAfter: va };
++}
++
++const CURRENT = "[data-region='current-state']";
++const q = (c: ParentNode, sel: string) => c.querySelector<HTMLElement>(sel);
++const currentRegion = (c: HTMLElement) => q(c, CURRENT)!;
++const currentField = (c: HTMLElement) => q(c, `${CURRENT} [data-field='auditId']`);
++const currentRef = (c: HTMLElement) => q(c, `${CURRENT} [data-audit-id][data-audit-of='current']`);
++const currentLink = (c: HTMLElement) => c.querySelector<HTMLAnchorElement>(`${CURRENT} a[data-testid='audit-ref-link']`);
++const btn = (c: HTMLElement, action: string) => c.querySelector<HTMLButtonElement>(`[data-action="killswitch-${action}"]`)!;
++const reasonInput = (c: HTMLElement) => c.querySelector<HTMLInputElement>("input[name='reason']")!;
++
++/** 결과 상자의 링크와 같은 계약 — 정확한 주소 · 새 탭 · 참조자 차단 · A-003 의 실제 파서가 받아들이는 조건 · 현재 상태 상자 안의 유일한 링크. */
++function expectCurrentLink(container: HTMLElement, auditId: string) {
++  expect(currentRef(container)?.textContent).toBe(auditId);
++  const link = currentLink(container);
++  expect(link).not.toBeNull();
++  const href = link!.getAttribute("href")!;
++  expect(href).toBe(auditListHref(RESULT_AUDIT_ACTION.killSwitch, auditId));
++  expect(href).toBe(`/admin/access?auditAction=KILL_SWITCH_CHANGE&auditId=${auditId}`);
++  expect(link!.getAttribute("data-audit-ref")).toBe(auditId);
++  expect(link!.getAttribute("target")).toBe("_blank");
++  const rel = (link!.getAttribute("rel") ?? "").split(/\s+/);
++  expect(rel).toContain("noopener");
++  expect(rel).toContain("noreferrer");
++  expect(parseAuditLink(new URL(href, "http://fixture.invalid").search)).toEqual({ kind: "ok", action: "KILL_SWITCH_CHANGE", auditId });
++  expect(currentField(container)?.contains(link)).toBe(true);
++  expect(currentRegion(container).querySelectorAll("a")).toHaveLength(1);   // 변경 시각 · 변경 주체 칸에는 링크가 생기지 않았다
++}
++
++/** 쓰기(조작) 호출 전부와 읽기 호출 — 링크 클릭 전후로 같아야 한다. */
++function calls(api: StubOpsApi): string {
++  const c = api.calls;
++  return JSON.stringify({
++    prepareKillSwitch: c.prepareKillSwitch, commitKillSwitch: c.commitKillSwitch,
++    prepareAccessChange: c.prepareAccessChange, commitAccessChange: c.commitAccessChange,
++    preparePolicyChange: c.preparePolicyChange, commitPolicyChange: c.commitPolicyChange,
++    auditCsvExport: c.auditCsvExport, performanceCsvExport: c.performanceCsvExport,
++    signIn: c.signIn, signOut: c.signOut, riskGate: c.riskGate, auditRecords: c.auditRecords,
++  });
++}
++
++/** 인증 셸 안의 실제 화면 — 세션은 `AuthGate` 가 Context 로 주고, 재조회는 실제 `useOpsRisk` 가 한다. */
++async function renderRiskScreen(api: StubOpsApi) {
++  const utils = render(<AuthGate api={api}><RiskClient api={api} limit={null} /></AuthGate>);
++  await waitFor(() => expect(q(utils.container, "[data-controls-enabled='true']")).not.toBeNull());
++  await waitFor(() => expect(q(utils.container, "[data-kill-switch-state]")).not.toBeNull());
++  return utils;
++}
++
++// ── 1. 양성 — ON · OFF 의 실제 감사 ID 가 결과 상자와 같은 길로 열린다 ─────────────────────────────────────────
++
++describe("[KB-O-CURRENT-AUDIT] the current state's audit ID leads to the A-003 audit list like the result boxes", () => {
++  it.each<[KillSwitchState, RiskGateState, string]>([
++    ["ON", CURRENT_ON, ON_ID],
++    ["OFF", CURRENT_OFF, OFF_ID],
++  ])("%s: shows the response's own audit ID unchanged and links it with KILL_SWITCH_CHANGE in a new tab", (state, data, auditId) => {
++    const { container } = render(<KillSwitchPanel state={ready(data)} />);
++    expect(q(container, "[data-kill-switch-state]")?.getAttribute("data-kill-switch-state")).toBe(state);
++    expect(currentRegion(container).getAttribute("data-current-state")).toBe("known");
++    expectCurrentLink(container, auditId);
++    // 소속은 current 다 — 결과 상자의 소속(original · retry)으로 보이지 않고, 결과 상자 자체가 없다.
++    expect(container.querySelector("[data-audit-of='original'], [data-audit-of='retry']")).toBeNull();
++    expect(q(container, ".killswitch-result")).toBeNull();
++    expect(q(container, "[data-testid='audit-ref-find']")).toBeNull();
++    // 이웃 칸은 그대로다.
++    expect(q(container, `${CURRENT} [data-field='updatedBy'] code`)?.textContent).toBe(data.killSwitch.updatedBy);
++    expect(q(container, `${CURRENT} [data-field='updatedAt']`)?.textContent).not.toContain("변경된 적이 없다");
++  });
++
++  it("in the read-only shell (no session) the link is there and no control became operable", async () => {
++    const api = stub(ok(CURRENT_ON));
++    const { container } = render(<RiskClient api={api} limit={null} />);
++    await waitFor(() => expect(panelStatus(container, "killswitch")).toBe("halted"));
++    expectCurrentLink(container, ON_ID);
++    expect(container.querySelectorAll(".killswitch-action")).toHaveLength(0);
++    expect(q(container, "[data-controls-enabled]")).toBeNull();
++    expect(container.querySelectorAll("input,select,textarea,form")).toHaveLength(0);
++    expect(api.calls.riskGate).toEqual([null]);
++  });
++});
++
++// ── 2. 음성 — ID 가 없으면 링크도 없고, 읽는 중 · 읽지 못함에는 과거 ID 가 남지 않는다 ────────────────────────────
++
++describe("[KB-O-CURRENT-AUDIT] no audit ID means no link, and no past ID survives a read in progress or a failed read", () => {
++  it.each<KillSwitchState>(["ON", "OFF", "UNKNOWN"])("%s without an audit ID keeps '변경 기록 없음' and renders no link", (state) => {
++    const { container } = render(<KillSwitchPanel state={ready(gate(state, { version: 1 }))} />);
++    const field = currentField(container);
++    expect(field).not.toBeNull();
++    expect(field?.textContent).toContain("변경 기록 없음");
++    expect(field?.querySelector("a")).toBeNull();
++    expect(currentRef(container)).toBeNull();
++    expect(container.querySelector("[data-testid='audit-ref-link']")).toBeNull();
++    expect(container.querySelector("[data-audit-id]")).toBeNull();
++  });
++
++  it("loading and unavailable panel states render no audit field, no ID and no link", () => {
++    const loading = render(<KillSwitchPanel state={loadingPanel<RiskGateState>()} />);
++    expect(currentRegion(loading.container).getAttribute("data-current-state")).toBe("loading");
++    expect(currentField(loading.container)).toBeNull();
++    expect(currentRegion(loading.container).querySelector("a")).toBeNull();
++    loading.unmount();
++
++    const down = render(<KillSwitchPanel state={unavailable()} />);
++    expect(currentRegion(down.container).getAttribute("data-current-state")).toBe("unavailable");
++    expect(currentRegion(down.container).textContent).toContain("다시 확인하지 못함");
++    expect(currentField(down.container)).toBeNull();
++    expect(currentRegion(down.container).querySelector("a")).toBeNull();
++  });
++
++  it("through the real screen: a re-read in progress and a failed re-read drop the earlier ID; the next successful read links the new ID exactly", async () => {
++    const api = new GateQueueApi({ health: ok(fixtureHealth), snapshot: ok(fixtureSnapshot), riskGate: ok(CURRENT_ON) });
++    const { container } = await renderRiskScreen(api);
++    expectCurrentLink(container, ON_ID);
++
++    // 읽는 중 — 이전 감사 ID 는 현재 상태로 남지 않는다.
++    const slow = deferred<RiskGateState>();
++    api.gateQueue.push(slow.responder);
++    await act(async () => { fireEvent.click(btn(container, "reread")); });
++    await waitFor(() => expect(currentRegion(container).getAttribute("data-current-state")).toBe("loading"));
++    expect(currentField(container)).toBeNull();
++    expect(currentLink(container)).toBeNull();
++    expect(currentRegion(container).textContent).not.toContain(ON_ID);
++
++    // 읽지 못함 — 마찬가지다.
++    await act(async () => { slow.resolve(fail("disconnected")); });
++    await waitFor(() => expect(currentRegion(container).getAttribute("data-current-state")).toBe("unavailable"));
++    expect(currentRegion(container).textContent).toContain("다시 확인하지 못함");
++    expect(currentField(container)).toBeNull();
++    expect(currentLink(container)).toBeNull();
++    expect(currentRegion(container).textContent).not.toContain(ON_ID);
++
++    // 다시 읽어 OFF(다른 감사 ID) — 링크는 새 ID 그대로이고 이전 ID 는 없다.
++    api.gateQueue.push(immediate(ok(CURRENT_OFF)));
++    await act(async () => { fireEvent.click(btn(container, "reread")); });
++    await waitFor(() => expect(q(container, "[data-kill-switch-state]")?.getAttribute("data-kill-switch-state")).toBe("OFF"));
++    expectCurrentLink(container, OFF_ID);
++    expect(currentRegion(container).textContent).not.toContain(ON_ID);
++    // 읽기만 늘었다(최초 · 다시 읽기 둘) · 쓰기 0.
++    expect(api.calls.riskGate).toHaveLength(3);
++    expect(api.calls.prepareKillSwitch).toHaveLength(0);
++    expect(api.calls.commitKillSwitch).toHaveLength(0);
++  });
++});
++
++// ── 3. 링크는 읽기 전용 탐색 — 원래 탭의 조작 상태 보존 · 쓰기 0 · 재조회 0 ─────────────────────────────────────
++
++describe("[KB-O-CURRENT-AUDIT] following the link leaves the original tab's operating state as it was and sends nothing", () => {
++  it("while a reason is being typed: the input, the phase and every call count stay as they were", async () => {
++    const api = stub(ok(CURRENT_ON));
++    const { container } = await renderRiskScreen(api);
++    fireEvent.change(reasonInput(container), { target: { value: "drill in progress" } });
++    expect(btn(container, "off").disabled).toBe(false);
++    const before = calls(api);
++    const href = window.location.href;
++
++    await act(async () => { fireEvent.click(currentLink(container)!); });
++
++    expect(reasonInput(container).value).toBe("drill in progress");
++    expect(q(container, "[data-controls-enabled]")?.getAttribute("data-control-phase")).toBe("idle");
++    expect(q(container, "[data-panel='killswitch-confirmation']")).toBeNull();
++    expect(btn(container, "off").disabled).toBe(false);
++    expect(calls(api)).toBe(before);
++    expect(window.location.href).toBe(href);          // 새 탭 링크다 — 이 탭은 움직이지 않는다
++    expectCurrentLink(container, ON_ID);              // 링크도 그대로다
++  });
++
++  it("while a confirmation is pending: the confirmation, its ID and the phase stay; no prepare, commit or re-read is added", async () => {
++    const api = stub(ok(CURRENT_ON));
++    api.results.prepareKillSwitch = ok(confirmation("c-cur-1", "OFF", 2));
++    const { container } = await renderRiskScreen(api);
++    fireEvent.change(reasonInput(container), { target: { value: "release" } });
++    await act(async () => { fireEvent.click(btn(container, "off")); });
++    await waitFor(() => expect(q(container, "[data-panel='killswitch-confirmation']")).not.toBeNull());
++    expect(api.calls.prepareKillSwitch).toEqual([{ desiredState: "OFF", reason: "release" }]);
++    const before = calls(api);
++    const href = window.location.href;
++
++    await act(async () => { fireEvent.click(currentLink(container)!); });
++
++    const box = q(container, "[data-panel='killswitch-confirmation']");
++    expect(box).not.toBeNull();
++    expect(box?.getAttribute("data-confirmation-phase")).toBe("unsent");
++    expect(q(container, "[data-field='confirmationId']")?.textContent).toBe("c-cur-1");
++    expect(q(container, "[data-controls-enabled]")?.getAttribute("data-control-phase")).toBe("confirming");
++    expect(btn(container, "commit").disabled).toBe(false);
++    expect(btn(container, "cancel").disabled).toBe(false);
++    expect(calls(api)).toBe(before);
++    expect(api.calls.commitKillSwitch).toHaveLength(0);
++    expect(api.calls.riskGate).toHaveLength(1);
++    expect(window.location.href).toBe(href);
++    expect(q(container, ".killswitch-result")).toBeNull();    // 결과도 생기지 않았다
++    expectCurrentLink(container, ON_ID);
++  });
++
++  it("rendered alone with onChanged: a click calls nothing back — the panel asks for no re-read and makes no request", async () => {
++    const api = stub();
++    const onChanged = vi.fn();
++    const { container } = render(<KillSwitchPanel state={ready(CURRENT_ON)} session={STUB_RISK_SESSION} api={api} onChanged={onChanged} />);
++    expectCurrentLink(container, ON_ID);
++    await act(async () => { fireEvent.click(currentLink(container)!); });
++    expect(onChanged).not.toHaveBeenCalled();
++    expect(api.calls.riskGate).toHaveLength(0);
++    expect(api.calls.prepareKillSwitch).toHaveLength(0);
++    expect(api.calls.commitKillSwitch).toHaveLength(0);
++    expect(q(container, "[data-controls-enabled]")?.getAttribute("data-control-phase")).toBe("idle");
++  });
++});
++
++// ── 4. 결과 상자의 링크는 그대로 — 현재 상태의 링크와 자리 · 소속이 다르다 ─────────────────────────────────────
++
++describe("[KB-O-CURRENT-AUDIT] the result box keeps its own link; the current state has its own", () => {
++  it("after an applied change both places link the same audit ID, each from its own place with its own owner tag", async () => {
++    const api = stub(ok(gate("OFF", { version: 0 })));
++    api.results.prepareKillSwitch = ok(confirmation("c-cur-2", "ON", 0));
++    api.results.commitKillSwitch = ok(applied("ks-applied-07", "OFF", "ON", 0, 1));
++    const { container } = await renderRiskScreen(api);
++    expect(currentRef(container)).toBeNull();                                            // 시드 상태 — 감사 ID 없음
++    fireEvent.change(reasonInput(container), { target: { value: "drill" } });
++    await act(async () => { fireEvent.click(btn(container, "on")); });
++    await waitFor(() => expect(q(container, "[data-panel='killswitch-confirmation']")).not.toBeNull());
++    // 확정 뒤의 재조회는 서버가 남긴 그 감사 ID 를 현재 상태에 싣는다.
++    api.results.riskGate = ok(gate("ON", { version: 1, reason: "drill", updatedAt: "2026-10-08T00:00:01Z", updatedBy: STUB_RISK_SESSION.username, auditId: "ks-applied-07" }));
++    await act(async () => { fireEvent.click(btn(container, "commit")); });
++    await waitFor(() => expect(q(container, ".killswitch-result")?.getAttribute("data-outcome")).toBe("APPLIED"));
++    await waitFor(() => expect(q(container, "[data-kill-switch-state]")?.getAttribute("data-kill-switch-state")).toBe("ON"));
++
++    // 결과 상자의 링크 — 작업 순서 후속 2 그대로.
++    const result = q(container, ".killswitch-result")!;
++    expect(q(result, "[data-audit-id][data-audit-of='original']")?.textContent).toBe("ks-applied-07");
++    const resultLink = result.querySelector<HTMLAnchorElement>("a[data-testid='audit-ref-link']");
++    expect(resultLink?.getAttribute("href")).toBe("/admin/access?auditAction=KILL_SWITCH_CHANGE&auditId=ks-applied-07");
++    expect(resultLink?.getAttribute("target")).toBe("_blank");
++    // 현재 상태의 링크 — 같은 주소 · 다른 자리 · 다른 소속.
++    expectCurrentLink(container, "ks-applied-07");
++    expect(currentLink(container)?.getAttribute("href")).toBe(resultLink?.getAttribute("href"));
++    expect(result.contains(currentLink(container))).toBe(false);
++    expect(container.querySelectorAll("[data-testid='audit-ref-link']")).toHaveLength(2);
++    expect(container.querySelectorAll("[data-audit-of='original']")).toHaveLength(1);
++    expect(container.querySelectorAll("[data-audit-of='current']")).toHaveLength(1);
++    expect(container.querySelector("[data-audit-of='retry']")).toBeNull();
++    expect(container.querySelector("[data-testid='audit-ref-find']")).toBeNull();
++    expect(api.calls.commitKillSwitch).toEqual([{ confirmationId: "c-cur-2" }]);
++  });
++});

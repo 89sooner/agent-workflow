@@ -1,0 +1,24 @@
+{
+  "source_fingerprint": "bed33c74934e6a05d1908bcd5b2899336d5daeb7edc224215aa60502b1f51c1a",
+  "source_changed_during_check": false,
+  "gate": "unit",
+  "baseline": true,
+  "argv": [
+    "pnpm",
+    "exec",
+    "vitest",
+    "run",
+    "packages/gh-cli/src",
+    "apps/web/lib/gh.test.ts",
+    "apps/search-api/src/gh",
+    "apps/gh-executor/src",
+    "--maxWorkers=2",
+    "--reporter=default",
+    "--reporter=json",
+    "--outputFile.json=/home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-unit.json"
+  ],
+  "exit_code": 0,
+  "elapsed_seconds": 6.72,
+  "head": "2748b9c3831cc7701596bbcdac0ffb9f5915ab6a",
+  "log": "/home/roqkf/agent-workflow/pilots/PRS-WP061/evidence/baseline-unit.log"
+}

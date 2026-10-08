@@ -1,0 +1,51 @@
+test_check_finish_handoff_and_restart (test_workflow.WorkflowTests.test_check_finish_handoff_and_restart) ... check 1/1: exit=0
+ok
+test_check_that_changes_code_does_not_pass (test_workflow.WorkflowTests.test_check_that_changes_code_does_not_pass) ... check 1/1: exit=0
+ok
+test_different_state_home_still_shares_project_lock (test_workflow.WorkflowTests.test_different_state_home_still_shares_project_lock) ... ok
+test_full_pipeline_through_cli_contract_subprocesses (test_workflow.WorkflowTests.test_full_pipeline_through_cli_contract_subprocesses) ... WP-001: claude implement · 로그 /tmp/workflow-test-ng4zdkj3/state/tasks/WP-001/runs/2026-10-07T152046+0000-e6682909
+check 1/1: exit=0
+WP-001: codex review · 로그 /tmp/workflow-test-ng4zdkj3/state/tasks/WP-001/runs/2026-10-07T152046+0000-4352037d
+ok
+test_handoff_marks_stale_and_has_interactive_resume (test_workflow.WorkflowTests.test_handoff_marks_stale_and_has_interactive_resume) ... check 1/1: exit=0
+ok
+test_head_and_index_participate (test_workflow.WorkflowTests.test_head_and_index_participate) ... ok
+test_id_traversal_duplicate_and_empty_goal_rejected (test_workflow.WorkflowTests.test_id_traversal_duplicate_and_empty_goal_rejected) ... ok
+test_interrupted_recheck_invalidates_previous_pass (test_workflow.WorkflowTests.test_interrupted_recheck_invalidates_previous_pass) ... check 1/1: exit=0
+ok
+test_interrupted_review_resumes_without_reimplementing (test_workflow.WorkflowTests.test_interrupted_review_resumes_without_reimplementing) ... check 1/1: exit=0
+WP-001: codex review · 로그 /tmp/workflow-test-3isuaqd7/state/tasks/WP-001/runs/2026-10-07T152047+0000-afe3c5e9
+ok
+test_invalid_agent_response_is_blocked (test_workflow.WorkflowTests.test_invalid_agent_response_is_blocked) ... WP-001: claude implement · 로그 /tmp/workflow-test-3jvpbv4x/state/tasks/WP-001/runs/2026-10-07T152047+0000-6ed8052a
+ok
+test_metadata_failure_reaps_child (test_workflow.WorkflowTests.test_metadata_failure_reaps_child) ... ok
+test_missing_or_failed_check_cannot_finish (test_workflow.WorkflowTests.test_missing_or_failed_check_cannot_finish) ... /home/roqkf/.pyenv/versions/3.12.3/lib/python3.12/json/encoder.py:260: ResourceWarning: unclosed file <_io.FileIO name=10 mode='wb' closefd=True>
+  def _make_iterencode(markers, _default, _encoder, _indent, _floatstr,
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+check 1/1: exit=7
+ok
+test_other_worktree_can_lock_independently (test_workflow.WorkflowTests.test_other_worktree_can_lock_independently) ... ok
+test_repair_budget_terminates (test_workflow.WorkflowTests.test_repair_budget_terminates) ... check 1/1: exit=0
+check 1/1: exit=0
+ok
+test_result_schema_rejects_false_pass_and_missing_evidence (test_workflow.WorkflowTests.test_result_schema_rejects_false_pass_and_missing_evidence) ... ok
+test_review_needed_for_finish_and_must_be_independent (test_workflow.WorkflowTests.test_review_needed_for_finish_and_must_be_independent) ... check 1/1: exit=0
+ok
+test_shell_pipeline_not_silently_interpreted (test_workflow.WorkflowTests.test_shell_pipeline_not_silently_interpreted) ... ok
+test_source_change_invalidates_check (test_workflow.WorkflowTests.test_source_change_invalidates_check) ... check 1/1: exit=0
+ok
+test_stale_review_rejected (test_workflow.WorkflowTests.test_stale_review_rejected) ... check 1/1: exit=0
+ok
+test_stdin_and_arguments_are_literal (test_workflow.WorkflowTests.test_stdin_and_arguments_are_literal) ... ok
+test_submodule_untracked_content_changes_fingerprint (test_workflow.WorkflowTests.test_submodule_untracked_content_changes_fingerprint) ... ok
+test_timeout_stops_process (test_workflow.WorkflowTests.test_timeout_stops_process) ... ok
+test_two_stores_cannot_lock_same_project (test_workflow.WorkflowTests.test_two_stores_cannot_lock_same_project) ... ok
+test_untracked_file_content_invalidates_check (test_workflow.WorkflowTests.test_untracked_file_content_invalidates_check) ... check 1/1: exit=0
+ok
+test_valid_check_and_review_resume_directly_to_finish (test_workflow.WorkflowTests.test_valid_check_and_review_resume_directly_to_finish) ... check 1/1: exit=0
+ok
+
+----------------------------------------------------------------------
+Ran 25 tests in 2.642s
+
+OK
