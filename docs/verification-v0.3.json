@@ -1,0 +1,109 @@
+{
+  "version": "0.3.0",
+  "date": "2026-10-09",
+  "task_id": "AW-AUTOMATION-001",
+  "authoritative_verification": "agent-workflow show AW-AUTOMATION-001: verification, review and current code fingerprint",
+  "required_checks": [
+    [
+      "python3",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-p",
+      "test_*.py"
+    ],
+    [
+      "python3",
+      "tests/browser_integration.py"
+    ],
+    [
+      "python3",
+      "tests/ui_integration.py"
+    ]
+  ],
+  "unit_test_cases": 110,
+  "browser_integration": {
+    "positive_check": "PASS",
+    "external_request_blocking": "PASS",
+    "services_cleaned": true,
+    "same_port_reused": true,
+    "worklog_exported": true,
+    "actual_model_calls": 0,
+    "external_network_requests": 0
+  },
+  "dashboard": {
+    "observed_result": "PASS",
+    "viewports": [
+      375,
+      390,
+      768,
+      1440
+    ],
+    "api": "intercepted fixtures; no real task mutation",
+    "coverage": [
+      "profile task registration",
+      "execution options",
+      "individual stop and resume",
+      "log text rendering",
+      "theme and selection persistence",
+      "empty and error states"
+    ],
+    "screenshots": [
+      "../artifacts/ui-v0.3/desktop.png",
+      "../artifacts/ui-v0.3/mobile-create.png"
+    ]
+  },
+  "live_cli": {
+    "fixture": "/home/roqkf/agent-workflow/artifacts/live-weag13d2",
+    "owner": "claude",
+    "reviewer": "codex",
+    "status": "completed",
+    "error": null,
+    "handoff": "/home/roqkf/agent-workflow/artifacts/live-weag13d2/state/tasks/LIVE-SMOKE/handoff"
+  },
+  "independent_review": {
+    "initial_agent": "claude",
+    "initial_result": "pass with nonblocking observations",
+    "final_agent": "codex-session",
+    "separate_read_only_native_receipt_required": true,
+    "source": "task ledger review; current code fingerprint and contract binding"
+  },
+  "autostart": {
+    "systemd_user_observed": "offline",
+    "available_backends": [
+      "systemd",
+      "shell"
+    ],
+    "shell_trigger": "interactive Bash login; noninteractive agent shells do not start the daemon"
+  },
+  "external_validation": {
+    "production_github_release": false,
+    "enterprise_server": false,
+    "external_messaging": false,
+    "local_bare_git_release": "covered by regression tests"
+  },
+  "limitations": [
+    "single default daemon worker",
+    "explicit task lists for batches",
+    "no account switching",
+    "provider billing cannot be capped in advance",
+    "shared-server authentication and non-GitHub release adapters are separate work"
+  ],
+  "native_profile_flow": {
+    "fixture": "/home/roqkf/agent-workflow/artifacts/live-5brd_5qo",
+    "owner": "codex",
+    "reviewer": "codex-session",
+    "status": "completed",
+    "error": null,
+    "handoff": "/home/roqkf/agent-workflow/artifacts/live-5brd_5qo/state/tasks/LIVE-SMOKE/handoff",
+    "managed_worktree": true
+  },
+  "blocked_native_attempt": {
+    "fixture": "/home/roqkf/agent-workflow/artifacts/live-ckv3zh30",
+    "status": "blocked",
+    "provider_message": "You've hit your session limit · resets 10:20pm (Asia/Seoul)",
+    "account_switched": false
+  }
+}

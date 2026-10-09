@@ -47,11 +47,11 @@ def remote_url(project, remote):
 
 
 def configure(store, task_id, remote, base, branch, paths, mode="github", repo=None,
-              deploy=None, health=None, allow_no_ci=False):
+              deploy=None, health=None, allow_no_ci=False, hostname="github.com"):
     t = store.get(task_id)
     with store.lock(t["project"]):
         t = store.get(task_id)
-        if t.get("release", {}).get("stage") not in (None, "configured"):
+        if (t.get("release") or {}).get("stage") not in (None, "configured"):
             raise WorkflowError("릴리스가 시작된 후 대상을 변경할 수 없습니다.")
         if t["baseline"]["dirty"]:
             raise WorkflowError("자동 커밋 작업은 깨끗한 기준선에서 등록해야 합니다.")
@@ -61,10 +61,13 @@ def configure(store, task_id, remote, base, branch, paths, mode="github", repo=N
             raise WorkflowError("작업 브랜치와 병합 대상은 달라야 합니다.")
         url = remote_url(t["project"], remote)
         if mode == "github":
+            if not isinstance(hostname, str) or not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?", hostname):
+                raise WorkflowError("GitHub 호스트 이름이 잘못됐습니다.")
+            hostname = hostname.lower()
             if not repo or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
                 raise WorkflowError("GitHub owner/repo를 지정하세요.")
-            expected = {f"https://github.com/{repo}", f"https://github.com/{repo}.git",
-                        f"git@github.com:{repo}", f"git@github.com:{repo}.git"}
+            expected = {f"https://{hostname}/{repo}", f"https://{hostname}/{repo}.git",
+                        f"git@{hostname}:{repo}", f"git@{hostname}:{repo}.git"}
             if url not in expected:
                 raise WorkflowError("원격 URL과 지정한 GitHub 저장소가 일치하지 않습니다.")
         elif mode == "local":
@@ -88,14 +91,27 @@ def configure(store, task_id, remote, base, branch, paths, mode="github", repo=N
         t["release"] = {"stage": "configured", "error": None, "configured_at": now(),
                         "config": {"remote": remote, "remote_url": url, "base": base,
                                    "branch": branch, "paths": clean_paths, "mode": mode,
-                                   "repo": repo, "deploy": deploy, "health": health,
+                                   "repo": repo, "hostname": hostname, "deploy": deploy, "health": health,
                                    "allow_no_ci": allow_no_ci}}
         store.save(t, "release_configured", t["release"]["config"])
         return t["release"]
 
 
-def gh_api(endpoint, method="GET", payload=None, timeout=30):
+def clear_configuration(store, task_id):
+    task = store.get(task_id)
+    with store.lock(task["project"]):
+        task = store.get(task_id)
+        release = task.get("release")
+        if release and (release.get("stage") != "configured" or release.get("commit")):
+            raise WorkflowError("이미 시작한 릴리스는 해제하지 않습니다. 실제 원격 상태를 먼저 확인하세요.")
+        task["release"] = None
+        store.save(task, "release_cleared")
+        return task
+
+
+def gh_api(endpoint, method="GET", payload=None, timeout=30, hostname="github.com"):
     args = ["gh", "api", "--method", method, "-H", "Accept: application/vnd.github+json", endpoint]
+    args += ["--hostname", hostname]
     if payload is not None:
         args.extend(["--input", "-"])
     p = subprocess.run(args, input=encode(payload) if payload is not None else None,
@@ -171,12 +187,16 @@ def commit_verified(store, task):
     save_release(store, task, "committed", commit=git(p, "rev-parse", "HEAD"))
 
 
-def ci_gate(repo, sha, allow_no_ci):
-    statuses = gh_api(f"repos/{repo}/commits/{sha}/status")
+def github_api(hostname, *args, **kwargs):
+    return gh_api(*args, **kwargs) if hostname == "github.com" else gh_api(*args, hostname=hostname, **kwargs)
+
+
+def ci_gate(repo, sha, allow_no_ci, hostname="github.com"):
+    statuses = github_api(hostname, f"repos/{repo}/commits/{sha}/status")
     checks = []
     page = 1
     while True:
-        body = gh_api(f"repos/{repo}/commits/{sha}/check-runs?per_page=100&page={page}")
+        body = github_api(hostname, f"repos/{repo}/commits/{sha}/check-runs?per_page=100&page={page}")
         rows = body.get("check_runs", [])
         checks.extend(rows)
         if len(rows) < 100:
@@ -201,20 +221,21 @@ def github_merge(store, task, timeout):
     r = task["release"]
     c = r["config"]
     repo, sha = c["repo"], r["commit"]
+    hostname = c.get("hostname", "github.com")
     if not r.get("pr"):
         params = urlencode({"state": "all", "head": repo.split("/")[0] + ":" + c["branch"], "base": c["base"]})
-        pulls = gh_api(f"repos/{repo}/pulls?{params}")
+        pulls = github_api(hostname, f"repos/{repo}/pulls?{params}")
         matching = [x for x in pulls if x.get("head", {}).get("sha") == sha]
         if matching:
             pr = matching[0]
         else:
-            pr = gh_api(f"repos/{repo}/pulls", "POST", {
+            pr = github_api(hostname, f"repos/{repo}/pulls", "POST", {
                 "title": f"{task['id']}: {task['goal']}", "head": c["branch"], "base": c["base"],
                 "body": f"{task['goal']}\n\nValidation: registered local checks passed; reviewer {task['reviewer']}.\nTask: {task['id']}\nCandidate: {sha}"})
         save_release(store, task, "pull_request", pr=pr["number"], pr_url=pr["html_url"])
     deadline = time.monotonic() + timeout
     while True:
-        pr = gh_api(f"repos/{repo}/pulls/{r['pr']}")
+        pr = github_api(hostname, f"repos/{repo}/pulls/{r['pr']}")
         if pr["head"]["sha"] != sha or pr["base"]["ref"] != c["base"] or pr["head"]["ref"] != c["branch"]:
             raise WorkflowError("PR의 대상이나 HEAD가 등록된 릴리스와 다릅니다.")
         if pr.get("merged"):
@@ -222,10 +243,10 @@ def github_merge(store, task, timeout):
             return
         if pr.get("state") != "open" or pr.get("draft"):
             raise WorkflowError("PR이 열려 있지 않거나 draft입니다.")
-        if ci_gate(repo, sha, c["allow_no_ci"]) and pr.get("mergeable") is True:
+        if ci_gate(repo, sha, c["allow_no_ci"], hostname) and pr.get("mergeable") is True:
             if pr.get("mergeable_state") not in ("clean", "unstable"):
                 raise WorkflowError("PR 병합 조건 미충족: " + str(pr.get("mergeable_state")))
-            result = gh_api(f"repos/{repo}/pulls/{r['pr']}/merge", "PUT", {"sha": sha, "merge_method": "merge"})
+            result = github_api(hostname, f"repos/{repo}/pulls/{r['pr']}/merge", "PUT", {"sha": sha, "merge_method": "merge"})
             if not result.get("merged"):
                 raise WorkflowError("GitHub가 병합을 완료하지 않았습니다.")
             save_release(store, task, "merged", merge_commit=result["sha"])
@@ -287,10 +308,13 @@ def deploy_release(store, task, timeout, fd, retry=False):
     if r.get("deployment_state") in ("started", "failed") and not retry:
         raise WorkflowError("배포가 실패했거나 실행 결과가 불명확합니다. 상태 확인 후 --retry-deploy로만 재실행하세요.")
     if r.get("deployment_state") != "applied":
-        for i, command in enumerate(task["checks"]):
-            result = process(command, work, root / ("check-" + uuid.uuid4().hex), timeout, fd, env_extra=env)
-            if result["exit_code"] != 0 or result["timed_out"]:
-                raise WorkflowError("병합된 코드의 필수 검사 실패. 배포하지 않았습니다.")
+        from .services import running, environment
+        with running(store, task, fd, cwd=work):
+            for i, command in enumerate(task["checks"]):
+                directory = root / ("check-" + uuid.uuid4().hex)
+                result = process(command, work, directory, timeout, fd, env_extra={**env, **environment(task, directory)})
+                if result["exit_code"] != 0 or result["timed_out"]:
+                    raise WorkflowError("병합된 코드의 필수 검사 실패. 배포하지 않았습니다.")
         if git(work, "status", "--porcelain"):
             raise WorkflowError("병합 결과 검사 중 코드가 바뀌었습니다.")
         save_release(store, task, "deploying", deployment_state="started")
@@ -308,7 +332,10 @@ def deploy_release(store, task, timeout, fd, retry=False):
 
 def release_task(store, task_id, timeout=300, retry_deploy=False):
     task = store.get(task_id)
-    with store.lock(task["project"]) as fd:
+    from .policy import reservation, window_limit
+    with store.lock(task["project"]) as tree_fd, reservation(store, task) as resource_fd:
+        fd = (tree_fd, resource_fd)
+        timeout = min(timeout, window_limit(task.get("project_config") or {}))
         task = store.get(task_id)
         r = task.get("release")
         if not r:

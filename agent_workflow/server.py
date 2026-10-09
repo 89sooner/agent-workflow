@@ -16,7 +16,7 @@ from urllib.parse import unquote, urlparse
 
 from . import __version__
 from .core import Store, WorkflowError, atomic_write, encode, now, snapshot
-from .daemon import cancel, enqueue, list_jobs, run_daemon
+from .daemon import cancel, enqueue, list_jobs, run_daemon, stop_job, resume_job
 
 
 def identity(pid):
@@ -114,13 +114,32 @@ def handler(home, token):
                     return self.response(p.read_bytes(), content_type="text/html; charset=utf-8")
                 store = Store(home)
                 if path == "/api/state":
+                    from .profiles import list_profiles
+                    from .operations import notifications
                     return self.response({"tasks": store.all(), "jobs": list_jobs(store),
+                                          "profiles": list_profiles(store), "notifications": notifications(store),
                                           "daemon": status(home), "version": __version__, "csrf_token": token})
+                if path.startswith("/api/job-log/"):
+                    job_id = path.removeprefix("/api/job-log/")
+                    jobs = list_jobs(store)
+                    job = next((item for item in jobs if item["id"] == job_id), None)
+                    if not job or not job.get("log_path"):
+                        raise WorkflowError("실행 로그가 아직 없습니다.")
+                    log = Path(job["log_path"]).resolve()
+                    if log != (store.home / "jobs" / (job_id + ".log")).resolve() or not log.is_relative_to(store.home / "jobs"):
+                        raise WorkflowError("등록된 실행 로그 경로가 잘못됐습니다.")
+                    with log.open("rb") as stream:
+                        stream.seek(0, 2)
+                        size = stream.tell()
+                        stream.seek(max(0, size - 65536))
+                        text = stream.read().decode(errors="replace")
+                    return self.response({"job_id": job_id, "text": text, "truncated": size > 65536})
                 if path.startswith("/api/tasks/"):
                     task = store.get(path.removeprefix("/api/tasks/"))
                     from .cli import freshness
                     try:
-                        current = snapshot(task["project"])
+                        from .workspaces import observed_snapshot
+                        current = observed_snapshot(task)
                         flags = freshness(task, current)
                     except (WorkflowError, OSError) as exc:
                         current, flags = {"error": str(exc)}, {}
@@ -150,6 +169,20 @@ def handler(home, token):
                 if not isinstance(data, dict):
                     raise WorkflowError("JSON object가 필요합니다.")
                 store = Store(home)
+                if self.path == "/api/tasks":
+                    from .workspaces import create_from_profile
+                    from .profiles import identifier, strings
+                    task_id = identifier(data.get("id"))
+                    profile = identifier(data.get("profile"))
+                    goal = data.get("goal")
+                    criteria = strings(data.get("criteria"), "criteria")
+                    isolate = data.get("isolate")
+                    if not isinstance(goal, str) or not goal.strip() or not criteria:
+                        raise WorkflowError("목표와 완료 조건이 필요합니다.")
+                    if isolate is not None and type(isolate) is not bool:
+                        raise WorkflowError("isolate는 boolean입니다.")
+                    task = create_from_profile(store, task_id, profile, goal, criteria, isolate=isolate)
+                    return self.response({"task": task}, 201)
                 if self.path == "/api/queue":
                     task_id = data.get("task_id")
                     if not isinstance(task_id, str):
@@ -158,14 +191,27 @@ def handler(home, token):
                     action = data.get("action", "pipeline")
                     if action == "release" and not task.get("release"):
                         raise WorkflowError("릴리스 대상을 먼저 설정하세요.")
-                    return self.response({"job": enqueue(store, task_id, action)})
+                    return self.response({"job": enqueue(store, task_id, action, data.get("timeout"), data.get("repairs"), data.get("recoveries"))})
                 if self.path == "/api/cancel":
                     if not isinstance(data.get("job_id"), str):
                         raise WorkflowError("job_id가 필요합니다.")
                     return self.response({"job": cancel(store, data["job_id"])})
+                if self.path in {"/api/stop", "/api/resume"}:
+                    if not isinstance(data.get("job_id"), str):
+                        raise WorkflowError("job_id가 필요합니다.")
+                    operation = stop_job if self.path == "/api/stop" else resume_job
+                    return self.response({"job": operation(store, data["job_id"])})
+                if self.path == "/api/release-clear":
+                    from .release import clear_configuration
+                    task_id = data.get("task_id")
+                    if not isinstance(task_id, str):
+                        raise WorkflowError("task_id가 필요합니다.")
+                    return self.response({"task": clear_configuration(store, task_id)})
                 return self.response({"error": "경로 없음"}, 404)
             except (WorkflowError, ValueError) as exc:
                 self.response({"error": str(exc)}, 400)
+            except OSError as exc:
+                self.response({"error": str(exc)}, 500)
             finally:
                 if store:
                     store.close()

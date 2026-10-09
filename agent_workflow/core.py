@@ -132,7 +132,7 @@ class Store:
                             (task["id"], now(), kind, encode(details or {})))
 
     def directory(self, task_id):
-        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}", task_id):
+        if not isinstance(task_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,79}", task_id):
             raise WorkflowError("작업 ID는 영문·숫자·점·밑줄·하이픈 1~80자입니다.")
         p = self.home / "tasks" / task_id
         p.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -157,7 +157,7 @@ class Store:
             yield f.fileno()
 
 
-def create_task(store, task_id, project, goal, criteria, refs, checks, owner, reviewer, scope):
+def create_task(store, task_id, project, goal, criteria, refs, checks, owner, reviewer, scope, metadata=None):
     store.directory(task_id)
     project = project_root(project)
     if store.home.is_relative_to(project):
@@ -168,24 +168,34 @@ def create_task(store, task_id, project, goal, criteria, refs, checks, owner, re
         if not p.is_file():
             raise WorkflowError(f"참조 문서 없음: {p}")
         resolved_refs.append(str(p))
-    if not goal.strip() or not criteria:
+    if not isinstance(goal, str) or not goal.strip() or not criteria or any(not isinstance(x, str) or not x.strip() for x in criteria):
         raise WorkflowError("목표와 최소 한 개의 완료 조건이 필요합니다.")
+    if owner not in {"codex", "claude"} or reviewer not in {"codex", "claude", "codex-session", "none"}:
+        raise WorkflowError("지원하는 구현·검토 담당을 지정하세요.")
+    if metadata is not None and set(metadata) - {"profile", "project_config", "execution", "workspace"}:
+        raise WorkflowError("작업 설정 메타데이터 항목이 잘못됐습니다.")
     if reviewer != "none" and reviewer == owner:
         raise WorkflowError("실행 담당과 독립 검토자는 달라야 합니다.")
     with store.lock(project):
         baseline = snapshot(project)
+        from .policy import changed_files
+        baseline["changed_files"] = changed_files(project)
         task = {"id": task_id, "project": str(project), "goal": goal,
                 "criteria": criteria, "refs": resolved_refs, "checks": checks,
                 "owner": owner, "reviewer": reviewer, "scope": scope,
                 "status": "ready", "baseline": baseline, "created_at": now(),
                 "checkpoint": {"summary": "등록됨", "next": "기준 확인 후 구현", "at": now()},
                 "verification": None, "review": None, "implementation": None,
-                "last_run": None, "blocker": None, "completed_fingerprint": None}
+                "last_run": None, "blocker": None, "completed_fingerprint": None,
+                "execution": {"recoveries": 1}}
+        task.update(metadata or {})
         store.save(task, "created", create=True)
         return task
 
 
 def ready_for_completion(task, current):
+    if task.get("dependencies") and not task.get("dependency_receipts"):
+        raise WorkflowError("선행 조건 확인 기록이 필요합니다. check로 검사하세요.")
     if not task["checks"]:
         raise WorkflowError("실제 검사 명령이 없어 완료 처리할 수 없습니다. check-add로 등록하세요.")
     v = task.get("verification") or {}

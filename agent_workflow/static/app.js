@@ -1,11 +1,13 @@
 'use strict';
 const $ = (id) => document.getElementById(id);
-const state = { tasks: [], jobs: [], selected: null, detail: null, token: null, busy: false, polling: false, listKey: '', detailKey: '', jobsKey: '' };
+const state = { tasks: [], jobs: [], profiles: [], notifications: [], selected: null, detail: null, token: null, busy: false, polling: false, listKey: '', detailKey: '', jobsKey: '', profileKey: '' };
 try { state.selected = localStorage.getItem('agent-workflow-selected'); } catch (_) { /* storage is optional */ }
 const labels = { ready: '준비됨', running: '실행 중', implementing: '구현 중', checking: '검증 중', reviewing: '검토 중', needs_review: '검토 대기', ready_to_finish: '마감 대기', blocked: '확인 필요', completed: '로컬 완료', queued: '대기 중', succeeded: '완료', failed: '실패', cancelled: '취소됨', canceled: '취소됨', configured: '설정됨', merged: '병합 완료', deployed: '배포 완료', deploying: '배포 중', merging: '병합 중', pr_created: 'PR 생성됨', pushed: '푸시 완료', pending: '대기 중' };
 Object.assign(labels, { interrupted: '중단됨', committed: '커밋 완료', pull_request: 'PR 생성됨', preparing: '통합 준비 중', created: '작업 등록', checks_started: '필수 검사 시작', checks_finished: '필수 검사 종료', checks_interrupted: '검사 중단', check_added: '검사 명령 추가', agent_started: '에이전트 실행 시작', implementation_returned: '구현 결과 수신', review_finished: '독립 검토 종료', checkpoint: '체크포인트 저장', assigned: '담당자 변경', release_configured: '통합 · 배포 설정', release_preparing: '통합 준비 시작', release_committed: '검증한 변경 커밋', release_pushed: '원격 브랜치 푸시', release_pull_request: 'PR 생성', release_merged: '브랜치 병합 완료', release_deploying: '배포 시작', release_deployed: '배포 완료', release_updated: '통합 · 배포 기록 갱신' });
 const label = (value) => labels[value] || (String(value || '').startsWith('release_') ? `통합 · 배포: ${labels[value.slice(8)] || value.slice(8)}` : value) || '미확인';
 const expandedEvents = new Set();
+const expandedLogs = new Set();
+Object.assign(labels, { agent_failed: '실행 오류 확인', recovery_started: '복구 시작', recovery_checked: '남은 코드 검사', profile_applied: '프로젝트 설정 적용', workspace_prepared: '작업 환경 준비', setup_started: '환경 준비 시작', setup_failed: '환경 준비 실패', service_started: '검사 서버 시작', service_stopped: '검사 서버 종료', documents_updated: '관리 문서 갱신', closure_finished: '결과와 인계 저장', release_cleared: '릴리스 설정 해제' });
 function eventSummary(event) {
   const data = event.data;
   if (!data || typeof data !== 'object') return textValue(data);
@@ -190,6 +192,7 @@ function renderDetail() {
   const localDone = task.status === 'completed';
   actions.append(actionButton(pending ? '실행 대기 · 진행 중' : localDone ? '로컬 작업 완료' : '워크플로 실행', localDone ? 'check' : 'play', 'pipeline', state.busy || pending || localDone, () => queue(task.id, 'pipeline'), true));
   if (release) actions.append(actionButton(release.stage === 'deployed' ? '배포 완료' : '통합 · 배포 실행', 'rocket', 'release', state.busy || pending || !releasePending(task), () => queue(task.id, 'release')));
+  if (release?.stage === 'configured' && !release.commit) actions.append(actionButton('릴리스 설정 해제', 'minus', 'release-clear', state.busy || pending, () => mutate('/api/release-clear', { task_id: task.id }, '릴리스 설정을 해제했습니다. 이후 실행은 로컬 완료까지 진행합니다.')));
   const hint = pending ? '실행 대기열에서 진행 상태를 확인하세요.' : release?.stage === 'deployed' ? '지정한 버전의 배포와 상태 확인을 마쳤습니다.' : localDone && releasePending(task) ? '통합 · 배포를 이어서 실행할 수 있습니다.' : localDone ? '다음 작업을 등록하거나 릴리스를 설정하세요.' : '등록된 범위와 검증 조건으로 실행합니다.';
   actions.append(node('span', hint, 'action-hint')); fragment.append(actions);
   if (!detail) fragment.append(node('p', '상세 기록을 불러오는 중입니다…', 'muted'));
@@ -199,6 +202,15 @@ function renderDetail() {
   checkpoint.append(node('h3', '최근 체크포인트'), node('p', task.checkpoint?.summary || '아직 체크포인트가 없습니다.'));
   const next = node('div', null, 'next-action'), nextLabel = node('span', null, 'next-label'); nextLabel.append(icon('arrow'), node('span', '다음 행동'));
   next.append(nextLabel, node('p', task.checkpoint?.next || '다음 행동이 기록되지 않았습니다.')); checkpoint.append(next); context.append(checkpoint);
+  if (task.profile || task.execution || task.usage) {
+    const policy = node('p', null, 'runtime-policy');
+    const parts = [];
+    if (task.profile) parts.push(`프로젝트 설정: ${task.profile.name}`);
+    if (task.execution?.models?.implement) parts.push(`구현 모델: ${task.execution.models.implement}`);
+    if (task.usage) parts.push(`에이전트 호출 ${task.usage.agent_calls || 0}/${task.execution?.max_agent_calls || 12}회`);
+    if (task.recoveries?.length) parts.push(`복구 ${task.recoveries.length}회`);
+    policy.textContent = parts.join(' · '); context.append(policy);
+  }
   if (task.criteria?.length) {
     context.append(node('h3', '완료 조건')); const list = node('ul', null, 'criteria');
     for (const criterion of task.criteria) { const item = node('li'); item.append(icon('circle'), node('span', textValue(criterion))); list.append(item); }
@@ -238,17 +250,55 @@ function renderJobs() {
     start.append(node('div', `${job.task_id} · ${job.action === 'release' ? '통합 · 배포' : '구현 · 검증'}`, 'job-title'));
     const meta = node('div', null, 'job-meta'); meta.append(node('span', date(job.created_at)), node('span', String(job.id).slice(0, 8))); start.append(meta);
     if (job.error) start.append(node('div', textValue(job.error), 'job-error'));
+    if (job.log_path) {
+      const log = node('details', null, 'event-raw'); log.open = expandedLogs.has(job.id);
+      const summary = node('summary', '실행 로그'); summary.dataset.focus = `log-${job.id}`;
+      const text = node('pre', '로그를 열어 확인하세요.');
+      const reload = node('button', '로그 새로고침', 'button small'); reload.type = 'button';
+      const load = async () => {
+        reload.disabled = true;
+        try { const result = await request(`/api/job-log/${encodeURIComponent(job.id)}`); text.textContent = (result.truncated ? '[최근 64 KiB]\n' : '') + result.text; }
+        catch (error) { text.textContent = error.message; }
+        finally { reload.disabled = false; }
+      };
+      log.append(summary, text, reload);
+      log.addEventListener('toggle', () => { if (log.open) { expandedLogs.add(job.id); load(); } else expandedLogs.delete(job.id); });
+      reload.addEventListener('click', load); start.append(log);
+    }
     const end = node('div', null, 'job-end'); end.append(badge(job.status));
     if (job.status === 'queued') {
       const button = node('button', '대기 취소', 'button small'); button.type = 'button'; button.dataset.focus = `cancel-${job.id}`; button.disabled = state.busy;
       button.setAttribute('aria-label', `${job.task_id} 실행 대기 취소`); button.addEventListener('click', () => mutate('/api/cancel', { job_id: job.id }, '실행 대기를 취소했습니다.')); end.append(button);
+    }
+    if (job.status === 'running') {
+      const button = node('button', job.cancel_requested ? '중단 요청됨' : '실행 중단', 'button small');
+      button.type = 'button'; button.dataset.focus = `stop-${job.id}`; button.disabled = state.busy || Boolean(job.cancel_requested);
+      button.setAttribute('aria-label', `${job.task_id} 실행 중단`);
+      button.addEventListener('click', () => mutate('/api/stop', { job_id: job.id }, '이 실행에 중단을 요청했습니다. 파일 변경은 보존합니다.'));
+      end.append(button);
+    }
+    if (['failed', 'interrupted', 'cancelled'].includes(job.status)) {
+      const active = state.jobs.some(other => other.task_id === job.task_id && ['queued', 'running'].includes(other.status));
+      const button = node('button', '재개', 'button small'); button.type = 'button'; button.dataset.focus = `resume-${job.id}`;
+      button.disabled = state.busy || active; button.setAttribute('aria-label', `${job.task_id} 실행 재개`);
+      button.addEventListener('click', () => mutate('/api/resume', { job_id: job.id }, '같은 작업을 이전 실행 설정으로 대기열에 등록했습니다.')); end.append(button);
     }
     row.append(glyph, start, end); fragment.append(row);
   }
   if (!jobs.length) fragment.append(node('p', '아직 실행 기록이 없습니다. 작업을 선택하고 첫 실행을 시작하세요.', 'empty-inline'));
   replaceKeepingFocus($('jobs'), fragment);
 }
-async function queue(taskId, action) { await mutate('/api/queue', { task_id: taskId, action }, action === 'release' ? '통합 · 배포 실행을 대기열에 추가했습니다.' : '작업 실행을 대기열에 추가했습니다.'); }
+async function queue(taskId, action) {
+  const payload = { task_id: taskId, action };
+  for (const name of ['timeout', 'repairs', 'recoveries']) {
+    const input = $(`option-${name}`);
+    if (input.value !== '') {
+      if (!input.reportValidity()) return;
+      payload[name] = Number(input.value);
+    }
+  }
+  await mutate('/api/queue', payload, action === 'release' ? '통합 · 배포 실행을 대기열에 추가했습니다.' : '작업 실행을 대기열에 추가했습니다.');
+}
 async function mutate(path, payload, success) {
   if (state.busy) return;
   state.busy = true; notice('action-message', '요청을 처리하고 있습니다…'); renderDetail(); renderJobs();
@@ -270,6 +320,9 @@ async function refresh() {
   try {
     const result = await request('/api/state');
     state.tasks = Array.isArray(result.tasks) ? result.tasks : []; state.jobs = Array.isArray(result.jobs) ? result.jobs : []; state.token = result.csrf_token;
+    state.profiles = Array.isArray(result.profiles) ? result.profiles : [];
+    state.notifications = Array.isArray(result.notifications) ? result.notifications : [];
+    renderProfiles(); renderNotifications();
     $('task-count').textContent = String(state.tasks.length); $('version').textContent = result.version ? `v${result.version}` : '';
     $('daemon').textContent = result.daemon?.running ? '실행 서비스 가동 중' : '실행 서비스 중지됨';
     $('connection-dot').className = 'dot online'; $('connection-label').textContent = '로컬 연결됨';
@@ -288,6 +341,58 @@ try { applyTheme(localStorage.getItem('agent-workflow-theme') === 'light' ? 'lig
 $('theme-toggle').addEventListener('click', () => {
   const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; applyTheme(theme);
   try { localStorage.setItem('agent-workflow-theme', theme); } catch (_) { /* optional persistence */ }
+});
+function profileHint() {
+  const profile = state.profiles.find(item => item.name === $('create-profile').value);
+  $('profile-hint').textContent = profile ? `${profile.config.project} · 구현 ${profile.config.owner} / 리뷰 ${profile.config.reviewer}` : 'CLI의 profile save로 프로젝트 설정을 먼저 등록하세요.';
+}
+function renderProfiles() {
+  const key = JSON.stringify(state.profiles);
+  if (key === state.profileKey) return;
+  state.profileKey = key;
+  const previous = $('create-profile').value;
+  const options = state.profiles.map(profile => { const option = node('option', profile.name); option.value = profile.name; return option; });
+  if (!options.length) { const option = node('option', '등록된 프로젝트 설정 없음'); option.value = ''; options.push(option); }
+  $('create-profile').replaceChildren(...options);
+  if (state.profiles.some(item => item.name === previous)) $('create-profile').value = previous;
+  $('create-submit').disabled = !state.profiles.length;
+  profileHint();
+}
+function renderNotifications() {
+  $('notification-section').hidden = !state.notifications.length;
+  const fragment = document.createDocumentFragment();
+  for (const item of state.notifications.slice(0, 6)) {
+    const row = node('div', null, 'notification-row'), payload = item.payload || {};
+    row.append(node('strong', payload.task_id), node('span', payload.blocker || payload.release_error || label(payload.job?.status || payload.status)), node('time', date(item.at)));
+    if (item.delivery === 'failed' || item.delivery === 'started') row.append(node('span', '외부 알림 전달 확인 필요', 'badge warn'));
+    fragment.append(row);
+  }
+  $('notifications').replaceChildren(fragment);
+}
+$('new-task').addEventListener('click', () => {
+  const profile = state.profiles.find(item => item.name === $('create-profile').value);
+  $('create-isolate').checked = profile?.config?.workspace?.isolate !== false;
+  notice('create-error', ''); $('create-dialog').showModal();
+});
+$('create-close').addEventListener('click', () => $('create-dialog').close());
+$('create-profile').addEventListener('change', () => {
+  profileHint();
+  $('create-isolate').checked = state.profiles.find(item => item.name === $('create-profile').value)?.config?.workspace?.isolate !== false;
+});
+$('create-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (state.busy) return;
+  state.busy = true; $('create-submit').disabled = true; notice('create-error', '');
+  try {
+    if (!state.token) throw new Error('서버 연결 후 다시 시도하세요.');
+    const payload = { id: $('create-id').value.trim(), profile: $('create-profile').value,
+      goal: $('create-goal').value.trim(), criteria: $('create-criteria').value.split('\n').map(line => line.trim()).filter(Boolean), isolate: $('create-isolate').checked };
+    const result = await request('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Workflow-Token': state.token }, body: JSON.stringify(payload) });
+    state.selected = result.task.id; state.detail = null; state.detailKey = '';
+    $('create-dialog').close(); $('create-form').reset(); await refresh();
+    notice('action-message', '작업을 등록했습니다. 범위와 검사 조건을 확인하고 실행하세요.');
+  } catch (error) { notice('create-error', error.message); }
+  finally { state.busy = false; $('create-submit').disabled = !state.profiles.length; renderDetail(); renderJobs(); }
 });
 $('search').addEventListener('input', renderList); $('filter').addEventListener('change', renderList); $('refresh').addEventListener('click', refresh);
 document.addEventListener('keydown', (event) => {

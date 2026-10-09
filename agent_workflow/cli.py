@@ -15,6 +15,7 @@ from . import __version__
 from .core import (Store, WorkflowError, atomic_write, complete, create_task,
                    encode, now, snapshot)
 from .runner import RESULT_SCHEMA, brief, execute, record_review, run_checks
+from .workspaces import observed_snapshot
 
 
 def freshness(task, current):
@@ -65,7 +66,7 @@ def continuation(store, task, current):
 
 def export_handoff(store, task):
     """One state snapshot yields both machine continuation and a human worklog draft."""
-    current = snapshot(task["project"])
+    current = observed_snapshot(task)
     directory = store.directory(task["id"]) / "handoff"
     flags = freshness(task, current)
     record = {"task": task, "observed_git": current, "generated_at": now(), **flags}
@@ -86,7 +87,9 @@ def export_handoff(store, task):
         lines.append(f"- `{shlex.join(r['argv'])}` → exit {r['exit_code']}; {r['stdout']}")
     lines.extend(["", "## 리뷰", (task.get("review") or {}).get("summary", "미실행/미등록"),
                   "", "## 참고 문서", *[f"- {p}" for p in task["refs"]]])
-    atomic_write(directory / "worklog.md", "\n".join(lines) + "\n")
+    from .closure import worklog
+    _, rendered = worklog(store, task, flags)
+    atomic_write(directory / "worklog.md", rendered)
     return str(directory)
 
 
@@ -125,16 +128,37 @@ def parser():
     commands = p.add_subparsers(dest="command", required=True)
     commands.add_parser("doctor", help="설치된 도구 확인; 모델 호출 없음")
     commands.add_parser("list", help="등록된 작업 목록")
+    c = commands.add_parser("browser-check", help="격리 HTTP 화면의 Playwright 수용 검사")
+    c.add_argument("--file", type=Path, required=True)
     c = commands.add_parser("create", help="기존 WP/문서를 참조하는 작업 등록")
     c.add_argument("id")
-    c.add_argument("--project", default=".")
+    c.add_argument("--project")
+    c.add_argument("--profile", help="저장한 프로젝트 설정 사용")
+    c.add_argument("--isolate", action=argparse.BooleanOptionalAction, default=None)
     c.add_argument("--goal", required=True)
     c.add_argument("--criterion", action="append", required=True)
     c.add_argument("--ref", action="append", default=[])
     c.add_argument("--check", action="append", default=[])
-    c.add_argument("--owner", choices=["codex", "claude"], default="claude")
-    c.add_argument("--reviewer", choices=["codex", "claude", "none"], default="codex")
+    c.add_argument("--owner", choices=["codex", "claude"])
+    c.add_argument("--reviewer", choices=["codex", "claude", "codex-session", "none"])
     c.add_argument("--scope", default="지정 목표의 로컬 구현·검증. 커밋·푸시·병합·배포 제외.")
+    c = commands.add_parser("profile", help="프로젝트 실행 설정 저장·조회")
+    c.add_argument("operation", choices=["save", "show", "list"])
+    c.add_argument("name", nargs="?")
+    c.add_argument("--file", type=Path)
+    c = commands.add_parser("prepare", help="작업 환경 준비; 실패한 명령은 확인 후 재시도")
+    c.add_argument("id")
+    c.add_argument("--retry-setup", action="store_true")
+    c.add_argument("--timeout", type=int, default=900)
+    c = commands.add_parser("cleanup", help="소유한 작업 폴더 정리; 미반영 변경 보존")
+    c.add_argument("id")
+    c.add_argument("--remove-worktree", action="store_true")
+    c.add_argument("--stop-services", action="store_true", help="강제 종료 뒤 남은 이 작업의 검사 서버만 정리")
+    c = commands.add_parser("finalize", help="실제 상태로 인계·작업일지 내보내기")
+    c.add_argument("id")
+    c = commands.add_parser("execution-config", help="역할별 모델·호출·시간 정책 설정; 기존 사용량 보존")
+    c.add_argument("id")
+    c.add_argument("--file", type=Path, required=True)
     for name, help_text in [("show", "실제 Git 상태와 저장된 증거 보기"),
                             ("finish", "검사·리뷰 증거 확인 후 완료 처리"),
                             ("handoff", "재개 프롬프트와 worklog 초안 생성")]:
@@ -155,18 +179,19 @@ def parser():
     c.add_argument("id")
     c.add_argument("--file", type=Path, required=True)
     c.add_argument("--fingerprint", required=True, help="검토 시작 시 show의 observed_git.fingerprint")
-    c.add_argument("--reviewer", choices=["codex", "claude"], required=True)
+    c.add_argument("--reviewer", choices=["codex", "claude", "codex-session"], required=True)
     for name in ("check", "run"):
         c = commands.add_parser(name, help="필수 검사 실행" if name == "check" else "유한 구현→검사→리뷰→마감; 중단 후 같은 ID로 재개")
         c.add_argument("id")
-        c.add_argument("--timeout", type=int, default=900, help="각 프로세스 최대 초; 기본 900")
+        c.add_argument("--timeout", type=int, default=900 if name == "check" else None, help="각 프로세스 최대 초; 프로젝트 설정 또는 900")
         if name == "run":
-            c.add_argument("--repairs", type=int, default=1, help="수정 재시도 최대 횟수; 기본 1, 최대 3")
+            c.add_argument("--repairs", type=int, help="추가 수정 횟수; 프로젝트 설정 또는 1, 최대 3")
+            c.add_argument("--recoveries", type=int, help="시간 초과·일시 오류 복구 횟수 0~3; 작업 설정 사용")
             c.add_argument("--dry-run", action="store_true", help="실행 계획만 출력")
     c = commands.add_parser("assign", help="중단/대기 작업의 담당 에이전트 변경")
     c.add_argument("id")
     c.add_argument("--owner", choices=["codex", "claude"], required=True)
-    c.add_argument("--reviewer", choices=["codex", "claude", "none"], required=True)
+    c.add_argument("--reviewer", choices=["codex", "claude", "codex-session", "none"], required=True)
     commands.add_parser("result-schema", help="리뷰 결과 JSON Schema 출력")
     c = commands.add_parser("release-config", help="자동 커밋·푸시·병합·배포 대상 등록")
     c.add_argument("id")
@@ -176,6 +201,7 @@ def parser():
     c.add_argument("--path", action="append", required=True)
     c.add_argument("--mode", choices=["github", "local"], default="github")
     c.add_argument("--repo", help="GitHub owner/repo")
+    c.add_argument("--hostname", default="github.com", help="GitHub.com 또는 명시한 GitHub Enterprise 호스트")
     c.add_argument("--deploy", help="병합된 checkout에서 실행할 배포 명령")
     c.add_argument("--health", help="배포된 버전을 확인할 명령")
     c.add_argument("--allow-no-ci", action="store_true")
@@ -183,19 +209,41 @@ def parser():
     c.add_argument("id")
     c.add_argument("--timeout", type=int, default=300)
     c.add_argument("--retry-deploy", action="store_true")
+    c = commands.add_parser("release-clear", help="시작 전 릴리스 설정 해제")
+    c.add_argument("id")
     c = commands.add_parser("pipeline", help="구현·검증·리뷰와 설정된 릴리스를 연속 실행")
     c.add_argument("id")
-    c.add_argument("--timeout", type=int, default=900)
-    c.add_argument("--repairs", type=int, default=1)
+    c.add_argument("--timeout", type=int)
+    c.add_argument("--repairs", type=int)
+    c.add_argument("--recoveries", type=int, help="복구 횟수 0~3; 작업 설정 사용")
     c.add_argument("--dry-run", action="store_true")
     c = commands.add_parser("queue", help="상주 데몬에 작업 등록")
     c.add_argument("id")
     c.add_argument("--action", choices=["pipeline", "release"], default="pipeline")
-    c.add_argument("--timeout", type=int, default=900)
-    c.add_argument("--repairs", type=int, default=1)
+    c.add_argument("--timeout", type=int)
+    c.add_argument("--repairs", type=int)
+    c.add_argument("--recoveries", type=int, help="복구 횟수 0~3; 작업 설정 사용")
     commands.add_parser("jobs", help="대기·실행·종료 작업 확인")
     c = commands.add_parser("cancel", help="대기 중인 큐 작업 취소")
     c.add_argument("job_id")
+    for name in ("stop", "resume"):
+        c = commands.add_parser(name, help="실행 중인 작업 중단" if name == "stop" else "중단된 실행을 같은 설정으로 재개")
+        c.add_argument("job_id")
+    commands.add_parser("notifications", help="완료·실패·중단 알림 기록")
+    c = commands.add_parser("depends", help="작업 시작 전 선행 조건 지정")
+    c.add_argument("id")
+    c.add_argument("--on", action="append", default=[])
+    c.add_argument("--require", choices=["completed", "merged"], default="completed")
+    c = commands.add_parser("batch", help="명시한 작업 목록의 제한된 연속 실행")
+    c.add_argument("operation", choices=["create", "show", "list", "start", "pause"])
+    c.add_argument("name", nargs="?")
+    c.add_argument("--task", action="append", default=[])
+    c.add_argument("--max-jobs", type=int, default=3)
+    c.add_argument("--max-seconds", type=int, default=3600)
+    c = commands.add_parser("service-install", help="systemd 또는 Bash 로그인 시 데몬 시작 설치")
+    c.add_argument("--port", type=int, default=8776)
+    c.add_argument("--enable", action="store_true")
+    c.add_argument("--backend", choices=["auto", "systemd", "shell"], default="auto")
     c = commands.add_parser("serve", help="루프백 대시보드와 큐 데몬 전경 실행")
     c.add_argument("--port", type=int, default=8765)
     c = commands.add_parser("daemon", help="백그라운드 데몬 관리")
@@ -206,12 +254,46 @@ def parser():
 
 
 def dispatch(args):
+    if args.command == "browser-check":
+        command = ["node", str(Path(__file__).with_name("browser-check.mjs")), str(args.file.resolve())]
+        result = subprocess.run(command)
+        if result.returncode:
+            raise WorkflowError("브라우저 수용 검사 실패")
+        return {"passed": True, "evidence": os.environ.get("WORKFLOW_EVIDENCE_DIR")}
     if args.command == "doctor":
         return doctor()
     if args.command == "result-schema":
         return RESULT_SCHEMA
     store = Store(args.home)
     try:
+        if args.command == "batch":
+            from . import scheduling
+            if args.operation == "list":
+                return scheduling.list_batches(store)
+            if not args.name:
+                raise WorkflowError("연속 실행 이름이 필요합니다.")
+            if args.operation == "create":
+                return scheduling.create(store, args.name, args.task, args.max_jobs, args.max_seconds)
+            if args.operation == "show":
+                return scheduling.get(store, args.name)
+            return scheduling.control(store, args.name, args.operation)
+        if args.command == "notifications":
+            from .operations import notifications
+            return notifications(store)
+        if args.command == "service-install":
+            from .operations import install_service
+            return install_service(store, args.port, args.enable, backend=args.backend)
+        if args.command == "profile":
+            from . import profiles
+            if args.operation == "list":
+                return profiles.list_profiles(store)
+            if not args.name:
+                raise WorkflowError("프로필 이름이 필요합니다.")
+            if args.operation == "show":
+                return profiles.get(store, args.name)
+            if not args.file:
+                raise WorkflowError("profile save에는 --file JSON이 필요합니다.")
+            return profiles.save(store, args.name, json.loads(args.file.read_text()))
         if args.command == "demo-setup":
             from .demo import setup_demo
             return setup_demo(store)
@@ -225,60 +307,113 @@ def dispatch(args):
             if args.operation == "start":
                 return start_background(store.home, args.port)
             return stop_background(store.home) if args.operation == "stop" else status(store.home)
-        if args.command in ("queue", "jobs", "cancel"):
-            from .daemon import enqueue, list_jobs, cancel
+        if args.command in ("queue", "jobs", "cancel", "stop", "resume"):
+            from .daemon import enqueue, list_jobs, cancel, stop_job, resume_job
             if args.command == "queue":
-                return enqueue(store, args.id, args.action, args.timeout, args.repairs)
-            return list_jobs(store) if args.command == "jobs" else cancel(store, args.job_id)
+                return enqueue(store, args.id, args.action, args.timeout, args.repairs, args.recoveries)
+            if args.command == "jobs":
+                return list_jobs(store)
+            return {"cancel": cancel, "stop": stop_job, "resume": resume_job}[args.command](store, args.job_id)
         if args.command == "list":
             return [{k: t[k] for k in ("id", "status", "goal", "project", "owner", "reviewer", "updated_at")}
                     for t in store.all()]
         if args.command == "create":
-            return create_task(store, args.id, args.project, args.goal, args.criterion,
-                               args.ref, [argv_from(x) for x in args.check], args.owner,
-                               args.reviewer, args.scope)
+            if args.profile:
+                if args.project:
+                    raise WorkflowError("프로필의 project를 사용합니다. --project와 함께 지정하지 마세요.")
+                from .workspaces import create_from_profile
+                return create_from_profile(store, args.id, args.profile, args.goal, args.criterion,
+                                           args.ref, [argv_from(x) for x in args.check], args.owner,
+                                           args.reviewer, args.scope, args.isolate)
+            if args.isolate:
+                raise WorkflowError("자동 worktree는 --profile과 함께 사용하세요.")
+            return create_task(store, args.id, args.project or ".", args.goal, args.criterion,
+                               args.ref, [argv_from(x) for x in args.check], args.owner or "claude",
+                               args.reviewer or "codex", args.scope)
         task = store.get(args.id)
+        if args.command == "depends":
+            from .scheduling import set_dependencies
+            return set_dependencies(store, args.id, args.on, args.require)
+        if args.command == "execution-config":
+            from .usage import configure
+            return configure(store, args.id, json.loads(args.file.read_text()))
+        if args.command == "release-clear":
+            from .release import clear_configuration
+            return clear_configuration(store, args.id)
+        if args.command == "finalize":
+            from .closure import finalize
+            with store.lock(task["project"]):
+                return finalize(store, store.get(args.id))
+        if args.command == "cleanup":
+            from .workspaces import cleanup
+            if args.stop_services:
+                from .services import stop_recorded
+                stop_recorded(store, task)
+            return cleanup(store, task, args.remove_worktree)
+        if args.command == "prepare":
+            from .workspaces import prepare
+            from .policy import reservation
+            if task["status"] == "completed":
+                raise WorkflowError("완료된 작업의 환경을 변경하지 않습니다.")
+            with store.lock(task["project"]) as fd, reservation(store, task) as resource_fd:
+                return prepare(store, store.get(args.id), args.timeout, (fd, resource_fd), args.retry_setup)
         if args.command == "release-config":
             from .release import configure
             return configure(store, args.id, args.remote, args.base, args.branch, args.path,
                              args.mode, args.repo, argv_from(args.deploy) if args.deploy else None,
-                             argv_from(args.health) if args.health else None, args.allow_no_ci)
+                             argv_from(args.health) if args.health else None, args.allow_no_ci, args.hostname)
         if args.command == "release":
             from .release import release_task
             if not 1 <= args.timeout <= 86400:
                 raise WorkflowError("timeout 범위 오류")
             try:
                 task = release_task(store, args.id, args.timeout, args.retry_deploy)
-                return {"task": task, "handoff": export_handoff(store, task)}
+                from .closure import finalize
+                return {"task": task, "closure": finalize(store, task)}
             finally:
                 export_handoff(store, store.get(args.id))
         if args.command == "show":
-            current = snapshot(task["project"])
+            current = observed_snapshot(task)
             return {"task": task, "observed_git": current, **freshness(task, current)}
         if args.command == "brief":
             if args.role == "implement":
                 return continuation(store, task, snapshot(task["project"]))
-            return brief(task, args.role) + "\nJSON schema:\n" + encode(RESULT_SCHEMA)
+            return brief(task, args.role, state_home=store.home) + "\nJSON schema:\n" + encode(RESULT_SCHEMA)
         if args.command in ("run", "pipeline"):
+            settings = task.get("execution") or {}
+            args.timeout = settings.get("timeout", 900) if args.timeout is None else args.timeout
+            args.repairs = settings.get("repairs", 1) if args.repairs is None else args.repairs
             if not 0 <= args.repairs <= 3 or not 1 <= args.timeout <= 86400:
                 raise WorkflowError("repairs는 0~3, timeout은 1~86400초입니다.")
+            if args.recoveries is not None and not 0 <= args.recoveries <= 3:
+                raise WorkflowError("recoveries는 0~3입니다.")
             if args.dry_run:
+                from .profiles import execution_config
+                policy = execution_config(task.get("execution"))
+                recoveries = args.recoveries if args.recoveries is not None else task.get("execution", {}).get("recoveries", 0)
+                max_calls = min(max(0, policy["max_agent_calls"] - (task.get("usage") or {}).get("agent_calls", 0)),
+                                (1 if task["reviewer"] == "none" else 2) * (args.repairs + 1) + recoveries)
                 return {"task": task["id"], "owner": task["owner"], "reviewer": task["reviewer"],
-                        "checks": task["checks"], "max_agent_calls": (1 if task["reviewer"] == "none" else 2) * (args.repairs + 1),
+                        "checks": task["checks"], "max_agent_calls": max_calls, "execution": policy, "usage": task.get("usage"),
                         "timeout_per_process": args.timeout, "project": task["project"],
+                        "recoveries": args.recoveries if args.recoveries is not None else task.get("execution", {}).get("recoveries", 0),
                         "release": task.get("release"),
                         "mutations": "로컬 구현·검사 후 release-config가 있으면 커밋·푸시·병합·배포"}
             try:
                 if task["status"] != "completed":
-                    task = execute(store, task["id"], args.timeout, args.repairs)
+                    task = execute(store, task["id"], args.timeout, args.repairs, args.recoveries)
                 elif not task.get("release") and not freshness(task, snapshot(task["project"]))["completion_is_current"]:
                     raise WorkflowError("완료 이후 코드가 바뀌었습니다. 새 작업으로 검증하세요.")
                 if task.get("release"):
                     from .release import release_task
                     task = release_task(store, task["id"], args.timeout)
-                return {"task": task, "handoff": export_handoff(store, task)}
+                from .closure import finalize
+                return {"task": task, "closure": finalize(store, task)}
             except WorkflowError:
                 export_handoff(store, store.get(task["id"]))
+                if not os.environ.get("AGENT_WORKFLOW_JOB_ID"):
+                    from .operations import publish_notification
+                    publish_notification(store, store.get(task["id"]))
                 raise
         with store.lock(task["project"]) as fd:
             task = store.get(task["id"])
@@ -298,12 +433,15 @@ def dispatch(args):
             elif args.command == "assign":
                 if args.owner == args.reviewer:
                     raise WorkflowError("실행 담당과 검토자는 달라야 합니다.")
-                task.update(owner=args.owner, reviewer=args.reviewer, review=None, status="ready")
+                task.update(owner=args.owner, reviewer=args.reviewer, review=None, native_review_receipt=None, status="ready")
                 store.save(task, "assigned")
             elif args.command == "check":
+                from .policy import reservation
                 if not 1 <= args.timeout <= 86400:
                     raise WorkflowError("timeout은 1~86400초입니다.")
-                if not run_checks(store, task, args.timeout, fd):
+                with reservation(store, task) as resource_fd:
+                    passed = run_checks(store, task, args.timeout, (fd, resource_fd))
+                if not passed:
                     export_handoff(store, task)
                     raise WorkflowError(task["blocker"])
             elif args.command == "review-import":
@@ -311,6 +449,8 @@ def dispatch(args):
                 record_review(store, task, result, args.fingerprint, args.reviewer)
             elif args.command == "finish":
                 complete(store, task)
+                from .closure import finalize
+                return {"task": task, "closure": finalize(store, task)}
             return {"task": task, "handoff": export_handoff(store, task)}
     finally:
         store.close()

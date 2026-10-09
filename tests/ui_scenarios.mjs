@@ -26,12 +26,14 @@ const stale = {
   release: { stage: 'configured', error: 'CI 결과를 확인하세요.', config: { base: 'main', branch: 'workflow/test', deploy: ['deploy'] } }
 };
 let tasks = [task, stale], jobs = [], fail = false;
+let profiles = [{ name: 'fixture-project', config: { project: '/fixture/project', owner: 'claude', reviewer: 'codex' } }];
 const requests = [];
 let events = [{ at: '2026-10-08T00:00:00Z', kind: 'created', data: { summary: '작업 등록됨', source: 'fixture' } }];
 await page.route('**/api/**', async (route) => {
   const req = route.request(), path = new URL(req.url()).pathname;
   if (fail) return route.fulfill({ status: 503, json: { error: '테스트 연결 중단' } });
-  if (path === '/api/state') return route.fulfill({ json: { tasks, jobs, daemon: { running: true }, version: 'fixture', csrf_token: 'fixture-token' } });
+  if (path === '/api/state') return route.fulfill({ json: { tasks, jobs, profiles, notifications: [], daemon: { running: true }, version: 'fixture', csrf_token: 'fixture-token' } });
+  if (path.startsWith('/api/job-log/')) return route.fulfill({ json: { text: '<script>window.unsafe=true</script>\nfixture log output', truncated: false } });
   if (path.startsWith('/api/tasks/')) {
     const selected = tasks.find((t) => t.id === decodeURIComponent(path.split('/').pop()));
     return route.fulfill({ json: { task: selected, jobs, events, observed_git: {}, freshness: {
@@ -41,13 +43,26 @@ await page.route('**/api/**', async (route) => {
   if (req.method() === 'POST') {
     assert.equal(req.headers()['x-workflow-token'], 'fixture-token');
     const body = req.postDataJSON(); requests.push({ path, body });
+    if (path === '/api/tasks') {
+      const created = { ...task, id: body.id, goal: body.goal, criteria: body.criteria, profile: { name: body.profile } };
+      tasks.push(created); return route.fulfill({ status: 201, json: { task: created } });
+    }
     if (path === '/api/queue') {
-      const job = { id: `job-${requests.length}`, task_id: body.task_id, action: body.action, status: 'queued', created_at: '2026-10-08T00:01:00Z' };
+      const job = { ...body, id: `job-${requests.length}`, task_id: body.task_id, action: body.action, status: 'queued', created_at: '2026-10-08T00:01:00Z' };
       jobs.push(job); return route.fulfill({ json: { job } });
     }
     if (path === '/api/cancel') {
       const job = jobs.find((j) => j.id === body.job_id); job.status = 'cancelled';
       return route.fulfill({ json: { job } });
+    }
+    if (path === '/api/stop') {
+      const job = jobs.find(j => j.id === body.job_id); job.cancel_requested = 1;
+      return route.fulfill({ json: { job } });
+    }
+    if (path === '/api/resume') {
+      const old = jobs.find(j => j.id === body.job_id);
+      const job = { ...old, id: `job-${requests.length}`, status: 'queued', cancel_requested: 0 };
+      jobs.push(job); return route.fulfill({ json: { job } });
     }
   }
   return route.fulfill({ status: 404, json: { error: 'Unexpected fixture request' } });
@@ -105,6 +120,55 @@ try {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   assert.equal(await page.locator('.button').first().evaluate((el) => getComputedStyle(el).transitionDuration), '0s');
   console.log('PASS 375/390/768/1440 widths, mobile accessible refresh, reduced motion');
+
+  await page.locator('#filter').selectOption('all');
+  await page.locator('#new-task').click();
+  await page.locator('#create-id').fill('UI-NEW');
+  await page.locator('#create-goal').fill('새 작업 등록과 실행 제어');
+  await page.locator('#create-criteria').fill('목표에 맞는 검사\n독립 리뷰 통과');
+  await page.locator('#create-submit').click();
+  await page.locator('#create-dialog').waitFor({ state: 'hidden' });
+  await page.locator('.detail-title', { hasText: '새 작업 등록과 실행 제어' }).waitFor();
+  assert.equal(requests.at(-1).path, '/api/tasks');
+  assert.deepEqual(requests.at(-1).body.criteria, ['목표에 맞는 검사', '독립 리뷰 통과']);
+  assert.equal(requests.at(-1).body.isolate, true);
+  await page.locator('.execution-options summary').click();
+  await page.locator('#option-timeout').fill('1234');
+  await page.locator('#option-repairs').fill('0');
+  await page.locator('#option-recoveries').fill('2');
+  await page.getByRole('button', { name: '워크플로 실행', exact: true }).click();
+  await page.getByRole('button', { name: 'UI-NEW 실행 대기 취소' }).waitFor();
+  assert.deepEqual(requests.at(-1).body, { task_id: 'UI-NEW', action: 'pipeline', timeout: 1234, repairs: 0, recoveries: 2 });
+  const createdJob = jobs.at(-1); createdJob.status = 'running';
+  await page.locator('#refresh').click();
+  await page.getByRole('button', { name: 'UI-NEW 실행 중단', exact: true }).click();
+  assert.equal(requests.at(-1).path, '/api/stop');
+  assert.equal(await page.getByRole('button', { name: 'UI-NEW 실행 중단', exact: true }).isDisabled(), true);
+  createdJob.status = 'cancelled'; await page.locator('#refresh').click();
+  await page.getByRole('button', { name: 'UI-NEW 실행 재개', exact: true }).click();
+  await page.getByRole('button', { name: 'UI-NEW 실행 대기 취소' }).waitFor();
+  assert.equal(requests.at(-1).path, '/api/resume');
+  jobs.at(-1).log_path = '/fixture/job.log'; await page.locator('#refresh').click();
+  await page.locator(`[data-focus="log-${jobs.at(-1).id}"]`).click();
+  await page.locator('.job pre', { hasText: 'fixture log output' }).waitFor();
+  assert.equal(await page.locator('#jobs script').count(), 0);
+  assert.equal(await page.evaluate(() => window.unsafe), undefined);
+  console.log('PASS profile task form, execution options, individual stop and resume');
+
+  const fs = await import('node:fs/promises');
+  const output = new URL('../artifacts/ui-v0.3/', import.meta.url);
+  await fs.mkdir(output, { recursive: true });
+  await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+  await page.screenshot({ path: new URL('desktop.png', output).pathname });
+  for (const width of [375, 768, 1440]) {
+    await page.setViewportSize({ width, height: 950 });
+    await page.locator('#new-task').click();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    assert.equal(await page.locator('#create-dialog').evaluate(el => el.scrollWidth <= el.clientWidth + 1), true);
+    if (width === 375) await page.screenshot({ path: new URL('mobile-create.png', output).pathname });
+    await page.keyboard.press('Escape');
+    await page.locator('#create-dialog').waitFor({ state: 'hidden' });
+  }
 
   tasks = []; jobs = []; await page.locator('#refresh').click();
   await page.getByText('첫 워크플로를 시작해 보세요.', { exact: true }).waitFor();

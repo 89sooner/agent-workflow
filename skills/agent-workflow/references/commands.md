@@ -52,7 +52,8 @@ agent-workflow assign WP-074 --owner codex --reviewer claude
 the background and exposes the local dashboard. A WSL shutdown ends the daemon;
 start it again to process retained queued work. Interrupted jobs are not retried.
 Both agents need their own working login and quota. Each process has a timeout;
-this is not a monetary/token budget. Task refs are file paths, not whole files
+task execution settings add invocation and cumulative-command-time limits. These
+are not a guaranteed provider billing cap. Task refs are file paths, not whole files
 automatically uploaded in the prompt; the selected agent may read them as needed.
 
 State: `${AGENT_WORKFLOW_HOME:-~/.local/state/agent-workflow}`. Keep it outside
@@ -86,3 +87,39 @@ to continue a configured release without rerunning implementation. Set --allow-n
 only for a repository intentionally lacking CI; normal CI failure blocks merge.
 `--mode local` supports a local bare Git remote for test releases, not a GitHub PR.
 Git identity must already be configured in the project for automatic commit/merge.
+
+## Project profiles and v0.3 operations
+
+See [the current usage guide](../../../docs/AUTOMATION_V0.3.ko.md) for the JSON schema,
+managed document blocks, service/browser fixtures, export boundaries, and model policies.
+
+```bash
+agent-workflow profile save PROJECT --file workflow.profile.json
+agent-workflow create TASK_ID --profile PROJECT --goal '실제 목표' --criterion '실제 완료 조건'
+agent-workflow prepare TASK_ID
+agent-workflow run TASK_ID --recoveries 1
+agent-workflow execution-config TASK_ID --file execution.json
+agent-workflow stop JOB_ID
+agent-workflow resume JOB_ID
+agent-workflow finalize TASK_ID
+agent-workflow cleanup TASK_ID
+agent-workflow notifications
+agent-workflow service-install --port 8776
+```
+
+`service-install` only prepares files without `--enable`. With enable, systemd is
+used when available; otherwise a managed Bash login block starts the daemon.
+This does not configure Windows login or WSL boot itself.
+
+```bash
+agent-workflow depends TASK_B --on TASK_A --require merged
+agent-workflow batch create APPROVED_SET --task TASK_A --task TASK_B --max-jobs 2 --max-seconds 3600
+agent-workflow batch start APPROVED_SET
+agent-workflow batch show APPROVED_SET
+agent-workflow batch pause APPROVED_SET
+agent-workflow release-clear TASK_ID
+```
+
+Batch pause stops future scheduling; already queued/running jobs use stop separately.
+Batch limits persist across restarts. A release can only be cleared before it starts.
+GitHub Enterprise requires an explicit matching `release-config --hostname HOST`.

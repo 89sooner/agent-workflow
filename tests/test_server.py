@@ -81,6 +81,60 @@ class DashboardTests(unittest.TestCase):
                                    {"X-Workflow-Token": "test-token"})
         self.assertEqual(code, 400)
 
+    def test_create_from_registered_profile_and_queue_options(self):
+        import sys
+        from agent_workflow.profiles import save
+        with_store = Store(self.home)
+        try:
+            save(with_store, "fixture", {"project": str(self.root / "project"), "checks": [[sys.executable, "-c", "pass"]],
+                                         "execution": {"timeout": 1200, "recoveries": 2}})
+        finally:
+            with_store.close()
+        headers = {"X-Workflow-Token": "test-token"}
+        payload = {"id": "WEB-NEW", "profile": "fixture", "goal": "new goal", "criteria": ["criterion"], "isolate": True}
+        self.assertEqual(self.request("/api/tasks", payload)[0], 403)
+        code, body, _ = self.request("/api/tasks", payload, headers)
+        self.assertEqual(code, 201)
+        task = json.loads(body)["task"]
+        self.assertNotEqual(task["project"], str(self.root / "project"))
+        code, body, _ = self.request("/api/queue", {"task_id": "WEB-NEW", "timeout": 123, "repairs": 0, "recoveries": 0}, headers)
+        self.assertEqual(code, 200)
+        job = json.loads(body)["job"]
+        self.assertEqual((job["timeout"], job["repairs"]), (123, 0))
+        self.assertEqual(json.loads(job["options"])["recoveries"], 0)
+        self.assertEqual(self.request("/api/queue", {"task_id": "WEB-1", "timeout": True}, headers)[0], 400)
+
+    def test_stop_and_resume_use_csrf_and_preserve_job_options(self):
+        headers = {"X-Workflow-Token": "test-token"}
+        _, body, _ = self.request("/api/queue", {"task_id": "WEB-1", "timeout": 111}, headers)
+        job = json.loads(body)["job"]
+        self.assertEqual(self.request("/api/stop", {"job_id": job["id"]})[0], 403)
+        self.assertEqual(self.request("/api/stop", {"job_id": job["id"]}, headers)[0], 200)
+        code, body, _ = self.request("/api/resume", {"job_id": job["id"]}, headers)
+        self.assertEqual(code, 200)
+        self.assertEqual(json.loads(body)["job"]["timeout"], 111)
+
+    def test_job_log_is_bounded_and_cannot_read_another_file(self):
+        headers = {"X-Workflow-Token": "test-token"}
+        _, body, _ = self.request("/api/queue", {"task_id": "WEB-1"}, headers)
+        job = json.loads(body)["job"]
+        store = Store(self.home)
+        try:
+            log = self.home / "jobs" / (job["id"] + ".log")
+            log.parent.mkdir(); log.write_text('x' * 70000 + 'end')
+            with store.db:
+                store.db.execute("UPDATE jobs SET log_path=? WHERE id=?", (str(log), job["id"]))
+            code, body, _ = self.request('/api/job-log/' + job['id'])
+            self.assertEqual(code, 200)
+            data = json.loads(body)
+            self.assertTrue(data['truncated']); self.assertTrue(data['text'].endswith('end'))
+            self.assertLessEqual(len(data['text']), 65536)
+            with store.db:
+                store.db.execute("UPDATE jobs SET log_path=? WHERE id=?", (str(self.root / 'project/app.txt'), job["id"]))
+            self.assertEqual(self.request('/api/job-log/' + job['id'])[0], 400)
+        finally:
+            store.close()
+
 
 if __name__ == "__main__":
     unittest.main()

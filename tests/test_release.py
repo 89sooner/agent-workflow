@@ -1,5 +1,6 @@
 """Release acceptance tests: local Git effects and mocked GitHub boundaries."""
 import json
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -8,7 +9,7 @@ from unittest.mock import patch
 
 from agent_workflow.core import Store, WorkflowError, complete, create_task, git
 from agent_workflow.runner import run_checks
-from agent_workflow.release import configure, release_task, github_merge, ci_gate
+from agent_workflow.release import configure, release_task, github_merge, ci_gate, clear_configuration, gh_api
 
 
 class ReleaseTests(unittest.TestCase):
@@ -225,6 +226,25 @@ class ReleaseTests(unittest.TestCase):
         with patch("agent_workflow.release.gh_api", side_effect=api):
             self.assertFalse(ci_gate("owner/repo", "a" * 40, False))
             self.assertTrue(ci_gate("owner/repo", "a" * 40, True))
+
+    def test_release_configuration_can_only_be_cleared_before_start(self):
+        self.configure()
+        self.assertIsNone(clear_configuration(self.store, self.task["id"])["release"])
+        self.finish(); self.configure(); release_task(self.store, self.task["id"], timeout=5)
+        with self.assertRaises(WorkflowError):
+            clear_configuration(self.store, self.task["id"])
+
+    def test_enterprise_hostname_is_pinned_for_remote_and_api(self):
+        git(self.project, "remote", "set-url", "origin", "https://git.example.invalid/team/project.git")
+        configured = configure(self.store, self.task["id"], "origin", "main", "work/release", ["app.txt"],
+                               repo="team/project", hostname="git.example.invalid")
+        self.assertEqual(configured["config"]["hostname"], "git.example.invalid")
+        with self.assertRaises(WorkflowError):
+            configure(self.store, self.task["id"], "origin", "main", "work/release", ["app.txt"], repo="team/project", hostname="other.invalid")
+        with patch("agent_workflow.release.subprocess.run", return_value=subprocess.CompletedProcess([], 0, '{}', '')) as call:
+            gh_api("repos/team/project", hostname="git.example.invalid")
+        args = call.call_args.args[0]
+        self.assertEqual(args[args.index("--hostname") + 1], "git.example.invalid")
 
 
 if __name__ == "__main__":

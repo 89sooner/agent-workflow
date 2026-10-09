@@ -18,6 +18,7 @@
       </a>
       <div class="workspace-switch"><span class="workspace-avatar">W</span><div><strong>내 워크스페이스</strong><span>로컬 환경</span></div><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10h8v8H8zM10 10V7a2 2 0 0 1 4 0v3"/></svg></div>
       <div class="sidebar-heading"><h2>작업 목록</h2><span id="task-count" class="count">—</span></div>
+      <button id="new-task" class="button primary" type="button">새 작업 등록</button>
       <label class="sr-only" for="search">작업 찾기</label>
       <div class="search-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="search" type="search" placeholder="작업 검색" autocomplete="off"><kbd aria-hidden="true">/</kbd></div>
       <label class="sr-only" for="filter">상태별 작업 보기</label>
@@ -40,11 +41,27 @@
         <div id="error" class="notice error" role="alert" hidden></div>
         <div id="action-message" class="notice" role="status" hidden></div>
         <div id="loading" class="loading" role="status"><span class="loading-line"></span>작업 상태를 불러오고 있습니다…</div>
+        <details class="execution-options"><summary>실행 옵션</summary><p>비워 두면 선택한 작업의 프로젝트 설정을 사용합니다.</p><div class="option-grid"><label for="option-timeout">프로세스 시간 제한(초)<input id="option-timeout" type="number" min="1" max="86400" placeholder="프로젝트 기본값"></label><label for="option-repairs">추가 수정 횟수<input id="option-repairs" type="number" min="0" max="3" placeholder="프로젝트 기본값"></label><label for="option-recoveries">오류 복구 횟수<input id="option-recoveries" type="number" min="0" max="3" placeholder="프로젝트 기본값"></label></div></details>
         <section id="detail" class="task-workspace" aria-label="선택한 작업"></section>
         <section class="queue-section" aria-labelledby="queue-title"><div class="section-heading"><div><span class="section-kicker">EXECUTIONS</span><h2 id="queue-title">실행 대기열 <span id="queue-count" class="count">0</span></h2></div><span class="section-caption">최근 실행 25개</span></div><div class="queue-column-labels" aria-hidden="true"><span>작업 / 실행 유형</span><span>실행 상태</span></div><div id="jobs"><p class="empty-inline">아직 실행 기록이 없습니다.</p></div></section>
+        <section id="notification-section" class="queue-section" aria-labelledby="notification-title" hidden><div class="section-heading"><div><span class="section-kicker">NOTIFICATIONS</span><h2 id="notification-title">완료와 확인 요청</h2></div></div><div id="notifications"></div></section>
         <footer class="main-footer"><span><span class="footer-mark" aria-hidden="true">↗</span>목표부터 다음 작업까지, 끊김 없이.</span><span id="last-updated">첫 연결을 기다리고 있습니다.</span></footer>
       </main>
     </div>
   </div>
+  <dialog id="create-dialog" aria-labelledby="create-title">
+    <form id="create-form">
+      <div class="section-heading"><h2 id="create-title">새 작업 등록</h2><button id="create-close" class="button small" type="button">닫기</button></div>
+      <p>저장한 프로젝트 설정으로 작업 공간과 검사 조건을 준비합니다.</p>
+      <label for="create-profile">프로젝트 설정<select id="create-profile" required><option value="">설정을 불러오는 중</option></select></label>
+      <p id="profile-hint" class="muted"></p>
+      <label for="create-id">작업 ID<input id="create-id" required pattern="[A-Za-z0-9][A-Za-z0-9_.\-]{0,79}" placeholder="KB-NEXT-001" autocomplete="off"></label>
+      <label for="create-goal">끝내려는 작업<textarea id="create-goal" required rows="2" maxlength="2000"></textarea></label>
+      <label for="create-criteria">완료 조건 <small>한 줄에 하나씩 입력</small><textarea id="create-criteria" required rows="3" maxlength="3000"></textarea></label>
+      <label class="checkbox-label"><input id="create-isolate" type="checkbox" checked>별도 작업 폴더와 브랜치에서 진행</label>
+      <div id="create-error" class="notice error" role="alert" hidden></div>
+      <div class="form-actions"><span>등록 후 작업을 선택해 실행할 수 있습니다.</span><button id="create-submit" class="button primary" type="submit">작업 등록</button></div>
+    </form>
+  </dialog>
 </body>
 </html>
