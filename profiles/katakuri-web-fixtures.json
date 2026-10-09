@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "project": "/home/roqkf/katakuri-band",
+  "owner": "claude",
+  "reviewer": "codex",
+  "refs": [
+    "AGENTS.md",
+    "REFACTORING_SUPREME_DIRECTIVE.md",
+    "docs/00_governance/parallel_work_protocol.md"
+  ],
+  "setup": [
+    ["python3", "-c", "import sys, pytest, fastapi, pydantic, httpx; assert sys.version_info >= (3, 11); print('Python and offline Ops API test dependencies are available')"]
+  ],
+  "checks": [
+    ["python3", "scripts/generate_web_fixtures.py", "--check"],
+    ["python3", "-m", "pytest", "-q", "tests/test_web_boundary.py"]
+  ],
+  "allowed_paths": [
+    "web/fixtures",
+    "agent-context/todos.md",
+    "agent-context/session-handoff.md",
+    "agent-context/sessions"
+  ],
+  "forbidden_paths": ["engine", "tools/live", "tests", "scripts", "ops", "deploy", "backdata", "paper", ".env"],
+  "workspace": {"isolate": true, "branch_prefix": "workflow/o/"},
+  "execution": {"timeout": 600, "repairs": 1, "recoveries": 1, "max_agent_calls": 5, "max_seconds": 2400},
+  "exports": {
+    "directory": "/home/roqkf/agent-workflow/artifacts/worklogs",
+    "timezone": "Asia/Seoul"
+  }
+}

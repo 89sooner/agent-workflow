@@ -2,6 +2,8 @@
 
 **v0.3 사용 안내: [프로젝트 설정부터 자동 복구·연속 실행까지](docs/AUTOMATION_V0.3.ko.md)**
 
+[실제 v0.3 사용 결과와 남은 연결](docs/FOLLOWUP_STATUS.ko.md) · [Katakuri 프로젝트 설정](profiles/README.md)
+
 [기본 개념과 Katakuri 파일럿 기록](docs/USER_GUIDE.ko.md)은 v0.2 시점 자료입니다.
 
 [구성과 작업 흐름 보기](docs/workflow-blueprint.html) — 2026-10-08 설계 시점의 시뮬레이션입니다. 최신 구현 상태는 v0.3 안내서를 확인하세요.

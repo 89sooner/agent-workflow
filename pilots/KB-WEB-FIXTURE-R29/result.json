@@ -1,0 +1,220 @@
+{
+  "task_id": "KB-WEB-FIXTURE-R29",
+  "status": "completed",
+  "completed_at": "2026-10-09T15:15:25+00:00",
+  "profile": {
+    "name": "katakuri-web-fixtures",
+    "digest": "c9ae99829b83630d3a07f4212af1f490cf6f415d5fb23d48ea9f62ddd0d5b77f"
+  },
+  "workspace": {
+    "managed": true,
+    "source": "/home/roqkf/katakuri-band",
+    "path": "/home/roqkf/.local/state/agent-workflow/workspaces/katakuri-web-fixtures/KB-WEB-FIXTURE-R29",
+    "branch": "workflow/o/KB-WEB-FIXTURE-R29",
+    "base_head": "13b10f2b7a12e62bf224dd7f5cb5b4a3b66cc7a6",
+    "source_dirty": false,
+    "prepared": true,
+    "setup_results": [
+      {
+        "argv": [
+          "python3",
+          "-c",
+          "import sys, pytest, fastapi, pydantic, httpx; assert sys.version_info >= (3, 11); print('Python and offline Ops API test dependencies are available')"
+        ],
+        "exit_code": 0,
+        "timed_out": false,
+        "seconds": 0.369,
+        "stdout": "/home/roqkf/.local/state/agent-workflow/tasks/KB-WEB-FIXTURE-R29/setup/0/stdout.log",
+        "stderr": "/home/roqkf/.local/state/agent-workflow/tasks/KB-WEB-FIXTURE-R29/setup/0/stderr.log"
+      }
+    ],
+    "setup_state": "passed",
+    "setup_index": 0,
+    "prepared_at": "2026-10-09T15:12:58+00:00"
+  },
+  "baseline": "13b10f2b7a12e62bf224dd7f5cb5b4a3b66cc7a6",
+  "fingerprint": "98d15dcc7245ece6f300e34c3e3f135aadeaad800deb2f7ee1000ff5aa85acea",
+  "production_files_changed": [
+    "web/fixtures/risk-gate.json"
+  ],
+  "json_changes": [
+    {
+      "path": "/quantityLimit/binding/executionGenerationId",
+      "before": "HSI_LS_STAGE_EXEC_R28",
+      "after": "HSI_LS_STAGE_EXEC_R29"
+    },
+    {
+      "path": "/quantityLimit/binding/declarationPath",
+      "before": "tools/live/hsi_ls_stage_exec_r28_execution_generation_declaration_cr_033.json",
+      "after": "tools/live/hsi_ls_stage_exec_r29_execution_generation_declaration_wp_top_043.json"
+    },
+    {
+      "path": "/freshnessGate/binding/executionGenerationId",
+      "before": "HSI_LS_STAGE_EXEC_R28",
+      "after": "HSI_LS_STAGE_EXEC_R29"
+    },
+    {
+      "path": "/freshnessGate/binding/declarationPath",
+      "before": "tools/live/hsi_ls_stage_exec_r28_execution_generation_declaration_cr_033.json",
+      "after": "tools/live/hsi_ls_stage_exec_r29_execution_generation_declaration_wp_top_043.json"
+    }
+  ],
+  "baseline_check": {
+    "command": [
+      "python3",
+      "scripts/generate_web_fixtures.py",
+      "--check"
+    ],
+    "baseline": "13b10f2b7a12e62bf224dd7f5cb5b4a3b66cc7a6",
+    "exit_code": 1,
+    "stdout": "FAIL: web fixture drift\n  - risk-gate.json: CONTENT_DRIFT (fixture != live FastAPI response)\n",
+    "stderr": ""
+  },
+  "checks": {
+    "passed": true,
+    "results": [
+      {
+        "exit_code": 0,
+        "timed_out": false,
+        "seconds": 1.723,
+        "stdout": "/home/roqkf/.local/state/agent-workflow/tasks/KB-WEB-FIXTURE-R29/checks/8c575e1a45c3460ba20ffd6a5c0e2d75-0/stdout.log",
+        "stderr": "/home/roqkf/.local/state/agent-workflow/tasks/KB-WEB-FIXTURE-R29/checks/8c575e1a45c3460ba20ffd6a5c0e2d75-0/stderr.log",
+        "argv": [
+          "python3",
+          "scripts/generate_web_fixtures.py",
+          "--check"
+        ],
+        "artifacts": []
+      },
+      {
+        "exit_code": 0,
+        "timed_out": false,
+        "seconds": 24.074,
+        "stdout": "/home/roqkf/.local/state/agent-workflow/tasks/KB-WEB-FIXTURE-R29/checks/c34c9d9c4aea46bba29e0a7c8999c52e-1/stdout.log",
+        "stderr": "/home/roqkf/.local/state/agent-workflow/tasks/KB-WEB-FIXTURE-R29/checks/c34c9d9c4aea46bba29e0a7c8999c52e-1/stderr.log",
+        "argv": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_web_boundary.py"
+        ],
+        "artifacts": []
+      }
+    ],
+    "fixture_count": 16,
+    "web_boundary": {
+      "passed": 24,
+      "skipped": 1,
+      "skip_reason": "web/.next absent: bundle scan requires a built app"
+    }
+  },
+  "independent_review": {
+    "outcome": "pass",
+    "summary": "독립 리뷰 통과. 기준 HEAD 대비 제품 변경은 `web/fixtures/risk-gate.json`의 R29 binding 네 필드뿐이며, 전체 fixture 생성기 대조와 웹 경계 시험이 성공했다. `.next` 부재에 따른 bundle 시험 1건 skip도 시험 조건과 일치한다.",
+    "next_action": "컨트롤러는 실제 검증 결과(전체 fixture PASS, 24 passed/1 skipped, skip 사유: `web/.next absent`)와 이 리뷰 판정을 사용해 허용된 경로에 원장·인계 상단 블록과 `agent-context/sessions/2026-10-10-web-fixture-r29.md`를 자동 생성해야 한다. 혼합 TODO에서는 fixture 정합성 부분만 완료 처리하고 런북·알림·운영 반영은 열어 둔다.",
+    "findings": [
+      {
+        "blocking": false,
+        "detail": "변경 범위가 승인된 네 필드로 정확히 제한되며 엔진·생성기·시험 또는 기타 제품 파일 변경은 없다.",
+        "evidence": "`git diff 13b10f2...`는 `web/fixtures/risk-gate.json` 1개 파일의 4 insertions/4 deletions만 표시한다. 변경 위치는 119–120행과 219–220행이고, untracked 파일은 없다."
+      },
+      {
+        "blocking": false,
+        "detail": "전체 웹 fixture가 생성기의 실제 FastAPI 응답과 일치한다.",
+        "evidence": "컨트롤러 실행 `python3 scripts/generate_web_fixtures.py --check`는 exit 0과 `PASS: web fixtures == live FastAPI responses`를 기록했으며 risk-gate.json을 포함한 16개 fixture를 열거한다."
+      },
+      {
+        "blocking": false,
+        "detail": "기존 웹 경계 시험이 통과했고 유일한 skip은 bundle 산출물 부재 조건과 정확히 대응한다.",
+        "evidence": "`python3 -m pytest -q tests/test_web_boundary.py` 결과는 exit 0, `24 passed, 1 skipped`. `web/.next`가 실제로 없으며 tests/test_web_boundary.py:204-206은 이 경우 `web/.next absent` 사유로만 bundle 검사를 skip한다."
+      },
+      {
+        "blocking": false,
+        "detail": "R29 binding과 유지된 content fingerprint가 선언 근거에 부합한다.",
+        "evidence": "risk-gate.json:119-121 및 :219-221은 R29 ID·선언 경로와 기존 fingerprint를 담는다. R29 선언의 158행과 190행 content_fp는 각각 `077228133f2f6cee`, `74e7b49505c7e1b7`로 일치하며, R 트랙 delta도 동일한 네 줄만 요구한다."
+      }
+    ],
+    "verdict": "pass",
+    "fingerprint": "98d15dcc7245ece6f300e34c3e3f135aadeaad800deb2f7ee1000ff5aa85acea",
+    "reviewer": "codex",
+    "independent_run": null,
+    "at": "2026-10-09T15:15:24+00:00"
+  },
+  "current_evidence": {
+    "verification_is_current": true,
+    "review_is_current": true,
+    "completion_is_current": true
+  },
+  "automation": {
+    "setup_command_count": 1,
+    "agent_calls": 2,
+    "roles": [
+      "claude implement",
+      "codex review"
+    ],
+    "recoveries": 0,
+    "manual_interventions_after_run_started": 0,
+    "manual_product_edits_by_controller": 0,
+    "event_kinds": [
+      "created",
+      "profile_applied",
+      "setup_started",
+      "process_budget_reserved",
+      "process_budget_recorded",
+      "setup_finished",
+      "workspace_prepared",
+      "agent_started",
+      "process_budget_reserved",
+      "process_budget_recorded",
+      "implementation_returned",
+      "checks_started",
+      "process_budget_reserved",
+      "process_budget_recorded",
+      "process_budget_reserved",
+      "process_budget_recorded",
+      "checks_finished",
+      "agent_started",
+      "process_budget_reserved",
+      "process_budget_recorded",
+      "review_finished",
+      "completed",
+      "closure_finished"
+    ],
+    "closure": {
+      "handoff": "/home/roqkf/.local/state/agent-workflow/tasks/KB-WEB-FIXTURE-R29/handoff",
+      "worklog": "/home/roqkf/.local/state/agent-workflow/tasks/KB-WEB-FIXTURE-R29/handoff/worklog.md",
+      "at": "2026-10-09T15:15:28+00:00",
+      "export": {
+        "path": "/home/roqkf/agent-workflow/artifacts/worklogs/2026-10-10_KB-WEB-FIXTURE-R29.md",
+        "sha256": "f1aa13f0db56d6731ca1c7b7290b4c9caf17cdf60938a060835fdd6bf5f5eca6"
+      }
+    },
+    "native_runs": [
+      {
+        "agent": "claude",
+        "role": "implement",
+        "directory": "/home/roqkf/.local/state/agent-workflow/tasks/KB-WEB-FIXTURE-R29/runs/2026-10-09T151300+0000-b1621d95"
+      },
+      {
+        "agent": "codex",
+        "role": "review",
+        "directory": "/home/roqkf/.local/state/agent-workflow/tasks/KB-WEB-FIXTURE-R29/runs/2026-10-09T151426+0000-03902de8"
+      }
+    ]
+  },
+  "integration": {
+    "committed": false,
+    "pushed": false,
+    "merged": false,
+    "deployed": false
+  },
+  "external_targets": "User has not selected external deployment, enterprise Git or messaging targets.",
+  "dashboard": {
+    "url": "http://127.0.0.1:8776/api/state",
+    "profile_visible": true,
+    "task_visible": true,
+    "version": "0.3.0",
+    "status": "completed"
+  }
+}

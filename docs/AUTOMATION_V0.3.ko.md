@@ -308,6 +308,7 @@ agent-workflow release-clear TASK_ID
 검증은 실제 임시 Git 저장소·관리 자식 프로세스·localhost HTTP 서버·브라우저에서 수행했다. [검증 기록](verification-v0.3.json), [구현 진행 기록](IMPLEMENTATION_PLAN.md)을 참조한다. 독립 리뷰와 최종 완료 판정은 `agent-workflow show AW-AUTOMATION-001`에서 현재 코드와 함께 확인할 수 있다.
 
 - 실제 Claude 구현 → 검사 → Codex 리뷰 연결을 작은 임시 저장소에서 확인했다. 공급자 한도로 중단된 시도는 성공한 실행과 별도 기록한다.
+- 2026-10-10에는 실제 Katakuri의 R29 웹 fixture 작업을 등록한 프로필로 완료했다. 별도 worktree와 환경 확인, Claude 구현, 기존 검사, Codex 리뷰, 인계·작업일지 생성을 연결했다. 실행 시작 후 수동 복구는 0회다. [실제 결과와 검증 범위](../pilots/KB-WEB-FIXTURE-R29/README.md)를 참조한다.
 - 대시보드 등록·옵션·중단·재개와 375~1440px 화면을 확인했다. 이 UI 검사는 API fixture를 사용하며 실제 사용자 큐를 변경하지 않는다.
 - 내장 브라우저 검사기는 실제 버튼·입력을 확인했고, 외부 요청을 차단해 실패로 기록했다. 같은 포트의 연속 사용과 검사 서버 종료도 확인했다.
 - 실제 외부 운영 배포, 사내 Git 서버, 외부 메신저 전달은 대상이 지정되지 않아 수행하지 않았다. 배포·롤백 정책은 대상 프로젝트에서 정해야 한다.

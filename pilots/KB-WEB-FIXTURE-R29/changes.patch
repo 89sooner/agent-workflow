@@ -1,0 +1,26 @@
+diff --git a/web/fixtures/risk-gate.json b/web/fixtures/risk-gate.json
+index 769160ca..26ab160f 100644
+--- a/web/fixtures/risk-gate.json
++++ b/web/fixtures/risk-gate.json
+@@ -116,8 +116,8 @@
+     },
+     "binding": {
+       "state": "BOUND_TO_CURRENT_EXECUTION_GENERATION",
+-      "executionGenerationId": "HSI_LS_STAGE_EXEC_R28",
+-      "declarationPath": "tools/live/hsi_ls_stage_exec_r28_execution_generation_declaration_cr_033.json",
++      "executionGenerationId": "HSI_LS_STAGE_EXEC_R29",
++      "declarationPath": "tools/live/hsi_ls_stage_exec_r29_execution_generation_declaration_wp_top_043.json",
+       "boundContentFp": "077228133f2f6cee"
+     },
+     "runtime": "NO_DECISION_OBSERVED",
+@@ -216,8 +216,8 @@
+     },
+     "binding": {
+       "state": "BOUND_TO_CURRENT_EXECUTION_GENERATION",
+-      "executionGenerationId": "HSI_LS_STAGE_EXEC_R28",
+-      "declarationPath": "tools/live/hsi_ls_stage_exec_r28_execution_generation_declaration_cr_033.json",
++      "executionGenerationId": "HSI_LS_STAGE_EXEC_R29",
++      "declarationPath": "tools/live/hsi_ls_stage_exec_r29_execution_generation_declaration_wp_top_043.json",
+       "boundContentFp": "74e7b49505c7e1b7"
+     },
+     "runtime": "NO_DECISION_OBSERVED",
