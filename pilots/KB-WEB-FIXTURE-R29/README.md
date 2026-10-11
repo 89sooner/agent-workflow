@@ -60,8 +60,8 @@ agent-workflow profile show katakuri-web-fixtures
 
 ## 통합 범위
 
-Katakuri 변경은 **커밋·푸시·병합·운영 배포 전**이다. 다음 통합에서 이 검증 결과와
-[실제 패치](changes.patch)를 사용한다. 혼합 TODO의 런북, 알림, 운영 반영은 남아 있다.
+10월 10일 로컬 완료 당시 Katakuri 변경은 **커밋·푸시·병합·운영 배포 전**이었다. 통합에 사용할 검증 결과와
+[실제 패치](changes.patch)를 보존했다. 혼합 TODO의 런북, 알림, 운영 반영은 남아 있다.
 이 시험 데이터 갱신은 R29 운영 반영이나 거래 실행을 뜻하지 않는다.
 
 원장과 자동 인계는 검증된 프로젝트 밖에 생성했다. 리뷰 후에 프로젝트 문서를 덧붙여
@@ -70,3 +70,15 @@ Katakuri 변경은 **커밋·푸시·병합·운영 배포 전**이다. 다음 �
 원장의 `handoff/state.json`이다.
 
 기존 v0.2 파일럿은 수동 복구 1회를 포함한다. 이번 성공으로 이전 기록을 소급 변경하지 않는다.
+
+## 2026-10-11 병합 확인
+
+[PR #166](https://github.com/89sooner/katakuri-band/pull/166)이 `main`에 병합됐다.
+병합 커밋은 `2c8e83bfcab2fcd0f396f2e1c7097a7f99792fb0`이다. 변경은 기존 한 파일의
+네 필드이며, 최종 병합본의 별도 LF worktree에서도 fixture 16개 일치와 웹 경계 시험
+24 passed, 1 skipped를 확인했다. 임시 검사 worktree는 정리했다.
+
+GitHub의 check run과 commit status는 각각 0개다. 원격 CI 통과를 주장하지 않는다.
+등록한 로컬 검사 결과로 확인한 범위와 bundle 검사 skip은 위와 같다.
+운영 배포 명령은 설정하지 않았다. 기존 [로컬 완료 결과](result.json)는 당시 기록으로
+보존하며, [별도 통합 기록](integration.json)에 실제 병합과 최종 검사 근거를 남겼다.

@@ -1,0 +1,36 @@
+{
+  "task_id": "KB-WEB-FIXTURE-R29",
+  "repository": "89sooner/katakuri-band",
+  "pr": 166,
+  "url": "https://github.com/89sooner/katakuri-band/pull/166",
+  "state": "merged",
+  "merged_at": "2026-10-11T11:15:01Z",
+  "candidate_commit": "85f49354dc4ef2c64f2c580884223cd363ec6561",
+  "merge_commit": "2c8e83bfcab2fcd0f396f2e1c7097a7f99792fb0",
+  "product_changes": {
+    "files": [
+      "web/fixtures/risk-gate.json"
+    ],
+    "additions": 4,
+    "deletions": 4
+  },
+  "remote_confirmation": "GitHub pull request API merged=true; origin/main contains merge commit",
+  "github_checks": {
+    "check_runs": 0,
+    "commit_statuses": 0,
+    "remote_ci_pass_claimed": false
+  },
+  "merged_revision_checks": {
+    "passed": true,
+    "fixture_count": 16,
+    "web_boundary_passed": 24,
+    "web_boundary_skipped": 1,
+    "skip_reason": "web/.next absent; bundle scan requires a built app",
+    "evidence": "/home/roqkf/agent-workflow/artifacts/KB-WEB-FIXTURE-R29/merge-verification/result.json"
+  },
+  "deployment": {
+    "configured": false,
+    "performed_by_this_workflow": false
+  },
+  "historical_local_result": "result.json preserves the original local-completion snapshot."
+}
