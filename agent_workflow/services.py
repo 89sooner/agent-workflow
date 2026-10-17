@@ -17,7 +17,9 @@ from .policy import window_limit
 
 
 def environment(task, directory):
-    result = {"WORKFLOW_TASK_ID": task["id"], "WORKFLOW_EVIDENCE_DIR": str(directory)}
+    # Bytecode caches would otherwise appear as untracked code in repositories without an ignore rule.
+    result = {"PYTHONDONTWRITEBYTECODE": os.environ.get("PYTHONDONTWRITEBYTECODE", "1"),
+              "WORKFLOW_TASK_ID": task["id"], "WORKFLOW_EVIDENCE_DIR": str(directory)}
     for item in (task.get("project_config") or {}).get("services", []):
         result["WORKFLOW_SERVICE_" + item["name"].upper().replace("-", "_").replace(".", "_") + "_URL"] = item["ready_url"]
     return result

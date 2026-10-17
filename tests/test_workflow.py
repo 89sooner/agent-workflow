@@ -96,6 +96,40 @@ class WorkflowTests(unittest.TestCase):
             self.assertFalse(run_checks(self.store, t, 5, fd))
         self.assertTrue(t["verification"]["code_changed_during_checks"])
 
+    def test_check_output_file_gets_one_stable_rerun(self):
+        t = self.task(checks=[[sys.executable, "-c", "from pathlib import Path; Path('report.txt').write_text('ok')"]])
+        with self.store.lock(t["project"]) as fd:
+            self.assertTrue(run_checks(self.store, t, 5, fd))
+        self.assertEqual(t["verification"]["check_created_files"], ["report.txt"])
+        self.assertFalse(t["verification"]["code_changed_during_checks"])
+        self.assertEqual(t["verification"]["fingerprint"], snapshot(self.project)["fingerprint"])
+
+    def test_check_creating_new_files_every_run_does_not_pass(self):
+        t = self.task(checks=[[sys.executable, "-c", "import uuid; open(uuid.uuid4().hex, 'w').close()"]])
+        with self.store.lock(t["project"]) as fd:
+            self.assertFalse(run_checks(self.store, t, 5, fd))
+        self.assertTrue(t["verification"]["code_changed_during_checks"])
+
+    def test_check_changing_existing_untracked_file_is_not_rerun(self):
+        (self.project / "notes.txt").write_text("before")
+        t = self.task(checks=[[sys.executable, "-c", "from pathlib import Path; Path('notes.txt').write_text('after')"]])
+        with self.store.lock(t["project"]) as fd:
+            self.assertFalse(run_checks(self.store, t, 5, fd))
+        self.assertEqual(t["verification"]["check_created_files"], [])
+
+    def test_checks_do_not_write_python_bytecode(self):
+        (self.project / ".gitignore").unlink()
+        (self.project / "pkg").mkdir()
+        (self.project / "pkg" / "mod.py").write_text("VALUE = 1\n")
+        git(self.project, "add", "-A")
+        git(self.project, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "pkg")
+        t = self.task(checks=[[sys.executable, "-c", "import pkg.mod; assert pkg.mod.VALUE == 1"]])
+        with patch.dict(os.environ), self.store.lock(t["project"]) as fd:
+            os.environ.pop("PYTHONDONTWRITEBYTECODE", None)
+            self.assertTrue(run_checks(self.store, t, 5, fd))
+        self.assertEqual(t["verification"]["check_created_files"], [])
+        self.assertFalse((self.project / "pkg" / "__pycache__").exists())
+
     def test_review_needed_for_finish_and_must_be_independent(self):
         t = self.checked(self.task(reviewer="codex"))
         fp = snapshot(self.project)["fingerprint"]
