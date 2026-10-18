@@ -11,9 +11,9 @@ import subprocess
 import time
 import uuid
 
-from .core import WorkflowError, atomic_write, complete, encode, now, snapshot
+from .core import WorkflowError, atomic_write, complete, encode, git, now, snapshot
 from .recovery import AgentFailure, classify, record_failure, take_recovery
-from .policy import preflight, reservation, scope_check, window_limit
+from .policy import changed_files, preflight, reservation, scope_check, window_limit
 from .usage import managed_process, remaining, reconcile_pending, ensure_call_budget
 
 RESULT_SCHEMA = {
@@ -239,19 +239,7 @@ def invoke(store, task, agent, role, timeout, lock_fd, feedback=None, model=None
     return answer
 
 
-def run_checks(store, task, timeout, lock_fd):
-    from .scheduling import prepare_dependencies
-    prepare_dependencies(store, task)
-    preflight(store, task)
-    from .closure import sync_documents
-    sync_documents(store, task)
-    if not task["checks"]:
-        raise WorkflowError("등록된 검사 명령이 없습니다.")
-    before = snapshot(task["project"])
-    task["status"] = "checking"
-    task["verification"] = None
-    task["review"] = None
-    store.save(task, "checks_started")
+def run_check_commands(store, task, timeout, lock_fd):
     results = []
     from .services import running, environment
     try:
@@ -269,12 +257,58 @@ def run_checks(store, task, timeout, lock_fd):
         task.update(status="blocked", blocker=str(exc) or "검사 중단")
         store.save(task, "checks_interrupted", {"reason": task["blocker"]})
         raise WorkflowError(task["blocker"]) from exc
+    return results
+
+
+def all_succeeded(results):
+    return all(r["exit_code"] == 0 and not r["timed_out"] for r in results)
+
+
+def untracked(project):
+    names = git(project, "ls-files", "--others", "--exclude-standard", "-z", binary=True)
+    return {os.fsdecode(raw) for raw in names.split(b"\0") if raw}
+
+
+def created_untracked(before, after, untracked_now):
+    """Names the check only added as new untracked files; empty when anything else changed."""
+    if any(after.get(name) != digest for name, digest in before.items()):
+        return []
+    added = set(after) - set(before)
+    return sorted(added) if added and added <= untracked_now else []
+
+
+def run_checks(store, task, timeout, lock_fd):
+    from .scheduling import prepare_dependencies
+    prepare_dependencies(store, task)
+    preflight(store, task)
+    from .closure import sync_documents
+    sync_documents(store, task)
+    if not task["checks"]:
+        raise WorkflowError("등록된 검사 명령이 없습니다.")
+    before = snapshot(task["project"])
+    before_changes = changed_files(task["project"])
+    task["status"] = "checking"
+    task["verification"] = None
+    task["review"] = None
+    store.save(task, "checks_started")
+    results = run_check_commands(store, task, timeout, lock_fd)
     after = snapshot(task["project"])
+    created = []
+    if all_succeeded(results) and before["fingerprint"] != after["fingerprint"] and before["head"] == after["head"]:
+        created = created_untracked(before_changes, changed_files(task["project"]), untracked(task["project"]))
+        if created:
+            # New check outputs are not code edits; one stable rerun proves the current tree without a repair call.
+            print(f"검사가 미추적 파일 {len(created)}개를 만들어 같은 검사를 한 번 더 실행합니다: "
+                  + ", ".join(created[:5]), flush=True)
+            before = after
+            results = run_check_commands(store, task, timeout, lock_fd)
+            after = snapshot(task["project"])
     scope_check(task)
-    passed = (all(r["exit_code"] == 0 and not r["timed_out"] for r in results)
-              and before["fingerprint"] == after["fingerprint"])
+    changed = before["fingerprint"] != after["fingerprint"]
+    passed = all_succeeded(results) and not changed
     task["verification"] = {"passed": passed, "fingerprint": after["fingerprint"],
-                            "code_changed_during_checks": before["fingerprint"] != after["fingerprint"],
+                            "code_changed_during_checks": changed,
+                            "check_created_files": created,
                             "results": results, "at": now()}
     task["review"] = None
     task["status"] = ("ready_to_finish" if task["reviewer"] == "none" else "needs_review") if passed else "blocked"
