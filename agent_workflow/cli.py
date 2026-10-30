@@ -13,7 +13,7 @@ import sys
 
 from . import __version__
 from .core import (Store, WorkflowError, atomic_write, complete, create_task,
-                   encode, now, snapshot)
+                   encode, now, reference_fingerprint, references_current, snapshot)
 from .runner import RESULT_SCHEMA, brief, execute, record_review, run_checks
 from .workspaces import observed_snapshot
 
@@ -23,10 +23,17 @@ def freshness(task, current):
     release = task.get("release") or {}
     # The release receipt binds the verified contents across staging/commit metadata changes.
     bound = bool(release.get("commit") == current["head"] and not current["dirty"])
-    return {"verification_is_current": (task.get("verification") or {}).get("fingerprint") == fp or (bound and bool(task.get("verification"))),
-            "review_is_current": (task.get("review") or {}).get("fingerprint") == fp or (bound and bool(task.get("review"))),
-            "completion_is_current": task.get("completed_fingerprint") == fp or (bound and task["status"] == "completed"),
-            "evidence_bound_via_release": bound}
+    refs = reference_fingerprint(task)
+    from .policy import protected_current
+    protected = protected_current(task)
+    verified_refs = references_current(task, task.get("verification"), refs)
+    reviewed_refs = task.get("reviewer") == "none" or references_current(task, task.get("review"), refs)
+    return {"verification_is_current": protected and verified_refs and ((task.get("verification") or {}).get("fingerprint") == fp or (bound and bool(task.get("verification")))),
+            "review_is_current": protected and reviewed_refs and ((task.get("review") or {}).get("fingerprint") == fp or (bound and bool(task.get("review")))),
+            "completion_is_current": protected and verified_refs and reviewed_refs and (task.get("completed_fingerprint") == fp or (bound and task["status"] == "completed")),
+            "evidence_bound_via_release": bound and protected and verified_refs and reviewed_refs,
+            "protected_paths_are_current": protected,
+            "refs_fingerprint": refs}
 
 
 def continuation(store, task, current):
@@ -41,6 +48,7 @@ def continuation(store, task, current):
 현재 증거 유효성: {encode(freshness(task, current))}
 체크포인트: {encode(task['checkpoint'])}
 차단 사유: {task.get('blocker') or '없음'}
+수동 보류: {encode(task.get('hold'))}
 
 먼저 다음 명령으로 현재 상태를 다시 확인하고 관련 소스·문서와 대조하세요.
 {command} show {task['id']}
@@ -169,6 +177,11 @@ def parser():
     c.add_argument("--summary", required=True)
     c.add_argument("--next", required=True)
     c.add_argument("--blocked", help="외부 입력 등 구체적 차단 사유")
+    c = commands.add_parser("hold", help="기존 큐와 다음 실행 단계를 수동 보류; 실행 중 프로세스는 현 단계 종료")
+    c.add_argument("id")
+    c.add_argument("--reason", required=True)
+    c = commands.add_parser("unhold", help="수동 보류 해제; 기존 대기 작업은 다시 실행 가능")
+    c.add_argument("id")
     c = commands.add_parser("check-add", help="사용자가 승인한 검사 명령 추가; 기존 증거 무효화")
     c.add_argument("id")
     c.add_argument("argv", help="예: 'python3 -m unittest discover -s tests'")
@@ -179,6 +192,7 @@ def parser():
     c.add_argument("id")
     c.add_argument("--file", type=Path, required=True)
     c.add_argument("--fingerprint", required=True, help="검토 시작 시 show의 observed_git.fingerprint")
+    c.add_argument("--refs-fingerprint", help="참조 문서가 있을 때 검토 시작 시 show의 refs_fingerprint")
     c.add_argument("--reviewer", choices=["codex", "claude", "codex-session"], required=True)
     for name in ("check", "run"):
         c = commands.add_parser(name, help="필수 검사 실행" if name == "check" else "유한 구현→검사→리뷰→마감; 중단 후 같은 ID로 재개")
@@ -331,6 +345,9 @@ def dispatch(args):
                                args.ref, [argv_from(x) for x in args.check], args.owner or "claude",
                                args.reviewer or "codex", args.scope)
         task = store.get(args.id)
+        if args.command in {"hold", "unhold"}:
+            from .core import set_hold, clear_hold
+            return set_hold(store, args.id, args.reason) if args.command == "hold" else clear_hold(store, args.id)
         if args.command == "depends":
             from .scheduling import set_dependencies
             return set_dependencies(store, args.id, args.on, args.require)
@@ -342,8 +359,7 @@ def dispatch(args):
             return clear_configuration(store, args.id)
         if args.command == "finalize":
             from .closure import finalize
-            with store.lock(task["project"]):
-                return finalize(store, store.get(args.id))
+            return finalize(store, task)
         if args.command == "cleanup":
             from .workspaces import cleanup
             if args.stop_services:
@@ -364,12 +380,14 @@ def dispatch(args):
                              argv_from(args.health) if args.health else None, args.allow_no_ci, args.hostname)
         if args.command == "release":
             from .release import release_task
+            from .observability import run_context
             if not 1 <= args.timeout <= 86400:
                 raise WorkflowError("timeout 범위 오류")
             try:
-                task = release_task(store, args.id, args.timeout, args.retry_deploy)
-                from .closure import finalize
-                return {"task": task, "closure": finalize(store, task)}
+                with run_context(store, task, "release"):
+                    task = release_task(store, args.id, args.timeout, args.retry_deploy)
+                    from .closure import finalize
+                    return {"task": task, "closure": finalize(store, task)}
             finally:
                 export_handoff(store, store.get(args.id))
         if args.command == "show":
@@ -400,15 +418,19 @@ def dispatch(args):
                         "release": task.get("release"),
                         "mutations": "로컬 구현·검사 후 release-config가 있으면 커밋·푸시·병합·배포"}
             try:
-                if task["status"] != "completed":
-                    task = execute(store, task["id"], args.timeout, args.repairs, args.recoveries)
-                elif not task.get("release") and not freshness(task, snapshot(task["project"]))["completion_is_current"]:
-                    raise WorkflowError("완료 이후 코드가 바뀌었습니다. 새 작업으로 검증하세요.")
-                if task.get("release"):
-                    from .release import release_task
-                    task = release_task(store, task["id"], args.timeout)
-                from .closure import finalize
-                return {"task": task, "closure": finalize(store, task)}
+                from .core import ensure_not_held
+                from .observability import run_context
+                with run_context(store, task, args.command):
+                    ensure_not_held(store, task)
+                    if task["status"] != "completed":
+                        task = execute(store, task["id"], args.timeout, args.repairs, args.recoveries)
+                    elif not task.get("release") and not freshness(task, snapshot(task["project"]))["completion_is_current"]:
+                        raise WorkflowError("완료 이후 코드가 바뀌었습니다. 새 작업으로 검증하세요.")
+                    if task.get("release"):
+                        from .release import release_task
+                        task = release_task(store, task["id"], args.timeout)
+                    from .closure import finalize
+                    return {"task": task, "closure": finalize(store, task)}
             except WorkflowError:
                 export_handoff(store, store.get(task["id"]))
                 if not os.environ.get("AGENT_WORKFLOW_JOB_ID"):
@@ -446,11 +468,11 @@ def dispatch(args):
                     raise WorkflowError(task["blocker"])
             elif args.command == "review-import":
                 result = json.loads(args.file.read_text())
-                record_review(store, task, result, args.fingerprint, args.reviewer)
+                record_review(store, task, result, args.fingerprint, args.reviewer, args.refs_fingerprint)
             elif args.command == "finish":
                 complete(store, task)
                 from .closure import finalize
-                return {"task": task, "closure": finalize(store, task)}
+                return {"task": task, "closure": finalize(store, task, locked=True)}
             return {"task": task, "handoff": export_handoff(store, task)}
     finally:
         store.close()

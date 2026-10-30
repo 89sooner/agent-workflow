@@ -16,7 +16,7 @@ import sys
 import time
 import uuid
 
-from .core import Store, WorkflowError, now
+from .core import Store, WorkflowError, ensure_not_held, now
 
 
 def init_queue(store):
@@ -48,6 +48,7 @@ def init_queue(store):
 def enqueue(store, task_id, action="pipeline", timeout=None, repairs=None, recoveries=None, deadline=None, batch_name=None, batch_resume=False):
     """Return a queued job dict; reject missing tasks, invalid options and active duplicates."""
     task = store.get(task_id)
+    ensure_not_held(store, task)
     settings = task.get("execution") or {}
     timeout = settings.get("timeout", 900) if timeout is None else timeout
     repairs = settings.get("repairs", 1) if repairs is None else repairs
@@ -72,6 +73,7 @@ def enqueue(store, task_id, action="pipeline", timeout=None, repairs=None, recov
     try:
         with store.db:
             store.db.execute("BEGIN IMMEDIATE")
+            ensure_not_held(store, task)
             if batch_name:
                 row = store.db.execute("SELECT data FROM batches WHERE name=?", (batch_name,)).fetchone()
                 if row is None:
@@ -148,6 +150,7 @@ def _claim(store):
             continue
         task = store.get(candidate["task_id"])
         try:
+            ensure_not_held(store, task)
             from .policy import window_limit
             window_limit(task.get("project_config") or {})
             if task.get("dependencies") and not task.get("dependency_receipts"):
@@ -159,7 +162,7 @@ def _claim(store):
                     store.db.execute("UPDATE jobs SET error=? WHERE id=? AND status='queued'", (str(exc), candidate["id"]))
             continue
         with store.db:
-            claimed = store.db.execute("UPDATE jobs SET status='running',started_at=?,error=NULL WHERE id=? AND status='queued'", (now(), candidate["id"])).rowcount
+            claimed = store.db.execute("UPDATE jobs SET status='running',started_at=?,error=NULL WHERE id=? AND status='queued' AND NOT EXISTS (SELECT 1 FROM task_controls WHERE task_id=jobs.task_id)", (now(), candidate["id"])).rowcount
         if claimed:
             return dict(store.db.execute("SELECT * FROM jobs WHERE id=?", (candidate["id"],)).fetchone())
     return None

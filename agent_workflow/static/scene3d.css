@@ -1,0 +1,15 @@
+.scene3d-canvas { display: block; width: 100%; height: 100%; outline: none; touch-action: pan-y; cursor: grab; }
+.scene3d-canvas:active { cursor: grabbing; }
+.scene3d-labels { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.scene3d-label { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 6px; max-width: 155px; padding: 5px 9px; border: 1px solid #ffffff19; border-radius: 7px; background: #17232de8; box-shadow: 0 3px 9px #0002; color: #e4edf0; font: 500 10px/1.5 var(--font, system-ui, sans-serif); white-space: nowrap; transform: translate(-50%, -100%); opacity: .93; pointer-events: none; transition: color 150ms, border-color 150ms, background 150ms; }
+.scene3d-label::before { content: ''; width: 5px; height: 5px; flex-shrink: 0; border-radius: 50%; background: var(--scene-agent-color, #a0acb6); }
+.scene3d-label-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.scene3d-label.is-selected { color: #f0fff6; background: #193b32ee; border-color: #70e9ad88; }
+.scene3d-label.is-active::before { box-shadow: 0 0 6px var(--scene-agent-color, #74e8b2); }
+.scene3d-label.is-unavailable { opacity: .65; }
+[data-scene-status="unavailable"] .scene3d-canvas, [data-scene-status="unavailable"] .scene3d-labels { display: none; }
+@media (max-width: 640px) {
+  .scene3d-label { max-width: 105px; padding: 3px 6px; font-size: 8px; gap: 4px; border-radius: 5px; }
+}
+@media (pointer: coarse) { .scene3d-canvas, .scene3d-canvas:active { cursor: default; } }
+@media (prefers-reduced-motion: reduce) { .scene3d-label { transition: none; } }

@@ -1,12 +1,14 @@
 # Agent Workflow
 
-**v0.3 사용 안내: [프로젝트 설정부터 자동 복구·연속 실행까지](docs/AUTOMATION_V0.3.ko.md)**
+v0.4.0: [3D 관제실과 SaaS형 화면](docs/SAAS_OBSERVATORY.ko.md) · [관측·업그레이드 안내](docs/OBSERVABILITY.ko.md) · [제품·연구 조사](docs/OBSERVABILITY_RESEARCH.ko.md)
+
+프로젝트 설정·복구·연속 실행: [v0.3 자동화 안내](docs/AUTOMATION_V0.3.ko.md)
 
 [실제 v0.3 사용 결과와 남은 연결](docs/FOLLOWUP_STATUS.ko.md) · [Katakuri 프로젝트 설정](profiles/README.md)
 
 [기본 개념과 Katakuri 파일럿 기록](docs/USER_GUIDE.ko.md)은 v0.2 시점 자료입니다.
 
-[구성과 작업 흐름 보기](docs/workflow-blueprint.html) — 2026-10-08 설계 시점의 시뮬레이션입니다. 최신 구현 상태는 v0.3 안내서를 확인하세요.
+[구성과 작업 흐름 보기](docs/workflow-blueprint.html) — 2026-10-08 설계 시점의 시뮬레이션입니다. 실제 실행 관측은 v0.4.0 관제실을 사용하세요.
 
 WSL2에서 Codex·Claude가 같은 작업 상태를 사용하도록 연결하는 공용 스킬과 로컬 CLI입니다.
 기존 WP/SRS/handoff를 참조하고, 구현 → 실제 검사 → 독립 리뷰 → 푸시·병합·배포 → 인계를 이어줍니다.
@@ -16,7 +18,40 @@ v0.3은 프로젝트 설정·별도 worktree 준비·파일 범위 예약·시�
 브라우저 증거·관리 문서·작업일지 내보내기·개별 중단/재개·호출/시간 한도·연속 실행을 연결합니다.
 대시보드에서 등록된 프로젝트 설정으로 새 작업을 만들고 실행 옵션과 로그를 확인할 수 있습니다.
 
-## 이 환경에 설치된 것
+## 에이전트 관제실
+
+```bash
+agent-workflow serve --port 8765
+```
+
+`http://127.0.0.1:8765`에서 작업을 선택하면 Three.js 3D 작업실, 실행 순서/역할 개요 그래프,
+시간순 인계 기록과 선택 상세를 볼 수 있습니다. 구현·검사·독립 리뷰·수정·통합·배포의 실제
+호출을 기록하며, 같은 상태 경로에서 실행한 CLI 작업도 반영됩니다. 관제실은 정상 연결 시
+약 2초마다 갱신하고 연결이 끊기면 마지막 기록을 유지하면서 활동 표시를 멈춥니다.
+
+기록 재생은 조회 시점만 바꿉니다. 작업 재실행이나 모델 호출·배포를 일으키지 않습니다.
+stdout/stderr는 선택한 단계에서 버튼을 누를 때 최대 64 KiB를 읽습니다. CLI 내부 tool call,
+subagent 전체와 기록되지 않은 대화는 추정하지 않습니다. 현재 코드의 검사·리뷰 증거는
+과거 실행 성공과 별도로 표시합니다. Three.js는 고정 버전의 로컬 번들로 제공하며, 사용자에게
+Node 서버·npm 설치·외부 CDN 접속을 요구하지 않습니다. Python runtime 의존성도 추가하지 않습니다.
+
+![실제 실행 기록으로 검증한 3D 관제실 데모](docs/images/saas-desktop.png)
+
+화면 예시는 임시 Git 프로젝트와 검증용 CLI 프로세스로 만든 데모입니다. 실제 모델 서비스의 실행 성과를 나타내지 않습니다.
+
+프로젝트 선택, 관제실·작업·실행 기록·설정 탐색, 모바일 메뉴와 `Ctrl/⌘ + K` 검색을 제공합니다.
+3D가 지원되지 않거나 화면 설정에서 끄더라도 역할 목록과 실행 그래프를 사용할 수 있습니다.
+화면 설정은 브라우저에 저장되며 실제 작업의 실행 계약을 변경하지 않습니다.
+
+업그레이드 전에는 이전 데몬·전경 실행을 종료하고 상태 디렉터리를 백업하세요. SQLite의
+revision·제어·관측 테이블은 자동으로 추가됩니다. 참조 문서가 있는 이전 진행 작업은 검사와
+리뷰를 갱신해야 하며, 완료한 작업의 증거가 맞지 않거나 금지 경로의 등록 기준 hash가 없으면
+새 작업으로 등록합니다. 자세한 범위·제어·이전 기록 처리는 [관제실 사용 안내](docs/OBSERVABILITY.ko.md)에 있습니다.
+
+## 기존 WSL 설치 기록
+
+아래 경로·포트는 기존 파일럿 환경의 기록입니다. 현재 설치·실행 상태는 `doctor`와
+`daemon status`로 확인하세요.
 
 - 코드: `/home/roqkf/agent-workflow`
 - 명령: `~/.local/bin/agent-workflow`
@@ -24,7 +59,7 @@ v0.3은 프로젝트 설정·별도 worktree 준비·파일 범위 예약·시�
 - 스킬 연결: `.codex`, `.claude`, `.claude-soonho`, `.claude-alex`의 `skills/agent-workflow`
 - 기본 실행 상태: `~/.local/state/agent-workflow/state.sqlite3`
 - 작업별 검사 로그·재개문·worklog: 위 상태 경로의 `tasks/<ID>/`
-- 실행 중 대시보드: `http://127.0.0.1:8776`
+- 대시보드 주소: `http://127.0.0.1:8776`
 - 로컬 시범 배포: `http://127.0.0.1:8776/demo`
 
 설치된 스킬이 현재 대화의 목록에 없으면 새 Codex/Claude 세션에서 사용하세요.
@@ -72,10 +107,12 @@ agent-workflow brief WP-074 --role review
 ```
 
 독립 검토자는 생성한 리뷰 입력과 현재 코드를 읽고 JSON 결과를 반환합니다. `show`의
-`observed_git.fingerprint`를 리뷰 시작 전에 기록하고 다음과 같이 등록합니다.
+`observed_git.fingerprint`를 리뷰 시작 전에 기록합니다. 참조 문서가 있으면 같은 시점의
+`refs_fingerprint`도 함께 기록하고 다음과 같이 등록합니다(참조가 없으면 해당 옵션 생략).
 
 ```bash
-agent-workflow review-import WP-074 --file /tmp/review.json --reviewer codex --fingerprint <검토한-코드-지문>
+agent-workflow review-import WP-074 --file /tmp/review.json --reviewer codex \
+  --fingerprint <검토한-코드-지문> --refs-fingerprint <검토한-참조-지문>
 agent-workflow finish WP-074
 agent-workflow handoff WP-074
 ```
@@ -133,8 +170,9 @@ agent-workflow run WP-074 --timeout 900 --repairs 1
 보존하고 현재 유효 여부를 구분합니다. 완료된 작업을 다시 덮지 말고 새 작업으로 등록하세요.
 
 - 지문에는 HEAD·index·추적 파일·무시되지 않은 untracked 파일·submodule 상태가 포함됩니다.
-- Git이 무시한 빌드 결과·환경변수·외부 데이터는 지문 범위 밖입니다. 그런 입력이 중요한
-  작업은 검사에서 해당 버전/해시를 확인하세요. 이 도구는 도메인별 검증을 대체하지 않습니다.
+- 명시한 `forbidden_paths`는 Git ignore 여부와 별도로 hash를 비교하며, `refs`는 파일 내용·
+  존재·링크를 검사·리뷰 증거에 연결합니다. 그 밖의 무시된 빌드 결과·환경변수·외부 데이터는
+  코드 지문 범위 밖입니다. 그런 입력이 중요한 작업은 검사에서 해당 버전/해시를 확인하세요.
 - 검사가 코드를 바꾸면 통과로 인정하지 않습니다. 생성 파일은 의도된 Git ignore 정책에
   따라 처리한 뒤 검사를 다시 실행하세요.
 - 검사 명령에는 `PYTHONDONTWRITEBYTECODE=1`을 기본으로 전달합니다(이미 지정한 값은 유지).
@@ -181,7 +219,8 @@ agent-workflow pipeline WP-074
 - 작업 브랜치를 non-force push하고 PR을 생성하거나 동일 커밋의 기존 PR을 이어갑니다.
 - 원격 commit status와 check runs를 확인하고 정확한 후보 SHA를 지정해 병합합니다.
   CI가 없는 저장소는 `--allow-no-ci`를 명시해야 합니다. 관리자 우회 옵션은 사용하지 않습니다.
-- 병합 커밋의 별도 checkout에서 필수 검사를 다시 실행한 뒤 배포합니다.
+- 배포가 없어도 실제 병합 결과를 검사합니다. Local 모드는 기준 브랜치 push 전에 검사하며,
+  GitHub는 실제 병합 SHA의 검사 결과를 별도로 기록합니다. 통합 검사 실패는 배포와 후속 작업을 막습니다.
 - 배포·health 명령에 `WORKFLOW_REVISION`, `WORKFLOW_TASK_ID` 환경변수를 전달합니다.
   health 명령은 단순 생존 여부뿐 아니라 기대한 revision이 적용됐는지 확인하도록 작성하세요.
 - 외부 배포 명령은 사용자가 지정한 프로그램을 실행합니다. 특정 호스팅 서비스의 자격 증명이나
@@ -194,7 +233,8 @@ agent-workflow pipeline WP-074
 
 기존 CLI 로그인(`gh`)과 해당 원격 Git 권한을 사용합니다. GitHub 경로는 API 경계 테스트로
 검증했고 실제 커밋·푸시·병합·배포는 로컬 bare 원격에서 검증했습니다. 외부 운영 저장소는
-사용자가 지정한 후 연결합니다. 기본 CI 대기 제한은 `release --timeout`으로 제어합니다.
+사용자가 지정한 후 연결합니다. `release --timeout`은 CI 대기·명령·Git/API를 포함한 한 릴리스
+호출의 전체 기한입니다. 각 단계에서 시간대·수동 보류·남은 시간도 다시 확인합니다.
 
 ## 상주 데몬과 대시보드
 
@@ -204,6 +244,8 @@ agent-workflow daemon status
 agent-workflow queue WP-074                 # 구현부터 설정된 릴리스까지
 agent-workflow queue WP-074 --action release # 로컬 완료 작업의 릴리스만
 agent-workflow jobs
+agent-workflow hold WP-074 --reason '다음 단계 전 확인 필요' # task와 기존 대기열 보류
+agent-workflow unhold WP-074                # 기존 queued 작업은 다시 실행 가능
 agent-workflow cancel JOB_ID                # queued 상태만 취소
 agent-workflow stop JOB_ID                  # 해당 실행에만 중단 요청
 agent-workflow resume JOB_ID                # 실패·중단·취소된 실행 재개
@@ -223,6 +265,8 @@ UI 회귀 검사는 `node tests/ui_scenarios.mjs http://127.0.0.1:8776`으로 �
 이 선택적 개발 검사는 Playwright가 필요하며, 설치된 `playwright` 또는 web-probe 런타임을
 사용합니다(`WORKFLOW_PLAYWRIGHT_PATH`로 경로 지정 가능). API를 브라우저 안에서 가로채므로
 실제 작업 실행·배포를 요청하지 않습니다. 사용자용 CLI·대시보드에는 Playwright가 필요 없습니다.
+실제 임시 SQLite·HTTP·큐와 합성 CLI를 연결하는 관제실 브라우저 검사는
+`python3 tests/observability_integration.py`로 실행합니다. 모델 과금이나 운영 배포는 호출하지 않습니다.
 
 `service-install --enable`은 사용자 systemd가 있으면 서비스를 등록하고, 없으면 대화형 Bash 로그인
 시작 파일의 관리 구역에 데몬 시작을 연결합니다. `--enable` 없이 실행하면 파일만 준비합니다.

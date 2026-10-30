@@ -25,8 +25,13 @@ def dependency_evidence(store, task):
         release = previous.get("release") or {}
         if task.get("dependency_mode") == "merged" and not release.get("merge_commit"):
             raise WorkflowError("선행 작업의 병합을 기다립니다: " + task_id)
+        if task.get("dependency_mode") == "merged":
+            from .release import integration_verified
+            if not integration_verified(previous):
+                raise WorkflowError("선행 병합의 통합 검사 통과를 기다립니다: " + task_id)
         receipts[task_id] = {"fingerprint": current["fingerprint"], "project": previous["project"],
-                             "merge_commit": release.get("merge_commit"), "at": now()}
+                             "merge_commit": release.get("merge_commit"),
+                             "integration_verification": release.get("integration_verification"), "at": now()}
     return receipts
 
 
@@ -56,6 +61,8 @@ def set_dependencies(store, task_id, dependencies, mode="completed"):
 
 
 def prepare_dependencies(store, task):
+    from .core import ensure_not_held
+    ensure_not_held(store, task)
     if not task.get("dependencies") or task.get("dependency_receipts"):
         return
     from .policy import window_limit
@@ -73,13 +80,13 @@ def prepare_dependencies(store, task):
             # Advance only this task's unused owned branch, never the user's main.
             git(task["project"], "merge", "--ff-only", sha)
             current = snapshot(task["project"])
-            task["baseline"] = {**current, "changed_files": {}}
+            task["baseline"] = {**task["baseline"], **current, "changed_files": {}}
             store.save(task, "dependency_base_advanced", {"commit": current["head"]})
     elif any(item["project"] == task["project"] for item in receipts.values()):
         # A same-worktree sequence accepts the already verified predecessor as its
         # baseline. Separate worktrees need merged mode to inherit source changes.
         from .policy import changed_files
-        task["baseline"] = {**current, "changed_files": changed_files(task["project"])}
+        task["baseline"] = {**task["baseline"], **current, "changed_files": changed_files(task["project"])}
     task["dependency_receipts"] = receipts
     store.save(task, "dependencies_verified", receipts)
 
@@ -165,7 +172,11 @@ def task_done(task):
     if task["status"] != "completed" or not freshness(task, observed_snapshot(task))["completion_is_current"]:
         return False
     release = task.get("release")
-    return not release or release.get("stage") == "deployed" or (release.get("stage") == "merged" and not release["config"].get("deploy"))
+    if not release:
+        return True
+    from .release import integration_verified
+    return integration_verified(task) and (release.get("stage") == "deployed"
+            or (release.get("stage") == "merged" and not release["config"].get("deploy")))
 
 
 def _tick(store, batches):

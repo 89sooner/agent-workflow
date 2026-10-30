@@ -6,8 +6,11 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 const require = createRequire(import.meta.url);
 let playwright;
-try { playwright = require('playwright'); }
-catch { playwright = require(process.env.WORKFLOW_PLAYWRIGHT_PATH || join(homedir(), '.cache/webprobe/runtime/node_modules/playwright')); }
+if (process.env.WORKFLOW_PLAYWRIGHT_PATH) playwright = require(process.env.WORKFLOW_PLAYWRIGHT_PATH);
+else {
+  try { playwright = require('playwright'); }
+  catch { playwright = require(join(homedir(), '.cache/webprobe/runtime/node_modules/playwright')); }
+}
 const origin = process.argv[2] || 'http://127.0.0.1:8776';
 const browser = await playwright.chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
@@ -68,6 +71,11 @@ await page.route('**/api/**', async (route) => {
   return route.fulfill({ status: 404, json: { error: 'Unexpected fixture request' } });
 });
 const waitLoaded = async () => { await page.locator('#loading').waitFor({ state: 'hidden' }); await page.locator('.detail-title').waitFor(); };
+const openNavigation = async () => {
+  if (page.viewportSize().width <= 900 && await page.locator('#navigation-toggle').getAttribute('aria-expanded') !== 'true') {
+    await page.locator('#navigation-toggle').click();
+  }
+};
 try {
   await page.goto(origin); await waitLoaded();
   assert.equal(await page.locator('#metric-blocked').textContent(), '1');
@@ -98,6 +106,7 @@ try {
   await page.getByRole('button', { name: 'UI-STALE 실행 대기 취소' }).click();
   console.log('PASS attention filter, stale evidence, literal rendering, release request');
 
+  await page.locator('#nav-tasks').click();
   await page.locator('.event-raw summary').first().click();
   await page.locator('.event-raw[open]').waitFor();
   events = [{ at: '2026-10-08T00:02:00Z', kind: 'checkpoint', data: { summary: '새 기록' } }, ...events];
@@ -106,9 +115,9 @@ try {
   assert.equal(await page.locator('.event-raw[open]').count(), 1);
   assert.equal(await page.locator('.detail-title').textContent(), stale.goal);
   await page.locator('#theme-toggle').click();
-  assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
+  assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
   await page.reload(); await waitLoaded();
-  assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
+  assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
   assert.equal(await page.locator('.detail-title').textContent(), stale.goal);
   console.log('PASS selected task and theme persistence, event expansion through refresh');
 
@@ -132,7 +141,17 @@ try {
   assert.equal(requests.at(-1).path, '/api/tasks');
   assert.deepEqual(requests.at(-1).body.criteria, ['목표에 맞는 검사', '독립 리뷰 통과']);
   assert.equal(requests.at(-1).body.isolate, true);
+  await page.locator('#nav-tasks').click();
   await page.locator('.execution-options summary').click();
+  await page.locator('#option-timeout').fill('0');
+  await page.locator('#nav-observatory').click();
+  const beforeInvalidOption = requests.length;
+  await page.getByRole('button', { name: '워크플로 실행', exact: true }).click();
+  assert.equal(requests.length, beforeInvalidOption);
+  assert.equal(await page.locator('body').getAttribute('data-view'), 'tasks');
+  assert.equal(await page.locator('.execution-options').getAttribute('open') !== null, true);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'option-timeout');
+  assert.match(await page.locator('#error').textContent(), /실행 옵션/);
   await page.locator('#option-timeout').fill('1234');
   await page.locator('#option-repairs').fill('0');
   await page.locator('#option-recoveries').fill('2');
@@ -162,6 +181,7 @@ try {
   await page.screenshot({ path: new URL('desktop.png', output).pathname });
   for (const width of [375, 768, 1440]) {
     await page.setViewportSize({ width, height: 950 });
+    await openNavigation();
     await page.locator('#new-task').click();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
     assert.equal(await page.locator('#create-dialog').evaluate(el => el.scrollWidth <= el.clientWidth + 1), true);

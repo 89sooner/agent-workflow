@@ -11,10 +11,12 @@ import subprocess
 import time
 import uuid
 
-from .core import WorkflowError, atomic_write, complete, encode, git, now, snapshot
+from .core import (StaleTaskError, WorkflowError, atomic_write, complete, encode,
+                   ensure_not_held, git, now, reference_fingerprint, references_current, snapshot)
 from .recovery import AgentFailure, classify, record_failure, take_recovery
 from .policy import changed_files, preflight, reservation, scope_check, window_limit
 from .usage import managed_process, remaining, reconcile_pending, ensure_call_budget
+from .observability import traced
 
 RESULT_SCHEMA = {
     "type": "object", "additionalProperties": False,
@@ -38,7 +40,7 @@ def validate_result(result, role):
     if not isinstance(result["next_action"], str) or not isinstance(result["findings"], list):
         raise WorkflowError("결과 next_action/findings 형식 오류")
     allowed = {"pass", "changes_requested", "blocked"} if role == "review" else {"ready", "blocked"}
-    if result["outcome"] not in allowed:
+    if not isinstance(result["outcome"], str) or result["outcome"] not in allowed:
         raise WorkflowError(f"{role} 결과 outcome 오류")
     for f in result["findings"]:
         if (not isinstance(f, dict) or set(f) != {"blocking", "detail", "evidence"}
@@ -83,7 +85,8 @@ def digest(value):
 
 
 def review_contract(task):
-    return digest({key: task.get(key) for key in ("id", "project", "baseline", "goal", "criteria", "refs", "checks", "scope", "owner", "reviewer", "project_config")})
+    return digest({**{key: task.get(key) for key in ("id", "project", "baseline", "goal", "criteria", "refs", "checks", "scope", "owner", "reviewer", "project_config")},
+                   "refs_fingerprint": reference_fingerprint(task)})
 
 
 def stop_group(proc):
@@ -187,6 +190,7 @@ changes. Use file tools if shell commands are unavailable; the controller will r
     return text
 
 
+@traced("agent")
 def invoke(store, task, agent, role, timeout, lock_fd, feedback=None, model=None):
     preflight(store, task)
     ensure_call_budget(task)
@@ -245,15 +249,18 @@ def run_check_commands(store, task, timeout, lock_fd):
     try:
         with running(store, task, lock_fd):
             for i, argv in enumerate(task["checks"]):
+                ensure_not_held(store, task)
                 directory = store.directory(task["id"]) / "checks" / (uuid.uuid4().hex + f"-{i}")
                 step_timeout = min(timeout, window_limit(task.get("project_config") or {}))
                 result = managed_process(store, task, argv, task["project"], directory, step_timeout, lock_fd,
-                                         env_extra=environment(task, directory))
+                                         env_extra=environment(task, directory), role="check")
                 result["argv"] = argv
                 result["artifacts"] = [str(p) for p in directory.iterdir() if p.is_file() and p.name not in {"stdout.log", "stderr.log", "process.json"}]
                 results.append(result)
                 print(f"check {i + 1}/{len(task['checks'])}: exit={result['exit_code']}", flush=True)
     except (WorkflowError, OSError, KeyboardInterrupt) as exc:
+        if isinstance(exc, StaleTaskError):
+            raise
         task.update(status="blocked", blocker=str(exc) or "검사 중단")
         store.save(task, "checks_interrupted", {"reason": task["blocker"]})
         raise WorkflowError(task["blocker"]) from exc
@@ -277,7 +284,9 @@ def created_untracked(before, after, untracked_now):
     return sorted(added) if added and added <= untracked_now else []
 
 
+@traced("checks")
 def run_checks(store, task, timeout, lock_fd):
+    ensure_not_held(store, task)
     from .scheduling import prepare_dependencies
     prepare_dependencies(store, task)
     preflight(store, task)
@@ -286,6 +295,7 @@ def run_checks(store, task, timeout, lock_fd):
     if not task["checks"]:
         raise WorkflowError("등록된 검사 명령이 없습니다.")
     before = snapshot(task["project"])
+    before_refs = reference_fingerprint(task)
     before_changes = changed_files(task["project"])
     task["status"] = "checking"
     task["verification"] = None
@@ -304,26 +314,35 @@ def run_checks(store, task, timeout, lock_fd):
             results = run_check_commands(store, task, timeout, lock_fd)
             after = snapshot(task["project"])
     scope_check(task)
+    after_refs = reference_fingerprint(task)
     changed = before["fingerprint"] != after["fingerprint"]
-    passed = all_succeeded(results) and not changed
+    refs_changed = before_refs is None or before_refs != after_refs
+    passed = all_succeeded(results) and not changed and not refs_changed
     task["verification"] = {"passed": passed, "fingerprint": after["fingerprint"],
+                            "refs_fingerprint": after_refs,
                             "code_changed_during_checks": changed,
+                            "references_changed_during_checks": refs_changed,
                             "check_created_files": created,
                             "results": results, "at": now()}
     task["review"] = None
     task["status"] = ("ready_to_finish" if task["reviewer"] == "none" else "needs_review") if passed else "blocked"
-    task["blocker"] = None if passed else "필수 검사 실패 또는 검사 중 코드 변경"
+    task["blocker"] = None if passed else "필수 검사 실패 또는 검사 중 코드·참조 문서 변경"
     store.save(task, "checks_finished", task["verification"])
     return passed
 
 
-def record_review(store, task, result, fingerprint, reviewer):
+@traced("review")
+def record_review(store, task, result, fingerprint, reviewer, refs_fingerprint=None):
+    ensure_not_held(store, task)
     result = validate_result(result, "review")
     if reviewer != task["reviewer"] or reviewer == task["owner"]:
         raise WorkflowError("등록된 독립 검토자와 일치하지 않습니다.")
     current = snapshot(task["project"])
     if current["fingerprint"] != fingerprint:
         raise WorkflowError("리뷰 대상 이후 코드가 변경됐습니다. 새 리뷰가 필요합니다.")
+    current_refs = reference_fingerprint(task)
+    if task.get("refs") and (refs_fingerprint is None or refs_fingerprint != current_refs):
+        raise WorkflowError("리뷰 대상 참조 문서 지문이 없거나 변경됐습니다. show의 refs_fingerprint로 새 리뷰를 확인하세요.")
     independent_run = None
     if reviewer == "codex-session":
         receipt = task.get("native_review_receipt") or {}
@@ -334,6 +353,7 @@ def record_review(store, task, result, fingerprint, reviewer):
             raise WorkflowError("실제 별도 Codex 검토 실행과 현재 작업 계약에 연결된 결과가 필요합니다.")
         independent_run = receipt["directory"]
     task["review"] = {**result, "verdict": result["outcome"], "fingerprint": fingerprint,
+                      "refs_fingerprint": current_refs,
                       "reviewer": reviewer, "independent_run": independent_run, "at": now()}
     task["status"] = "ready_to_finish" if result["outcome"] == "pass" else "blocked"
     task["blocker"] = None if result["outcome"] == "pass" else result["summary"]
@@ -377,11 +397,13 @@ def invoke_with_recovery(store, task, agent, role, timeout, fd, budget, feedback
             time.sleep(min(budget["used"], 2))
 
 
+@traced("workflow")
 def execute(store, task_id, timeout=900, repairs=1, recoveries=None):
     task = store.get(task_id)
     with store.lock(task["project"]) as tree_fd, reservation(store, task) as resource_fd:
         fd = (tree_fd, resource_fd)
         task = store.get(task_id)
+        ensure_not_held(store, task)
         if task["status"] == "completed":
             raise WorkflowError("완료된 작업입니다. 새 범위는 새 작업으로 등록하세요.")
         if not task["checks"]:
@@ -404,7 +426,7 @@ def execute(store, task_id, timeout=900, repairs=1, recoveries=None):
                 current = snapshot(task["project"])
                 v = task.get("verification") or {}
                 # On resume after a review interruption, keep the successful checks.
-                checked = v.get("passed") and v.get("fingerprint") == current["fingerprint"]
+                checked = v.get("passed") and v.get("fingerprint") == current["fingerprint"] and references_current(task, v)
                 r = task.get("review") or {}
                 needs_repair = r.get("verdict") == "changes_requested"
                 if not checked or needs_repair:
@@ -419,7 +441,7 @@ def execute(store, task_id, timeout=900, repairs=1, recoveries=None):
                     from .closure import sync_documents
                     sync_documents(store, task)
                     existing = task.get("verification") or {}
-                    passed = (existing["passed"] if answer.get("checks_already_ran") and existing.get("fingerprint") == snapshot(task["project"])["fingerprint"]
+                    passed = (existing["passed"] if answer.get("checks_already_ran") and existing.get("fingerprint") == snapshot(task["project"])["fingerprint"] and references_current(task, existing)
                               else run_checks(store, task, timeout, fd))
                     if not passed:
                         feedback = task["verification"]
@@ -430,11 +452,12 @@ def execute(store, task_id, timeout=900, repairs=1, recoveries=None):
                 prior_review = task.get("review") or {}
                 reviewed = (prior_review.get("verdict") == "pass"
                             and prior_review.get("fingerprint") == current_fp
-                            and prior_review.get("reviewer") == task["reviewer"])
+                            and prior_review.get("reviewer") == task["reviewer"] and references_current(task, prior_review))
                 if task["reviewer"] != "none" and not reviewed:
                     fingerprint = snapshot(task["project"])["fingerprint"]
+                    refs_fingerprint = reference_fingerprint(task)
                     answer = invoke_with_recovery(store, task, task["reviewer"], "review", timeout, fd, budget)
-                    record_review(store, task, answer, fingerprint, task["reviewer"])
+                    record_review(store, task, answer, fingerprint, task["reviewer"], refs_fingerprint)
                     if answer["outcome"] != "pass":
                         feedback = task["review"]
                         if answer["outcome"] == "changes_requested" and attempt < repairs:
@@ -443,6 +466,8 @@ def execute(store, task_id, timeout=900, repairs=1, recoveries=None):
                 return complete(store, task)
             raise WorkflowError("수정 횟수 한도에 도달했습니다.")
         except (WorkflowError, OSError, KeyboardInterrupt) as exc:
+            if isinstance(exc, StaleTaskError):
+                raise
             task["status"] = "blocked"
             task["blocker"] = str(exc) or "사용자가 실행을 중단했습니다."
             task["checkpoint"]["next"] = "실제 변경과 실행 로그를 확인한 후 run으로 재개"

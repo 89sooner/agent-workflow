@@ -158,6 +158,10 @@ class SchedulingTests(unittest.TestCase):
         parent["baseline"]["changed_files"] = {}
         self.finish(parent)
         parent["release"] = {"commit": parent["baseline"]["head"], "merge_commit": parent["baseline"]["head"], "stage": "merged", "config": {"deploy": None}}
+        from agent_workflow.release import integration_contract
+        parent["release"]["integration_verification"] = {"passed": True,
+            "revision": parent["baseline"]["head"], "fingerprint": parent["verification"]["fingerprint"],
+            "contract": integration_contract(parent)}
         self.store.save(parent, "fixture_merge")
         child = self.store.get("CHILD")
         prepare_dependencies(self.store, child)
@@ -172,6 +176,9 @@ class SchedulingTests(unittest.TestCase):
         self.finish(parent)
         sha=git(parent['project'],'rev-parse','HEAD')
         parent['release']={'commit':sha,'merge_commit':sha,'stage':'merged','config':{'deploy':None}}
+        from agent_workflow.release import integration_contract
+        parent['release']['integration_verification'] = {'passed': True, 'revision': sha,
+            'fingerprint': parent['verification']['fingerprint'], 'contract': integration_contract(parent)}
         self.store.save(parent,'fixture_merge')
         (self.project/'outside.txt').write_text('user edit')
         save_profile(self.store,'current',{'project':str(self.project),'workspace':{'isolate':False},'allowed_paths':['app.py']})

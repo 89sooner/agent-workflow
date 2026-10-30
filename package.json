@@ -1,0 +1,14 @@
+{
+  "name": "agent-workflow-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-frontend.mjs",
+    "dev": "node scripts/build-frontend.mjs --watch",
+    "check:vendor": "node scripts/build-frontend.mjs --check"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "three": "0.187.0"
+  }
+}

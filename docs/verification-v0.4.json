@@ -1,0 +1,97 @@
+{
+  "version": "0.4.0",
+  "date": "2026-10-30",
+  "base_commit": "c3e1d4acd21ccb9cf108de76861a161b8bd2f75c",
+  "scope": "Local verification of the agent observatory and execution-contract hardening; CI results are recorded separately by GitHub Actions for each commit.",
+  "runtime": {
+    "python": "3.12.14",
+    "node": "24.22.1",
+    "playwright": "1.51.1",
+    "chromium_build": "1161"
+  },
+  "python_regression": {
+    "command": "python3 -m unittest discover -s tests -v",
+    "result": "PASS",
+    "cases": 178,
+    "seconds": 38.137,
+    "coverage": [
+      "Optimistic task revision checks and locked finalization",
+      "Durable hold, queue claims, and process/phase boundaries",
+      "Git-ignored forbidden paths, internal symlink targets, dangling links, external aliases and cycles",
+      "Reference document fingerprints across checks, review, completion and release",
+      "Merged-revision integrity, integration receipts and dependency gates",
+      "Whole-release deadlines, held releases and local merge recovery",
+      "Run/span ordering, controller-mediated handoffs, historical actor identity and current-run selection",
+      "HTTP observation/export/log contracts, CSRF and path constraints"
+    ]
+  },
+  "existing_dashboard": {
+    "command": "python3 tests/ui_integration.py",
+    "result": "PASS",
+    "source": "Existing browser scenarios, including intercepted API fixtures",
+    "viewports": [375, 390, 768, 1440],
+    "coverage": [
+      "Task search, keyboard navigation, selection and theme persistence",
+      "Queue, duplicate requests, cancellation, individual stop and resume",
+      "Profile registration, execution options, empty/error states and recovery",
+      "Stale evidence, release state, escaped logs and reduced motion"
+    ]
+  },
+  "observatory_acceptance": {
+    "command": "python3 tests/observability_integration.py",
+    "result": "PASS",
+    "source": "Actual temporary Git worktrees, SQLite, local HTTP, queue worker and controlled CLI subprocesses; no intercepted observability API",
+    "actual_model_calls": 0,
+    "production_deployments": 0,
+    "browser_exceptions": 0,
+    "coverage": [
+      "Failed initial run, review rejection, repair and successful independent review",
+      "Six distinct execution spans, role aggregation, graph/inspector selection and escaped untrusted results",
+      "Raw logs loaded only on request and rendered as text",
+      "Read-only replay with no POST requests, historical runs, event search and JSON export",
+      "Responsive mobile graph, light theme and reduced motion",
+      "Real queued execution and live actor activity",
+      "Hold during implementation prevents subsequent checks and review",
+      "Unhold and resume to local completion with verified queue job linkage",
+      "Missing worktree observation error and recovery"
+    ],
+    "screenshots": [
+      "images/observatory-desktop.png",
+      "images/observatory-mobile.png"
+    ],
+    "screenshot_data": "Synthetic demonstration task and controlled CLI outputs; not production model performance"
+  },
+  "responsive_followup": {
+    "result": "PASS",
+    "viewport_sequence": [1512, 390, 640, 1512],
+    "coverage": [
+      "Selected historical span identity and inspector survive resizing",
+      "Selected card remains visible",
+      "Mobile graph canvas fits its viewport with zero horizontal overflow",
+      "Desktop role lanes return after resizing",
+      "Mobile aggregate graph preserves all observed handoffs"
+    ],
+    "console_errors": 0,
+    "console_warnings": 0
+  },
+  "packaging": {
+    "command": "python3 -m pip wheel --no-deps --no-build-isolation .",
+    "result": "PASS",
+    "observability_module_and_static_assets_included": true,
+    "added_runtime_dependencies": 0
+  },
+  "ci_configuration": {
+    "workflow": "../.github/workflows/ci.yml",
+    "python_matrix": ["3.11", "3.13"],
+    "node": "22",
+    "playwright": "1.51.1",
+    "checks": ["Full Python regression", "Installed package assets", "Existing dashboard", "Actual local observatory acceptance"]
+  },
+  "not_validated_by_this_record": [
+    "Current production Claude/Codex account and model compatibility",
+    "Production GitHub merge, deployment and rollback",
+    "Windows/WSL reboot and long-running unattended operation",
+    "CLI-internal tool calls and subagent conversations",
+    "Measured productivity gains or a comparative usability study"
+  ]
+}

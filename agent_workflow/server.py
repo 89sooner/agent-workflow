@@ -12,7 +12,7 @@ import subprocess
 import sys
 import threading
 import time
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 from . import __version__
 from .core import Store, WorkflowError, atomic_write, encode, now, snapshot
@@ -87,11 +87,13 @@ def handler(home, token):
             if origin and origin != "http://" + host:
                 raise WorkflowError("다른 출처의 요청은 허용하지 않습니다.")
 
-        def response(self, data, status_code=200, content_type="application/json; charset=utf-8"):
+        def response(self, data, status_code=200, content_type="application/json; charset=utf-8", attachment=None):
             body = data if isinstance(data, bytes) else encode(data).encode()
             self.send_response(status_code)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
+            if attachment:
+                self.send_header("Content-Disposition", f'attachment; filename="{attachment}"')
             self.send_header("Cache-Control", "no-store")
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'")
@@ -102,10 +104,12 @@ def handler(home, token):
             store = None
             try:
                 self.origin()
-                path = unquote(urlparse(self.path).path)
-                if path in ("/", "/static/app.js", "/static/styles.css"):
+                parsed = urlparse(self.path)
+                path = unquote(parsed.path)
+                if path in ("/", "/static/app.js", "/static/styles.css", "/static/observatory.js", "/static/observatory.css",
+                            "/static/saas.css", "/static/scene3d.js", "/static/scene3d.css", "/static/three-vendor.js", "/static/THREE_LICENSE.txt"):
                     name = "index.html" if path == "/" else path.rsplit("/", 1)[1]
-                    mime = {"index.html": "text/html", "app.js": "text/javascript", "styles.css": "text/css"}[name]
+                    mime = "text/html" if name == "index.html" else "text/javascript" if name.endswith(".js") else "text/css" if name.endswith(".css") else "text/plain"
                     return self.response((assets / name).read_bytes(), content_type=mime + "; charset=utf-8")
                 if path == "/demo":
                     p = Path(home) / "demo/site/index.html"
@@ -113,6 +117,26 @@ def handler(home, token):
                         return self.response({"error": "시범 배포가 아직 없습니다."}, 404)
                     return self.response(p.read_bytes(), content_type="text/html; charset=utf-8")
                 store = Store(home)
+                if path in {"/api/observability", "/api/observability/export"}:
+                    from .observability import view
+                    query = parse_qs(parsed.query)
+                    task_id = query.get("task_id", [None])[0]
+                    if not task_id:
+                        raise WorkflowError("task_id가 필요합니다.")
+                    try:
+                        limit = int(query.get("limit", ["200"])[0])
+                        before = int(query["before"][0]) if "before" in query else None
+                    except ValueError as exc:
+                        raise WorkflowError("limit와 before는 정수입니다.") from exc
+                    exporting = path.endswith("/export")
+                    result = view(store, task_id, query.get("run_id", [None])[0], before, limit, exporting)
+                    return self.response(result, attachment="agent-workflow-trace.json" if exporting else None)
+                if path.startswith("/api/observability/artifacts/"):
+                    from .observability import artifact
+                    parts = path.removeprefix("/api/observability/artifacts/").split("/")
+                    if len(parts) != 2:
+                        raise WorkflowError("실행 단계와 로그 종류가 필요합니다.")
+                    return self.response(artifact(store, *parts))
                 if path == "/api/state":
                     from .profiles import list_profiles
                     from .operations import notifications
@@ -141,11 +165,14 @@ def handler(home, token):
                         from .workspaces import observed_snapshot
                         current = observed_snapshot(task)
                         flags = freshness(task, current)
+                        observation = {"status": "observed"}
                     except (WorkflowError, OSError) as exc:
                         current, flags = {"error": str(exc)}, {}
-                    rows = store.db.execute("SELECT at,kind,data FROM events WHERE task_id=? ORDER BY seq DESC LIMIT 60", (task["id"],)).fetchall()
-                    events = [{"at": r[0], "kind": r[1], "data": json.loads(r[2])} for r in rows]
+                        observation = {"status": "unavailable", "reason": str(exc)}
+                    rows = store.db.execute("SELECT seq,at,kind,data FROM events WHERE task_id=? ORDER BY seq DESC LIMIT 60", (task["id"],)).fetchall()
+                    events = [{"seq": r[0], "at": r[1], "kind": r[2], "data": json.loads(r[3])} for r in rows]
                     return self.response({"task": task, "observed_git": current, "freshness": flags,
+                                          "observation": observation,
                                           "events": events, "jobs": [j for j in list_jobs(store) if j["task_id"] == task["id"]]})
                 return self.response({"error": "경로 없음"}, 404)
             except WorkflowError as exc:
@@ -169,6 +196,19 @@ def handler(home, token):
                 if not isinstance(data, dict):
                     raise WorkflowError("JSON object가 필요합니다.")
                 store = Store(home)
+                if self.path in {"/api/hold", "/api/unhold"}:
+                    from .core import set_hold, clear_hold
+                    task_id = data.get("task_id")
+                    if not isinstance(task_id, str):
+                        raise WorkflowError("task_id가 필요합니다.")
+                    if self.path == "/api/hold":
+                        reason = data.get("reason")
+                        if not isinstance(reason, str) or not reason.strip() or len(reason) > 2000:
+                            raise WorkflowError("보류 이유를 1~2000자로 입력하세요.")
+                        task = set_hold(store, task_id, reason.strip())
+                    else:
+                        task = clear_hold(store, task_id)
+                    return self.response({"task": task})
                 if self.path == "/api/tasks":
                     from .workspaces import create_from_profile
                     from .profiles import identifier, strings

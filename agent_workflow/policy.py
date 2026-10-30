@@ -12,7 +12,78 @@ import stat
 import uuid
 from zoneinfo import ZoneInfo
 
-from .core import WorkflowError, atomic_write, encode, git, snapshot
+from .core import WorkflowError, atomic_write, encode, ensure_not_held, git, snapshot
+
+
+def protected_snapshot(project, paths):
+    """Hash only explicit forbidden paths, including ignored contents and missing roots.
+
+    Internal aliases bind both link identity and target contents. External aliases
+    and cycles cannot be verified within the project and fail closed. The ledger
+    stores digests only; secret file contents never become event or prompt text.
+    """
+    root = Path(project).resolve()
+    result = {}
+    for name in paths:
+        digest = hashlib.sha256()
+        path = root / name
+
+        def field(value):
+            value = value if isinstance(value, bytes) else os.fsencode(str(value))
+            digest.update(len(value).to_bytes(8, "big") + value)
+
+        def visit(item, active):
+            try:
+                field("entry"); field(item.relative_to(root))
+                # Also retain an alias in an ancestor of an explicitly selected
+                # file, even when that final file itself is not a symlink.
+                for ancestor in reversed((item, *item.parents)):
+                    if ancestor.is_relative_to(root) and ancestor.is_symlink():
+                        field("link"); field(ancestor.relative_to(root))
+                        field(ancestor.lstat().st_mode); field(os.readlink(ancestor))
+                        if not ancestor.resolve().is_relative_to(root):
+                            raise WorkflowError("금지 경로의 심볼릭 링크가 저장소 밖을 가리킵니다: " + name)
+                resolved = item.resolve()
+                if not resolved.is_relative_to(root):
+                    raise WorkflowError("금지 경로의 심볼릭 링크가 저장소 밖을 가리킵니다: " + name)
+                field("target"); field(resolved.relative_to(root))
+                try:
+                    info = resolved.lstat()
+                except FileNotFoundError:
+                    # A missing internal target is a stable baseline. Creating it
+                    # later changes this digest, just like a new forbidden file.
+                    field("missing")
+                    return
+                field(info.st_mode)
+                if stat.S_ISREG(info.st_mode):
+                    contents = hashlib.sha256()
+                    with resolved.open("rb") as stream:
+                        while chunk := stream.read(1024 * 1024):
+                            contents.update(chunk)
+                    field(contents.digest())
+                elif stat.S_ISDIR(info.st_mode):
+                    if (resolved in active or any(parent.is_relative_to(resolved) for parent in active)
+                            or (item != resolved and item.is_relative_to(resolved))):
+                        raise WorkflowError("금지 경로에 순환 심볼릭 링크가 있습니다: " + name)
+                    for child in sorted(resolved.iterdir()):
+                        visit(child, active | {resolved})
+                else:
+                    raise WorkflowError("금지 경로의 파일 형식을 확인할 수 없습니다: " + name)
+            except (OSError, RuntimeError) as exc:
+                raise WorkflowError("금지 경로를 확인할 수 없습니다: " + name) from exc
+
+        visit(path, set())
+        result[name] = digest.hexdigest()
+    return result
+
+
+def protected_current(task):
+    forbidden = (task.get("project_config") or {}).get("forbidden_paths") or []
+    if not forbidden:
+        return True
+    baseline = task.get("baseline", {}).get("protected_paths")
+    return (isinstance(baseline, dict) and set(baseline) == set(forbidden)
+            and baseline == protected_snapshot(task["project"], forbidden))
 
 
 def changed_files(project):
@@ -67,10 +138,16 @@ def scope_check(task):
     paths.extend(name for name in initial if name not in changes)
     allowed = cfg.get("allowed_paths") or ["."]
     forbidden = cfg.get("forbidden_paths") or []
+    protected = task["baseline"].get("protected_paths")
+    if forbidden and (protected is None or set(protected) != set(forbidden)):
+        raise WorkflowError("금지 경로의 기준 증거가 없는 이전 작업입니다. 현재 상태를 확인하고 새 작업을 등록하세요.")
+    protected_changes = [name for name, value in protected_snapshot(task["project"], forbidden).items()
+                         if protected.get(name) != value]
     root = Path(task["project"]).resolve()
     violations = [name for name in paths if not any(under(name, x) for x in allowed)
                   or any(under(name, x) for x in forbidden)
                   or not (root / name).resolve().is_relative_to(root)]
+    violations.extend(protected_changes)
     if violations:
         raise WorkflowError("작업 범위 위반: " + ", ".join(sorted(set(violations))))
 
@@ -99,6 +176,10 @@ def window_limit(config, at=None):
 
 
 def preflight(store, task):
+    ensure_not_held(store, task)
+    for name in task.get("refs", []):
+        if not Path(name).is_file():
+            raise WorkflowError("참조 문서 없음: " + name)
     window_limit(task.get("project_config") or {})
     if task.get("dependencies") and not task.get("dependency_receipts"):
         from .scheduling import dependency_evidence

@@ -1,0 +1,76 @@
+name: Workflow verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workflow-verification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  controller:
+    name: Controller / Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Test state, evidence, recovery, releases, and HTTP APIs
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python -m unittest discover -s tests -v
+      - name: Verify installed package includes the observatory
+        run: |
+          python -m pip install . --no-deps
+          cd "$RUNNER_TEMP"
+          python -c "from importlib.resources import files; root = files('agent_workflow'); assert all(root.joinpath('static', name).is_file() for name in ('index.html', 'app.js', 'styles.css', 'observatory.js', 'observatory.css', 'saas.css', 'scene3d.js', 'scene3d.css', 'three-vendor.js', 'THREE_LICENSE.txt'))"
+
+  browser:
+    name: Browser / actual local workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify pinned Three.js bundle
+        run: |
+          npm ci --no-audit --no-fund
+          npm run check:vendor
+      - name: Install browser test tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/workflow-browser" --no-audit --no-fund playwright@1.51.1
+          "$RUNNER_TEMP/workflow-browser/node_modules/.bin/playwright" install --with-deps chromium
+          sudo apt-get install --yes fonts-noto-cjk
+      - name: Existing dashboard and controller-backed observatory acceptance
+        env:
+          WORKFLOW_PLAYWRIGHT_PATH: ${{ runner.temp }}/workflow-browser/node_modules/playwright
+          WORKFLOW_SCREENSHOT_DIR: ${{ runner.temp }}/workflow-screenshots
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python tests/ui_integration.py
+          python tests/observability_integration.py
+          python tests/saas_integration.py
+      - name: Keep browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: observatory-browser-evidence
+          path: ${{ runner.temp }}/workflow-screenshots
+          if-no-files-found: ignore

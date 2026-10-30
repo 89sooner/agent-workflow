@@ -11,7 +11,7 @@ import shlex
 import stat
 from zoneinfo import ZoneInfo
 
-from .core import WorkflowError, atomic_write, encode, now
+from .core import WorkflowError, atomic_write, encode, ensure_not_held, now
 
 
 def plain(value):
@@ -21,6 +21,7 @@ def plain(value):
 
 
 def sync_documents(store, task):
+    ensure_not_held(store, task)
     documents = (task.get("project_config") or {}).get("documents", [])
     if not documents:
         return False
@@ -122,7 +123,14 @@ def worklog(store, task, state):
     return date, "\n".join(lines) + "\n"
 
 
-def finalize(store, task):
+def finalize(store, task, *, locked=False):
+    """Export the latest state under the same worktree lock as configuration writes."""
+    if not locked:
+        with store.lock(task["project"]):
+            return finalize(store, task, locked=True)
+    latest = store.get(task["id"])
+    task.clear()
+    task.update(latest)
     from .cli import export_handoff, freshness
     from .workspaces import observed_snapshot
     directory = export_handoff(store, task)
