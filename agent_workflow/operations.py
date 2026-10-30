@@ -39,12 +39,12 @@ def publish_notification(store, task, job=None):
     if command:
         # The explicit profile command is the only delivery adapter. No messaging
         # destination is discovered from a repository or inferred from task text.
-        directory = store.directory(task["id"]) / "notifications" / key
-        atomic_write(directory / "event.json", encode(item))
-        item["delivery"] = "started"
-        with store.db:
-            store.db.execute("UPDATE notifications SET data=? WHERE id=?", (encode(item), key))
         try:
+            directory = store.directory(task["id"]) / "notifications" / key
+            atomic_write(directory / "event.json", encode(item))
+            item["delivery"] = "started"
+            with store.db:
+                store.db.execute("UPDATE notifications SET data=? WHERE id=?", (encode(item), key))
             from .runner import process
             result = process(command, directory, directory / "command", 30, (), env_extra={"WORKFLOW_NOTIFICATION_FILE": str(directory / "event.json")})
             item.update(result=result, delivery="delivered" if result["exit_code"] == 0 and not result["timed_out"] else "failed")

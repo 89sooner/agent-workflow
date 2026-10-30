@@ -75,7 +75,7 @@ def prepare(store, task, timeout, fd, retry=False):
         store.save(task, "setup_started", {"index": i, "argv": argv})
         directory = store.directory(task["id"]) / "setup" / str(i)
         try:
-            result = managed_process(store, task, argv, task["project"], directory, min(timeout, window_limit(cfg)), fd)
+            result = managed_process(store, task, argv, task["project"], directory, min(timeout, window_limit(cfg)), fd, role="setup")
             scope_check(task)
             if result["timed_out"] or result["exit_code"]:
                 raise WorkflowError("환경 준비 명령 실패. 로그: " + str(directory))

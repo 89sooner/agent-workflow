@@ -64,13 +64,20 @@ def ready(service):
 
 
 @contextlib.contextmanager
-def running(store, task, lock_fd, cwd=None):
+def running(store, task, lock_fd, cwd=None, deadline=None):
+    from .core import ensure_not_held
     from .runner import stop_group
     from .server import identity
     services = (task.get("project_config") or {}).get("services", [])
     children = []
     try:
         for item in services:
+            ensure_not_held(store, task)
+            left = deadline - time.monotonic() if deadline is not None else float("inf")
+            if left <= 0:
+                raise WorkflowError("검사 서버 시작 전 실행 시간 한도가 끝났습니다.")
+            ready_deadline = time.monotonic() + min(item["startup_seconds"],
+                window_limit(task.get("project_config") or {}), left)
             with socket.socket() as probe:
                 # Ignore closed connections in TIME_WAIT, while a live listener
                 # still prevents this bind. SO_REUSEPORT is deliberately not used.
@@ -91,14 +98,15 @@ def running(store, task, lock_fd, cwd=None):
             children.append((proc, record))
             task.setdefault("active_services", []).append(record)
             store.save(task, "service_started", record)
-            deadline = time.monotonic() + min(item["startup_seconds"], window_limit(task.get("project_config") or {}))
             while True:
+                ensure_not_held(store, task)
+                window_limit(task.get("project_config") or {})
                 if proc.poll() is not None:
                     raise WorkflowError("검사 서버 시작 실패. 로그: " + str(directory))
+                if time.monotonic() >= ready_deadline:
+                    raise WorkflowError("검사 서버 준비 시간 초과. 로그: " + str(directory))
                 if ready(item):
                     break
-                if time.monotonic() >= deadline:
-                    raise WorkflowError("검사 서버 준비 시간 초과. 로그: " + str(directory))
                 time.sleep(.1)
         yield
     finally:

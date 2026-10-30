@@ -1,6 +1,6 @@
 'use strict';
 const $ = (id) => document.getElementById(id);
-const state = { tasks: [], jobs: [], profiles: [], notifications: [], selected: null, detail: null, token: null, busy: false, polling: false, listKey: '', detailKey: '', jobsKey: '', profileKey: '' };
+const state = { tasks: [], jobs: [], profiles: [], notifications: [], selected: null, detail: null, token: null, busy: false, polling: false, listKey: '', detailKey: '', jobsKey: '', profileKey: '', holdTaskId: null };
 try { state.selected = localStorage.getItem('agent-workflow-selected'); } catch (_) { /* storage is optional */ }
 const labels = { ready: '준비됨', running: '실행 중', implementing: '구현 중', checking: '검증 중', reviewing: '검토 중', needs_review: '검토 대기', ready_to_finish: '마감 대기', blocked: '확인 필요', completed: '로컬 완료', queued: '대기 중', succeeded: '완료', failed: '실패', cancelled: '취소됨', canceled: '취소됨', configured: '설정됨', merged: '병합 완료', deployed: '배포 완료', deploying: '배포 중', merging: '병합 중', pr_created: 'PR 생성됨', pushed: '푸시 완료', pending: '대기 중' };
 Object.assign(labels, { interrupted: '중단됨', committed: '커밋 완료', pull_request: 'PR 생성됨', preparing: '통합 준비 중', created: '작업 등록', checks_started: '필수 검사 시작', checks_finished: '필수 검사 종료', checks_interrupted: '검사 중단', check_added: '검사 명령 추가', agent_started: '에이전트 실행 시작', implementation_returned: '구현 결과 수신', review_finished: '독립 검토 종료', checkpoint: '체크포인트 저장', assigned: '담당자 변경', release_configured: '통합 · 배포 설정', release_preparing: '통합 준비 시작', release_committed: '검증한 변경 커밋', release_pushed: '원격 브랜치 푸시', release_pull_request: 'PR 생성', release_merged: '브랜치 병합 완료', release_deploying: '배포 시작', release_deployed: '배포 완료', release_updated: '통합 · 배포 기록 갱신' });
@@ -8,6 +8,7 @@ const label = (value) => labels[value] || (String(value || '').startsWith('relea
 const expandedEvents = new Set();
 const expandedLogs = new Set();
 Object.assign(labels, { agent_failed: '실행 오류 확인', recovery_started: '복구 시작', recovery_checked: '남은 코드 검사', profile_applied: '프로젝트 설정 적용', workspace_prepared: '작업 환경 준비', setup_started: '환경 준비 시작', setup_failed: '환경 준비 실패', service_started: '검사 서버 시작', service_stopped: '검사 서버 종료', documents_updated: '관리 문서 갱신', closure_finished: '결과와 인계 저장', release_cleared: '릴리스 설정 해제' });
+Object.assign(labels, { held: '수동 보류', hold_set: '작업 보류', hold_cleared: '보류 해제', task_held: '작업 보류', task_unheld: '보류 해제' });
 function eventSummary(event) {
   const data = event.data;
   if (!data || typeof data !== 'object') return textValue(data);
@@ -60,7 +61,7 @@ function icon(name) {
 function badge(value) {
   const kind = ['completed', 'succeeded', 'merged', 'deployed'].includes(value) ? 'good'
     : ['blocked', 'failed', 'interrupted'].includes(value) ? 'bad'
-    : ['running', 'implementing', 'checking', 'reviewing', 'queued', 'deploying', 'merging'].includes(value) ? 'warn' : '';
+    : ['running', 'implementing', 'checking', 'reviewing', 'queued', 'deploying', 'merging', 'held'].includes(value) ? 'warn' : '';
   return node('span', label(value), `badge ${kind}`);
 }
 function date(value) {
@@ -75,9 +76,9 @@ function notice(id, message) { const el = $(id); el.textContent = message || '';
 function projectName(path) { return String(path || '').split(/[\\/]/).filter(Boolean).pop() || '프로젝트'; }
 function releasePending(task) {
   const r = task.release;
-  return Boolean(r && r.stage !== 'deployed' && !(r.stage === 'merged' && !r.config?.deploy));
+  return Boolean(r && r.stage !== 'deployed' && !(r.stage === 'merged' && !r.config?.deploy && r.integration_verification?.passed && r.integration_verification.revision === r.merge_commit));
 }
-function needsAttention(task) { return task.status === 'blocked' || Boolean(task.release?.error); }
+function needsAttention(task) { return task.status === 'blocked' || Boolean(task.hold || task.release?.error); }
 async function request(path, options = {}) {
   const response = await fetch(path, { cache: 'no-store', ...options });
   let body;
@@ -98,7 +99,7 @@ function renderList() {
     .filter((task) => filter === 'all' || (filter === 'completed' ? task.status === 'completed'
       : filter === 'blocked' ? needsAttention(task)
         : !needsAttention(task) && (task.status !== 'completed' || releasePending(task))));
-  const key = JSON.stringify([tasks.map((task) => [task.id, task.goal, task.status, task.project, task.release?.stage]), state.selected, query, filter]);
+  const key = JSON.stringify([tasks.map((task) => [task.id, task.goal, task.status, task.project, task.release?.stage, task.hold]), state.selected, query, filter]);
   if (key === state.listKey) return;
   state.listKey = key;
   const fragment = document.createDocumentFragment();
@@ -108,7 +109,7 @@ function renderList() {
     button.append(node('span', task.id, 'task-id'), node('span', task.goal, 'task-goal'));
     const footer = node('div', null, 'task-item-footer');
     const project = node('span', projectName(task.project), 'task-project'); project.title = task.project || '';
-    footer.append(badge(task.release?.stage === 'deployed' ? 'deployed' : task.status), project); button.append(footer);
+    footer.append(badge(task.hold ? 'held' : task.release?.stage === 'deployed' ? 'deployed' : task.status), project); button.append(footer);
     button.addEventListener('click', () => selectTask(task.id)); fragment.append(button);
   }
   if (!tasks.length) fragment.append(node('p', state.tasks.length ? '조건에 맞는 작업이 없습니다.' : '아직 등록된 작업이 없습니다.', 'empty-inline'));
@@ -165,6 +166,7 @@ function actionButton(title, glyph, key, disabled, callback, primary = false) {
 }
 function renderDetail() {
   const detail = state.detail, task = detail?.task || selectedTask();
+  window.WorkflowObservatory?.update({ task, detail, jobs: state.jobs });
   const pending = state.jobs.some((job) => job.task_id === state.selected && ['queued', 'running'].includes(job.status));
   const key = JSON.stringify([task, detail?.observed_git, detail?.freshness, detail?.events, state.busy, pending, Boolean(detail)]);
   if (key === state.detailKey) return;
@@ -175,25 +177,39 @@ function renderDetail() {
     empty.append(mark, node('h2', '첫 워크플로를 시작해 보세요.'), node('p', 'Codex·Claude에서 agent-workflow 스킬로 작업을 등록하면, 실행과 검증 과정을 이곳에서 확인할 수 있습니다.'), node('code', 'agent-workflow create --help'));
     fragment.append(empty); replaceKeepingFocus($('detail'), fragment); return;
   }
-  const release = task.release, current = detail?.freshness?.completion_is_current;
+  const release = task.release, current = detail?.freshness?.completion_is_current, held = Boolean(task.hold);
+  const observationError = detail?.observed_git?.error;
   const head = node('div', null, 'detail-header'), eyebrow = node('div', null, 'eyebrow');
   eyebrow.append(node('span', task.id, 'task-id'), badge(task.status));
+  if (held) eyebrow.append(badge('held'));
   if (release?.stage === 'deployed') eyebrow.append(badge('deployed'));
   const path = node('div', null, 'project-path'); path.append(icon('folder'), node('span', task.project));
   head.append(eyebrow, node('h2', task.goal, 'detail-title'), path);
   const meta = node('div', null, 'task-meta');
   meta.append(agentMeta(task.owner, '구현'), agentMeta(task.reviewer, '리뷰', true));
   const stale = task.status === 'completed' && current === false;
-  const evidenceText = stale ? '코드가 변경됐습니다 · 재검증 필요' : task.status === 'completed' && current === true ? '현재 코드의 완료 증거 확인됨' : task.status === 'completed' ? '완료 증거 확인 중' : '실제 검사 결과를 기준으로 진행';
-  const evidence = node('span', null, `evidence-note${stale ? ' stale' : current ? '' : ' neutral'}`); evidence.append(icon(stale ? 'alert' : current ? 'shield' : 'clock'), node('span', evidenceText)); meta.append(evidence); head.append(meta); fragment.append(head);
+  const evidenceText = observationError ? '현재 상태 관찰 불가' : stale ? '코드·입력 또는 보호 경로 변경 · 재검증 필요' : task.status === 'completed' && current === true ? '현재 코드의 완료 증거 확인됨' : task.status === 'completed' ? (detail ? '현재 완료 증거를 판정할 수 없습니다' : '완료 증거 확인 중') : '실제 검사 결과를 기준으로 진행';
+  const evidence = node('span', null, `evidence-note${observationError ? ' unobservable' : stale ? ' stale' : current ? '' : ' neutral'}`); evidence.append(icon(observationError || stale ? 'alert' : current ? 'shield' : 'clock'), node('span', evidenceText)); meta.append(evidence);
+  if (release?.merge_commit) {
+    const receipt = release.integration_verification;
+    const verified = receipt?.passed && receipt.revision === release.merge_commit;
+    meta.append(node('span', verified ? '통합 검증 통과' : receipt?.passed === false ? '통합 검증 실패' : '통합 검증 미확인', `badge ${verified ? 'good' : receipt?.passed === false ? 'bad' : 'warn'}`));
+  }
+  head.append(meta); fragment.append(head);
+  if (observationError) fragment.append(node('div', `작업 폴더 상태를 확인하지 못했습니다: ${textValue(observationError)} 저장된 완료 이력은 유지되며, 작업 폴더를 복구한 뒤 새로고침하면 최신 증거를 다시 확인합니다.`, 'notice evidence-error'));
+  if (held) {
+    const hold = node('div', null, 'notice hold-notice');
+    hold.append(node('span', `수동 보류 · ${task.hold.reason || '보류 사유 미기록'}`, 'hold-reason'), node('span', '기존 대기 작업과 다음 단계 시작을 보류합니다. 실행 중인 프로세스는 현재 단계 종료 후 멈춥니다. 해제하면 기존 대기 작업은 다시 실행될 수 있습니다.', 'hold-detail')); fragment.append(hold);
+  }
   if (task.blocker || release?.error) fragment.append(node('div', textValue(task.blocker || release.error), 'notice error'));
   fragment.append(workflowTrack(task, detail));
   const actions = node('div', null, 'detail-actions');
   const localDone = task.status === 'completed';
-  actions.append(actionButton(pending ? '실행 대기 · 진행 중' : localDone ? '로컬 작업 완료' : '워크플로 실행', localDone ? 'check' : 'play', 'pipeline', state.busy || pending || localDone, () => queue(task.id, 'pipeline'), true));
-  if (release) actions.append(actionButton(release.stage === 'deployed' ? '배포 완료' : '통합 · 배포 실행', 'rocket', 'release', state.busy || pending || !releasePending(task), () => queue(task.id, 'release')));
+  actions.append(actionButton(held ? '수동 보류 중' : pending ? '실행 대기 · 진행 중' : localDone ? '로컬 작업 완료' : '워크플로 실행', localDone ? 'check' : 'play', 'pipeline', state.busy || pending || localDone || held, () => queue(task.id, 'pipeline'), true));
+  if (release) actions.append(actionButton(release.stage === 'deployed' ? '배포 완료' : '통합 · 배포 실행', 'rocket', 'release', state.busy || pending || held || !releasePending(task), () => queue(task.id, 'release')));
+  actions.append(actionButton(held ? '보류 해제' : '작업 보류', held ? 'play' : 'minus', 'hold-toggle', state.busy, () => held ? mutate('/api/unhold', { task_id: task.id }, '수동 보류를 해제했습니다. 기존 대기 작업은 다시 실행될 수 있습니다.') : openHold(task)));
   if (release?.stage === 'configured' && !release.commit) actions.append(actionButton('릴리스 설정 해제', 'minus', 'release-clear', state.busy || pending, () => mutate('/api/release-clear', { task_id: task.id }, '릴리스 설정을 해제했습니다. 이후 실행은 로컬 완료까지 진행합니다.')));
-  const hint = pending ? '실행 대기열에서 진행 상태를 확인하세요.' : release?.stage === 'deployed' ? '지정한 버전의 배포와 상태 확인을 마쳤습니다.' : localDone && releasePending(task) ? '통합 · 배포를 이어서 실행할 수 있습니다.' : localDone ? '다음 작업을 등록하거나 릴리스를 설정하세요.' : '등록된 범위와 검증 조건으로 실행합니다.';
+  const hint = held ? '다음 단계를 시작하려면 보류 사유를 확인하고 해제하세요.' : pending ? '실행 대기열에서 진행 상태를 확인하세요.' : release?.stage === 'deployed' ? '지정한 버전의 배포와 상태 확인을 마쳤습니다.' : release?.stage === 'merged' && releasePending(task) ? '병합 결과의 통합 검증과 남은 릴리스 단계를 이어서 실행합니다.' : localDone && releasePending(task) ? '통합 · 배포를 이어서 실행할 수 있습니다.' : localDone ? '다음 작업을 등록하거나 릴리스를 설정하세요.' : '등록된 범위와 검증 조건으로 실행합니다.';
   actions.append(node('span', hint, 'action-hint')); fragment.append(actions);
   if (!detail) fragment.append(node('p', '상세 기록을 불러오는 중입니다…', 'muted'));
   const grid = node('div', null, 'detail-grid'), context = node('section', null, 'context-panel');
@@ -242,7 +258,7 @@ function renderDetail() {
 }
 function renderJobs() {
   const jobs = [...state.jobs].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
-  const key = JSON.stringify([jobs, state.busy]); if (key === state.jobsKey) return; state.jobsKey = key;
+  const key = JSON.stringify([jobs, state.busy, state.tasks.map(task => [task.id, task.hold])]); if (key === state.jobsKey) return; state.jobsKey = key;
   $('queue-count').textContent = String(jobs.filter((job) => ['queued', 'running'].includes(job.status)).length);
   const fragment = document.createDocumentFragment();
   for (const job of jobs.slice(0, 25)) {
@@ -266,6 +282,8 @@ function renderJobs() {
       reload.addEventListener('click', load); start.append(log);
     }
     const end = node('div', null, 'job-end'); end.append(badge(job.status));
+    const held = Boolean(state.tasks.find(task => task.id === job.task_id)?.hold);
+    if (held && job.status === 'queued') end.append(badge('held'));
     if (job.status === 'queued') {
       const button = node('button', '대기 취소', 'button small'); button.type = 'button'; button.dataset.focus = `cancel-${job.id}`; button.disabled = state.busy;
       button.setAttribute('aria-label', `${job.task_id} 실행 대기 취소`); button.addEventListener('click', () => mutate('/api/cancel', { job_id: job.id }, '실행 대기를 취소했습니다.')); end.append(button);
@@ -280,7 +298,7 @@ function renderJobs() {
     if (['failed', 'interrupted', 'cancelled'].includes(job.status)) {
       const active = state.jobs.some(other => other.task_id === job.task_id && ['queued', 'running'].includes(other.status));
       const button = node('button', '재개', 'button small'); button.type = 'button'; button.dataset.focus = `resume-${job.id}`;
-      button.disabled = state.busy || active; button.setAttribute('aria-label', `${job.task_id} 실행 재개`);
+      button.disabled = state.busy || active || held; button.setAttribute('aria-label', `${job.task_id} 실행 재개`);
       button.addEventListener('click', () => mutate('/api/resume', { job_id: job.id }, '같은 작업을 이전 실행 설정으로 대기열에 등록했습니다.')); end.append(button);
     }
     row.append(glyph, start, end); fragment.append(row);
@@ -289,6 +307,7 @@ function renderJobs() {
   replaceKeepingFocus($('jobs'), fragment);
 }
 async function queue(taskId, action) {
+  if (state.tasks.find(task => task.id === taskId)?.hold) { notice('error', '작업이 수동 보류 중입니다. 보류 사유를 확인하고 해제한 뒤 실행하세요.'); return; }
   const payload = { task_id: taskId, action };
   for (const name of ['timeout', 'repairs', 'recoveries']) {
     const input = $(`option-${name}`);
@@ -300,13 +319,18 @@ async function queue(taskId, action) {
   await mutate('/api/queue', payload, action === 'release' ? '통합 · 배포 실행을 대기열에 추가했습니다.' : '작업 실행을 대기열에 추가했습니다.');
 }
 async function mutate(path, payload, success) {
-  if (state.busy) return;
+  if (state.busy) return false;
   state.busy = true; notice('action-message', '요청을 처리하고 있습니다…'); renderDetail(); renderJobs();
   try {
     if (!state.token) throw new Error('서버 연결 후 다시 시도하세요.');
-    await request(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Workflow-Token': state.token }, body: JSON.stringify(payload) });
-    notice('action-message', success); await refresh();
-  } catch (error) { notice('action-message', ''); notice('error', error.message); }
+    const result = await request(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Workflow-Token': state.token }, body: JSON.stringify(payload) });
+    if (result.task) {
+      state.tasks = state.tasks.map(task => task.id === result.task.id ? result.task : task);
+      if (state.detail?.task?.id === result.task.id) state.detail.task = result.task;
+      renderOverview(); renderList();
+    }
+    notice('action-message', success); await refresh(); window.WorkflowObservatory?.refresh(); return true;
+  } catch (error) { notice('action-message', ''); notice('error', error.message); return false; }
   finally { state.busy = false; renderDetail(); renderJobs(); }
 }
 async function loadDetail(id) {
@@ -394,7 +418,23 @@ $('create-form').addEventListener('submit', async event => {
   } catch (error) { notice('create-error', error.message); }
   finally { state.busy = false; $('create-submit').disabled = !state.profiles.length; renderDetail(); renderJobs(); }
 });
-$('search').addEventListener('input', renderList); $('filter').addEventListener('change', renderList); $('refresh').addEventListener('click', refresh);
+function openHold(task) {
+  state.holdTaskId = task.id; $('hold-task-id').textContent = task.id; $('hold-reason').value = '';
+  notice('hold-error', ''); $('hold-dialog').showModal(); $('hold-reason').focus();
+}
+$('hold-close').addEventListener('click', () => $('hold-dialog').close());
+$('hold-form').addEventListener('submit', async event => {
+  event.preventDefault(); if (state.busy || !state.holdTaskId) return;
+  const reason = $('hold-reason').value.trim();
+  if (!reason) { notice('hold-error', '보류 사유를 입력하세요.'); return; }
+  $('hold-submit').disabled = true; notice('hold-error', '');
+  try {
+    const success = await mutate('/api/hold', { task_id: state.holdTaskId, reason }, '작업을 수동 보류했습니다. 실행 중인 프로세스는 현재 단계까지 마칩니다.');
+    if (success) $('hold-dialog').close();
+    else notice('hold-error', $('error').textContent || '보류 요청을 처리하지 못했습니다.');
+  } finally { $('hold-submit').disabled = false; }
+});
+$('search').addEventListener('input', renderList); $('filter').addEventListener('change', renderList); $('refresh').addEventListener('click', () => { refresh(); window.WorkflowObservatory?.refresh(); });
 document.addEventListener('keydown', (event) => {
   const editing = event.target instanceof HTMLElement && (event.target.matches('input, textarea, select') || event.target.isContentEditable);
   if (event.key === '/' && !editing && !event.ctrlKey && !event.metaKey && !event.altKey) { event.preventDefault(); $('search').focus(); }

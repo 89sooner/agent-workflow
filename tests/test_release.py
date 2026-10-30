@@ -39,6 +39,7 @@ class ReleaseTests(unittest.TestCase):
         self.temp.cleanup()
 
     def finish(self, extra=False):
+        self.task = self.store.get(self.task["id"])
         (self.project / "app.txt").write_text("new\n")
         if extra:
             (self.project / "outside.txt").write_text("not authorized")
@@ -193,7 +194,7 @@ class ReleaseTests(unittest.TestCase):
 
     def test_github_failed_ci_never_merges(self):
         task = self.github_task()
-        def api(endpoint, method="GET", payload=None):
+        def api(endpoint, method="GET", payload=None, **kwargs):
             self.assertEqual(method, "GET", "must not mutate GitHub after failed CI")
             if endpoint.endswith("/pulls/7"):
                 return self.pr()
@@ -206,7 +207,7 @@ class ReleaseTests(unittest.TestCase):
     def test_github_merge_is_pinned_to_reviewed_sha(self):
         task = self.github_task()
         writes = []
-        def api(endpoint, method="GET", payload=None):
+        def api(endpoint, method="GET", payload=None, **kwargs):
             if method == "PUT":
                 writes.append((endpoint, payload))
                 return {"merged": True, "sha": "c" * 40}

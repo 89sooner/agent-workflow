@@ -87,6 +87,9 @@ def ensure_call_budget(task):
 def managed_process(store, task, command, cwd, directory, timeout, fd, input_text=None,
                     env_extra=None, agent=None, role=None, model=None):
     from .runner import process
+    from .core import ensure_not_held
+    from .observability import process_span
+    ensure_not_held(store, task)
     usage = reconcile_pending(store, task)
     policy = execution_config(task.get("execution"))
     timeout = min(timeout, remaining(task))
@@ -96,20 +99,24 @@ def managed_process(store, task, command, cwd, directory, timeout, fd, input_tex
     usage["pending"] = {"directory": str(directory), "reserved_seconds": timeout, "agent": agent,
                         "role": role, "model": model, "at": now()}
     store.save(task, "process_budget_reserved", usage["pending"])
-    started = time.monotonic()
-    try:
-        return process(command, cwd, directory, timeout, fd, input_text, env_extra)
-    finally:
-        elapsed = max(0, time.monotonic() - started)
-        usage["seconds"] += elapsed
-        usage.pop("pending", None)
-        if agent:
-            item = observation(agent, directory)
-            item.update(role=role, model=model, seconds=elapsed)
-            usage["observations"].append(item)
-            if item["reported_cost_usd"] is not None:
-                usage["reported_cost_usd"] = (usage["reported_cost_usd"] or 0) + item["reported_cost_usd"]
-        store.save(task, "process_budget_recorded", {"seconds": elapsed, "agent": agent, "role": role})
+    with process_span(store, task, directory, command, agent, role, model) as span:
+        started = time.monotonic()
+        try:
+            result = process(command, cwd, directory, timeout, fd, input_text, env_extra)
+            span["outcome"] = result
+            return result
+        finally:
+            elapsed = max(0, time.monotonic() - started)
+            usage["seconds"] += elapsed
+            usage.pop("pending", None)
+            if agent:
+                item = observation(agent, directory)
+                item.update(role=role, model=model, seconds=elapsed)
+                usage["observations"].append(item)
+                span["usage"] = {key: item[key] for key in ("tokens", "reported_cost_usd", "known")}
+                if item["reported_cost_usd"] is not None:
+                    usage["reported_cost_usd"] = (usage["reported_cost_usd"] or 0) + item["reported_cost_usd"]
+            store.save(task, "process_budget_recorded", {"seconds": elapsed, "agent": agent, "role": role})
 
 
 def configure(store, task_id, options):

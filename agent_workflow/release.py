@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -11,8 +12,82 @@ import time
 from urllib.parse import urlencode
 import uuid
 
-from .core import WorkflowError, atomic_write, encode, git, now, ready_for_completion, snapshot
-from .runner import process
+from .core import WorkflowError, encode, git, now, ready_for_completion, snapshot
+from .observability import traced
+
+
+class ReleaseBudget:
+    """One invocation deadline, rechecked before every new command or remote effect."""
+    def __init__(self, store, task, timeout):
+        if type(timeout) not in (int, float) or not math.isfinite(timeout) or timeout <= 0:
+            raise WorkflowError("릴리스 제한 시간은 양수여야 합니다.")
+        self.store, self.task = store, task
+        self.deadline = time.monotonic() + timeout
+
+    def remaining(self):
+        from .core import ensure_not_held, references_current
+        from .policy import protected_current, window_limit
+        from .usage import remaining
+        ensure_not_held(self.store, self.task)
+        if not protected_current(self.task):
+            raise WorkflowError("금지 경로가 등록 기준과 달라 릴리스를 중단합니다.")
+        if (not references_current(self.task, self.task.get("verification"))
+                or (self.task.get("reviewer") != "none"
+                    and not references_current(self.task, self.task.get("review")))):
+            raise WorkflowError("참조 문서가 검증·리뷰 이후 변경됐습니다. 새 작업으로 확인하세요.")
+        left = self.deadline - time.monotonic()
+        if left <= 0:
+            raise WorkflowError("릴리스 실행 시간 한도가 끝났습니다. 다음 호출에서 기록부터 재개합니다.")
+        return min(left, window_limit(self.task.get("project_config") or {}), remaining(self.task))
+
+
+def release_git(budget, project, *args, **kwargs):
+    if budget is not None:
+        kwargs["timeout"] = min(30, budget.remaining())
+    return git(project, *args, **kwargs)
+
+
+def release_api(budget, hostname, *args, **kwargs):
+    if budget is not None:
+        kwargs["timeout"] = min(30, budget.remaining())
+    return github_api(hostname, *args, **kwargs)
+
+
+def integration_contract(task):
+    return hashlib.sha256(json.dumps({"checks": task["checks"],
+                                     "services": (task.get("project_config") or {}).get("services", [])},
+                                    ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+
+
+def integration_verified(task, revision=None):
+    from .core import references_current
+    release = task.get("release") or {}
+    receipt = release.get("integration_verification") or {}
+    revision = revision or release.get("merge_commit")
+    forbidden = (task.get("project_config") or {}).get("forbidden_paths") or []
+    return bool(revision and task["checks"] and receipt.get("passed")
+                and receipt.get("revision") == revision and receipt.get("fingerprint")
+                and receipt.get("contract") == integration_contract(task)
+                and references_current(task, receipt)
+                and set(receipt.get("protected_paths", {})) == set(forbidden))
+
+
+def assert_release_identity(work, revision, fingerprint=None, protected=None):
+    current = snapshot(work)
+    if (current["head"] != revision or current["dirty"]
+            or (fingerprint is not None and current["fingerprint"] != fingerprint)):
+        raise WorkflowError(f"릴리스 작업 사본의 HEAD·인덱스·내용이 변경됐습니다: {work}")
+    if protected is not None:
+        from .policy import protected_snapshot
+        if protected_snapshot(work, protected) != protected:
+            raise WorkflowError(f"릴리스 검사·배포 중 금지 경로가 변경됐습니다: {work}")
+    return current
+
+
+def release_command(store, task, command, work, directory, budget, fd, env, role):
+    from .usage import managed_process
+    return managed_process(store, task, command, work, directory, budget.remaining(), fd,
+                           env_extra=env, role=role)
 
 
 def content_digest(project):
@@ -132,8 +207,8 @@ def changed_files(project):
     return sorted({os.fsdecode(p) for p in data.split(b"\0") if p})
 
 
-def remote_head(project, remote, branch):
-    rows = git(project, "ls-remote", "--heads", remote, "refs/heads/" + branch).splitlines()
+def remote_head(project, remote, branch, budget=None):
+    rows = release_git(budget, project, "ls-remote", "--heads", remote, "refs/heads/" + branch).splitlines()
     return rows[0].split()[0] if rows else None
 
 
@@ -145,7 +220,7 @@ def save_release(store, task, stage=None, **fields):
     store.save(task, "release_" + (stage or "updated"), fields)
 
 
-def commit_verified(store, task):
+def commit_verified(store, task, budget=None):
     p, r = task["project"], task["release"]
     c = r["config"]
     if "content_digest" not in r:
@@ -175,13 +250,13 @@ def commit_verified(store, task):
         existing = git(p, "branch", "--list", c["branch"])
         if existing:
             raise WorkflowError("대상 작업 브랜치가 이미 존재합니다. 해당 worktree를 사용하세요.")
-        git(p, "switch", "-c", c["branch"])
-    git(p, "add", "-A", "--", *r["changed_files"])
+        release_git(budget, p, "switch", "-c", c["branch"])
+    release_git(budget, p, "add", "-A", "--", *r["changed_files"])
     if content_digest(p) != r["content_digest"]:
         raise WorkflowError("staging 중 코드가 바뀌었습니다.")
     tree = git(p, "write-tree")
     save_release(store, task, tree=tree)
-    git(p, "commit", "-m", f"{task['id']}: {task['goal']}")
+    release_git(budget, p, "commit", "-m", f"{task['id']}: {task['goal']}")
     if git(p, "rev-parse", "HEAD^{tree}") != tree or git(p, "status", "--porcelain"):
         raise WorkflowError("커밋 훅이 검증한 내용을 변경했습니다. 재검증이 필요합니다.")
     save_release(store, task, "committed", commit=git(p, "rev-parse", "HEAD"))
@@ -191,12 +266,12 @@ def github_api(hostname, *args, **kwargs):
     return gh_api(*args, **kwargs) if hostname == "github.com" else gh_api(*args, hostname=hostname, **kwargs)
 
 
-def ci_gate(repo, sha, allow_no_ci, hostname="github.com"):
-    statuses = github_api(hostname, f"repos/{repo}/commits/{sha}/status")
+def ci_gate(repo, sha, allow_no_ci, hostname="github.com", budget=None):
+    statuses = release_api(budget, hostname, f"repos/{repo}/commits/{sha}/status")
     checks = []
     page = 1
     while True:
-        body = github_api(hostname, f"repos/{repo}/commits/{sha}/check-runs?per_page=100&page={page}")
+        body = release_api(budget, hostname, f"repos/{repo}/commits/{sha}/check-runs?per_page=100&page={page}")
         rows = body.get("check_runs", [])
         checks.extend(rows)
         if len(rows) < 100:
@@ -217,25 +292,25 @@ def ci_gate(repo, sha, allow_no_ci, hostname="github.com"):
     return (not has_status or statuses.get("state") == "success") and all(x.get("status") == "completed" for x in checks)
 
 
-def github_merge(store, task, timeout):
+def github_merge(store, task, timeout, budget=None):
+    budget = budget or ReleaseBudget(store, task, timeout)
     r = task["release"]
     c = r["config"]
     repo, sha = c["repo"], r["commit"]
     hostname = c.get("hostname", "github.com")
     if not r.get("pr"):
         params = urlencode({"state": "all", "head": repo.split("/")[0] + ":" + c["branch"], "base": c["base"]})
-        pulls = github_api(hostname, f"repos/{repo}/pulls?{params}")
+        pulls = release_api(budget, hostname, f"repos/{repo}/pulls?{params}")
         matching = [x for x in pulls if x.get("head", {}).get("sha") == sha]
         if matching:
             pr = matching[0]
         else:
-            pr = github_api(hostname, f"repos/{repo}/pulls", "POST", {
+            pr = release_api(budget, hostname, f"repos/{repo}/pulls", "POST", {
                 "title": f"{task['id']}: {task['goal']}", "head": c["branch"], "base": c["base"],
                 "body": f"{task['goal']}\n\nValidation: registered local checks passed; reviewer {task['reviewer']}.\nTask: {task['id']}\nCandidate: {sha}"})
         save_release(store, task, "pull_request", pr=pr["number"], pr_url=pr["html_url"])
-    deadline = time.monotonic() + timeout
     while True:
-        pr = github_api(hostname, f"repos/{repo}/pulls/{r['pr']}")
+        pr = release_api(budget, hostname, f"repos/{repo}/pulls/{r['pr']}")
         if pr["head"]["sha"] != sha or pr["base"]["ref"] != c["base"] or pr["head"]["ref"] != c["branch"]:
             raise WorkflowError("PR의 대상이나 HEAD가 등록된 릴리스와 다릅니다.")
         if pr.get("merged"):
@@ -243,100 +318,176 @@ def github_merge(store, task, timeout):
             return
         if pr.get("state") != "open" or pr.get("draft"):
             raise WorkflowError("PR이 열려 있지 않거나 draft입니다.")
-        if ci_gate(repo, sha, c["allow_no_ci"], hostname) and pr.get("mergeable") is True:
+        if ci_gate(repo, sha, c["allow_no_ci"], hostname, budget) and pr.get("mergeable") is True:
             if pr.get("mergeable_state") not in ("clean", "unstable"):
                 raise WorkflowError("PR 병합 조건 미충족: " + str(pr.get("mergeable_state")))
-            result = github_api(hostname, f"repos/{repo}/pulls/{r['pr']}/merge", "PUT", {"sha": sha, "merge_method": "merge"})
+            result = release_api(budget, hostname, f"repos/{repo}/pulls/{r['pr']}/merge", "PUT", {"sha": sha, "merge_method": "merge"})
             if not result.get("merged"):
                 raise WorkflowError("GitHub가 병합을 완료하지 않았습니다.")
             save_release(store, task, "merged", merge_commit=result["sha"])
             return
-        if time.monotonic() >= deadline:
-            raise WorkflowError("CI/병합 가능 상태 대기 시간 초과. 다음 release 호출에서 재확인합니다.")
-        time.sleep(2)
+        time.sleep(min(2, budget.remaining()))
 
 
-def checkout_release(store, task, sha, suffix):
+def checkout_release(store, task, sha, suffix, budget=None):
     p = store.directory(task["id"]) / "release" / suffix
     if p.exists():
-        if git(p, "rev-parse", "HEAD") != sha or git(p, "status", "--porcelain"):
-            raise WorkflowError(f"릴리스 작업 사본이 변경됐습니다: {p}")
+        assert_release_identity(p, sha)
     else:
         p.parent.mkdir(parents=True, exist_ok=True)
-        git(task["project"], "worktree", "add", "--detach", str(p), sha)
+        release_git(budget, task["project"], "worktree", "add", "--detach", str(p), sha)
     return p
 
 
-def local_merge(store, task):
+def verify_integration(store, task, sha, budget, fd, work=None):
+    """Check the actual merged revision even when this release has no deployment."""
+    from .services import environment, running, stop_recorded
+    from .core import reference_fingerprint, references_current
+    from .policy import protected_snapshot
+    r, c = task["release"], task["release"]["config"]
+    budget.remaining()
+    if work is None:
+        release_git(budget, task["project"], "fetch", c["remote"], sha)
+        work = checkout_release(store, task, sha, "integration-" + sha[:12], budget)
+    before = assert_release_identity(work, sha)
+    if integration_verified(task, sha):
+        receipt = r["integration_verification"]
+        assert_release_identity(work, sha, receipt["fingerprint"], receipt.get("protected_paths", {}))
+        return work
+    if not task["checks"]:
+        raise WorkflowError("병합 결과를 검증할 필수 검사 명령이 없습니다.")
+    results = []
+    protected = protected_snapshot(work, (task.get("project_config") or {}).get("forbidden_paths") or [])
+    receipt = {"passed": False, "revision": sha, "fingerprint": before["fingerprint"],
+               "contract": integration_contract(task), "refs_fingerprint": reference_fingerprint(task),
+               "protected_paths": protected, "started_at": now(), "results": results}
+    save_release(store, task, integration_verification=receipt)
+    root = store.directory(task["id"]) / "release" / "commands"
+    env = {"WORKFLOW_REVISION": sha, "WORKFLOW_TASK_ID": task["id"]}
+    try:
+        stop_recorded(store, task)
+        with running(store, task, fd, cwd=work, deadline=budget.deadline):
+            for command in task["checks"]:
+                budget.remaining()
+                assert_release_identity(work, sha, before["fingerprint"], protected)
+                directory = root / ("integration-" + uuid.uuid4().hex)
+                result = release_command(store, task, command, work, directory, budget, fd,
+                                         {**env, **environment(task, directory)}, "integration_check")
+                results.append({"argv": command, **result})
+                assert_release_identity(work, sha, before["fingerprint"], protected)
+                if result["exit_code"] != 0 or result["timed_out"]:
+                    raise WorkflowError("병합된 코드의 필수 검사 실패. 통합 성공으로 처리하지 않았습니다.")
+        assert_release_identity(work, sha, before["fingerprint"], protected)
+        if not references_current(task, receipt):
+            raise WorkflowError("통합 검사 중 참조 문서가 변경됐습니다.")
+    except (WorkflowError, OSError, subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
+        receipt.update(finished_at=now(), error=str(exc) or "통합 검사 중단")
+        save_release(store, task, integration_verification=receipt)
+        raise
+    receipt.update(passed=True, finished_at=now(), error=None)
+    save_release(store, task, integration_verification=receipt)
+    return work
+
+
+def local_merge(store, task, budget=None, fd=None):
+    budget = budget or ReleaseBudget(store, task, 300)
     r, p = task["release"], task["project"]
     c = r["config"]
-    git(p, "fetch", c["remote"], c["base"])
-    base_sha = git(p, "rev-parse", "FETCH_HEAD")
-    # If push succeeded before the receipt was saved, only recover our exact commit.
+    release_git(budget, p, "fetch", c["remote"], c["base"])
+    base_sha = release_git(budget, p, "rev-parse", "FETCH_HEAD")
+    # If push succeeded before the receipt, recover only our exact committed effect.
     if r.get("local_merge_candidate") and base_sha == r["local_merge_candidate"]:
         save_release(store, task, "merged", merge_commit=base_sha)
+        verify_integration(store, task, base_sha, budget, fd)
         return
-    if r.get("local_merge_candidate"):
-        parents = git(p, "rev-list", "--parents", "-n", "1", r["local_merge_candidate"]).split()[1:]
-        if parents and parents[0] == base_sha and r["commit"] in parents:
-            merge_sha = r["local_merge_candidate"]
-            git(p, "push", c["remote"], merge_sha + ":refs/heads/" + c["base"])
-            if remote_head(p, c["remote"], c["base"]) != merge_sha:
-                raise WorkflowError("중단된 병합 push 결과를 확인할 수 없습니다.")
-            save_release(store, task, "merged", merge_commit=merge_sha)
-            return
-    work = checkout_release(store, task, base_sha, "merge-" + base_sha[:12])
-    git(work, "merge", "--no-ff", "-m", f"Merge {task['id']}", r["commit"])
-    merge_sha = git(work, "rev-parse", "HEAD")
+    work = store.directory(task["id"]) / "release" / ("merge-" + base_sha[:12])
+    intent = r.get("local_merge_intent") or {}
+    matching_intent = (intent.get("base") == base_sha and intent.get("candidate") == r["commit"]
+                       and intent.get("worktree") == str(work))
+    if not matching_intent and r.get("local_merge_candidate") and work.exists():
+        candidate = r["local_merge_candidate"]
+        parents = release_git(budget, p, "rev-list", "--parents", "-n", "1", candidate).split()[1:]
+        if parents == [base_sha, r["commit"]] and release_git(budget, work, "rev-parse", "HEAD") == candidate:
+            # v0.3 receipts had the candidate after merge, but no pre-merge intent.
+            assert_release_identity(work, candidate)
+            intent = {"base": base_sha, "candidate": r["commit"], "worktree": str(work), "at": now()}
+            save_release(store, task, local_merge_intent=intent)
+            matching_intent = True
+    if not matching_intent:
+        work = checkout_release(store, task, base_sha, work.name, budget)
+        intent = {"base": base_sha, "candidate": r["commit"], "worktree": str(work), "at": now()}
+        # A crash after git merge must not make this owned checkout unrecognizable.
+        save_release(store, task, local_merge_intent=intent)
+    head = release_git(budget, work, "rev-parse", "HEAD")
+    assert_release_identity(work, head)
+    if head == base_sha:
+        release_git(budget, work, "merge", "--no-ff", "-m", f"Merge {task['id']}", r["commit"])
+        merge_sha = release_git(budget, work, "rev-parse", "HEAD")
+    else:
+        parents = release_git(budget, work, "rev-list", "--parents", "-n", "1", head).split()[1:]
+        message = release_git(budget, work, "log", "-1", "--format=%B")
+        if parents != [base_sha, r["commit"]] or message != f"Merge {task['id']}":
+            raise WorkflowError("중단된 병합의 부모·작업 기록이 현재 사본과 다릅니다. 변경을 보존합니다.")
+        merge_sha = head
     save_release(store, task, local_merge_candidate=merge_sha)
-    git(work, "push", c["remote"], merge_sha + ":refs/heads/" + c["base"])
-    if remote_head(p, c["remote"], c["base"]) != merge_sha:
+    verify_integration(store, task, merge_sha, budget, fd, work)
+    if remote_head(p, c["remote"], c["base"], budget) != base_sha:
+        raise WorkflowError("통합 검사 중 원격 기준 브랜치가 바뀌었습니다. 다음 호출에서 새 기준을 검증하세요.")
+    assert_release_identity(work, merge_sha, r["integration_verification"]["fingerprint"],
+                            r["integration_verification"].get("protected_paths", {}))
+    release_git(budget, work, "push", c["remote"], merge_sha + ":refs/heads/" + c["base"])
+    if remote_head(p, c["remote"], c["base"], budget) != merge_sha:
         raise WorkflowError("원격 병합 결과를 확인할 수 없습니다.")
     save_release(store, task, "merged", merge_commit=merge_sha)
 
 
-def deploy_release(store, task, timeout, fd, retry=False):
+def deploy_release(store, task, timeout, fd, retry=False, budget=None):
+    budget = budget or ReleaseBudget(store, task, timeout)
     r, p = task["release"], task["project"]
     c = r["config"]
     if not c["deploy"] or r["stage"] == "deployed":
         return
-    sha = r["merge_commit"]
-    git(p, "fetch", c["remote"], sha)
-    work = checkout_release(store, task, sha, "deploy-" + sha[:12])
-    env = {"WORKFLOW_REVISION": sha, "WORKFLOW_TASK_ID": task["id"]}
-    root = store.directory(task["id"]) / "release" / "commands"
+    if not integration_verified(task):
+        raise WorkflowError("현재 병합 커밋의 통합 검사 통과 기록이 필요합니다.")
     if r.get("deployment_state") in ("started", "failed") and not retry:
         raise WorkflowError("배포가 실패했거나 실행 결과가 불명확합니다. 상태 확인 후 --retry-deploy로만 재실행하세요.")
+    sha = r["merge_commit"]
+    release_git(budget, p, "fetch", c["remote"], sha)
+    work = checkout_release(store, task, sha, "deploy-" + sha[:12], budget)
+    fingerprint = r["integration_verification"]["fingerprint"]
+    protected = r["integration_verification"].get("protected_paths", {})
+    assert_release_identity(work, sha, fingerprint, protected)
+    env = {"WORKFLOW_REVISION": sha, "WORKFLOW_TASK_ID": task["id"]}
+    root = store.directory(task["id"]) / "release" / "commands"
     if r.get("deployment_state") != "applied":
-        from .services import running, environment
-        with running(store, task, fd, cwd=work):
-            for i, command in enumerate(task["checks"]):
-                directory = root / ("check-" + uuid.uuid4().hex)
-                result = process(command, work, directory, timeout, fd, env_extra={**env, **environment(task, directory)})
-                if result["exit_code"] != 0 or result["timed_out"]:
-                    raise WorkflowError("병합된 코드의 필수 검사 실패. 배포하지 않았습니다.")
-        if git(work, "status", "--porcelain"):
-            raise WorkflowError("병합 결과 검사 중 코드가 바뀌었습니다.")
+        budget.remaining()
+        assert_release_identity(work, sha, fingerprint, protected)
         save_release(store, task, "deploying", deployment_state="started")
-        result = process(c["deploy"], work, root / ("deploy-" + uuid.uuid4().hex), timeout, fd, env_extra=env)
+        result = release_command(store, task, c["deploy"], work, root / ("deploy-" + uuid.uuid4().hex),
+                                 budget, fd, env, "deploy")
         save_release(store, task, deployment_result=result,
                      deployment_state="applied" if result["exit_code"] == 0 and not result["timed_out"] else "failed")
         if r["deployment_state"] != "applied":
             raise WorkflowError("배포 명령 실패. 결과를 확인한 뒤 명시적으로 재시도하세요.")
-    health = process(c["health"], work, root / ("health-" + uuid.uuid4().hex), timeout, fd, env_extra=env)
+    assert_release_identity(work, sha, fingerprint, protected)
+    health = release_command(store, task, c["health"], work, root / ("health-" + uuid.uuid4().hex),
+                             budget, fd, env, "health")
     save_release(store, task, health_result=health)
+    assert_release_identity(work, sha, fingerprint, protected)
     if health["exit_code"] != 0 or health["timed_out"]:
         raise WorkflowError("배포 명령은 끝났지만 상태 확인이 실패했습니다. 다음 호출은 상태 확인부터 재개합니다.")
     save_release(store, task, "deployed", deployed_at=now(), deployed_revision=sha, error=None)
 
 
+@traced("release")
 def release_task(store, task_id, timeout=300, retry_deploy=False):
     task = store.get(task_id)
-    from .policy import reservation, window_limit
+    from .policy import reservation
     with store.lock(task["project"]) as tree_fd, reservation(store, task) as resource_fd:
         fd = (tree_fd, resource_fd)
-        timeout = min(timeout, window_limit(task.get("project_config") or {}))
         task = store.get(task_id)
+        budget = ReleaseBudget(store, task, timeout)
+        budget.remaining()
         r = task.get("release")
         if not r:
             raise WorkflowError("release-config로 저장소·브랜치·파일·배포 명령을 먼저 지정하세요.")
@@ -345,19 +496,23 @@ def release_task(store, task_id, timeout=300, retry_deploy=False):
             raise WorkflowError("원격 URL이 릴리스 설정 이후 변경됐습니다.")
         try:
             if not r.get("commit"):
-                commit_verified(store, task)
+                commit_verified(store, task, budget)
             sha = r["commit"]
             if not r.get("merge_commit"):
-                current = remote_head(task["project"], c["remote"], c["branch"])
+                current = remote_head(task["project"], c["remote"], c["branch"], budget)
                 if current not in (None, sha):
                     raise WorkflowError("원격 작업 브랜치에 다른 커밋이 있습니다. 덮어쓰지 않습니다.")
-                git(task["project"], "push", c["remote"], sha + ":refs/heads/" + c["branch"])
+                release_git(budget, task["project"], "push", c["remote"], sha + ":refs/heads/" + c["branch"])
                 save_release(store, task, "pushed", error=None)
                 if c["mode"] == "github":
-                    github_merge(store, task, timeout)
+                    github_merge(store, task, timeout, budget)
                 else:
-                    local_merge(store, task)
-            deploy_release(store, task, timeout, fd, retry_deploy)
+                    local_merge(store, task, budget, fd)
+            if not integration_verified(task):
+                verify_integration(store, task, r["merge_commit"], budget, fd)
+            deploy_release(store, task, timeout, fd, retry_deploy, budget)
+            if r.get("error"):
+                save_release(store, task, error=None)
             return task
         except (WorkflowError, OSError, subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
             save_release(store, task, error=str(exc) or "릴리스 중단")

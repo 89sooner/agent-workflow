@@ -1,13 +1,16 @@
 from pathlib import Path
 import socket
 import sys
+import time
 import unittest
+from unittest.mock import patch
 
 import test_workflow as fixtures
 from agent_workflow.core import WorkflowError
 from agent_workflow.profiles import save
 from agent_workflow.workspaces import create_from_profile
 from agent_workflow.runner import run_checks
+from agent_workflow.services import running
 from agent_workflow.server import identity
 
 
@@ -53,6 +56,32 @@ class ServiceTests(unittest.TestCase):
         with self.store.lock(task["project"]) as fd:
             self.assertFalse(run_checks(self.store, task, 5, fd))
         self.assertEqual(task["active_services"][0]["state"], "stopped")
+
+    def test_expired_global_deadline_never_starts_a_service(self):
+        save(self.store, "expired", self.config(55432))
+        task = create_from_profile(self.store, "EXPIRED", "expired", "service", ["bounded"])
+        with patch("agent_workflow.services.subprocess.Popen") as start:
+            with self.assertRaisesRegex(WorkflowError, "시간 한도"):
+                with running(self.store, task, None, deadline=time.monotonic() - 1):
+                    self.fail("expired deadline entered the service context")
+        start.assert_not_called()
+
+    def test_global_deadline_caps_service_startup_and_reaps_owned_child(self):
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0)); port = probe.getsockname()[1]
+        cfg = self.config(port)
+        cfg["services"][0]["argv"] = [sys.executable, "-c", "import time; time.sleep(30)"]
+        save(self.store, "slow", cfg)
+        task = create_from_profile(self.store, "SLOW", "slow", "service", ["bounded"])
+        started = time.monotonic()
+        with self.store.lock(task["project"]) as fd:
+            with self.assertRaisesRegex(WorkflowError, "준비 시간 초과"):
+                with running(self.store, task, fd, deadline=started + .25):
+                    self.fail("unready service entered the context")
+        self.assertLess(time.monotonic() - started, 2)
+        self.assertEqual(task["active_services"][0]["state"], "stopped")
+        record = task["active_services"][0]
+        self.assertNotEqual(identity(record["pid"]), record["process_identity"])
 
 
 if __name__ == "__main__":
