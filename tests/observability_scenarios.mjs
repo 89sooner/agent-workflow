@@ -96,7 +96,7 @@ try {
   await page.locator('#observatory').scrollIntoViewIfNeeded();
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true);
   await until(async () => await page.locator('#observatory-graph').evaluate(element => element.scrollWidth <= element.clientWidth + 1));
-  await page.locator('#theme-toggle').click();
+  if (await page.locator('html').getAttribute('data-theme') !== 'light') await page.locator('#theme-toggle').click();
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'light');
   assert.equal(await page.locator('.obs-station.is-active').count(), 0);
   await snapshot('observatory-mobile');
@@ -137,7 +137,7 @@ try {
   try {
     await page.locator('#refresh').click();
     await until(async () => (await page.locator('.evidence-note').textContent()).includes('관찰'));
-    assert.match(await page.locator('#detail').textContent(), /Git 확인 실패|관찰/);
+    assert.match(await page.locator('#task-context').textContent(), /Git 확인 실패|관찰/);
   } finally { await fs.rename(fixture.project + '-moved', fixture.project); }
   await page.locator('#refresh').click();
   assert.deepEqual(errors, []);

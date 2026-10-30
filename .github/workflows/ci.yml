@@ -35,7 +35,7 @@ jobs:
         run: |
           python -m pip install . --no-deps
           cd "$RUNNER_TEMP"
-          python -c "from importlib.resources import files; root = files('agent_workflow'); assert all(root.joinpath('static', name).is_file() for name in ('index.html', 'app.js', 'styles.css', 'observatory.js', 'observatory.css'))"
+          python -c "from importlib.resources import files; root = files('agent_workflow'); assert all(root.joinpath('static', name).is_file() for name in ('index.html', 'app.js', 'styles.css', 'observatory.js', 'observatory.css', 'saas.css', 'scene3d.js', 'scene3d.css', 'three-vendor.js', 'THREE_LICENSE.txt'))"
 
   browser:
     name: Browser / actual local workflows
@@ -49,6 +49,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Verify pinned Three.js bundle
+        run: |
+          npm ci --no-audit --no-fund
+          npm run check:vendor
       - name: Install browser test tools
         run: |
           npm install --prefix "$RUNNER_TEMP/workflow-browser" --no-audit --no-fund playwright@1.51.1
@@ -62,6 +66,7 @@ jobs:
         run: |
           python tests/ui_integration.py
           python tests/observability_integration.py
+          python tests/saas_integration.py
       - name: Keep browser evidence
         if: always()
         uses: actions/upload-artifact@v4

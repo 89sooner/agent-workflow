@@ -13,7 +13,10 @@
   const model = { taskId: null, task: null, detail: null, requestedRun: null, data: null, events: [], pagination: null,
     selectedSpan: null, selectedEvent: null, replay: null, playing: null, mode: 'steps', query: '',
     connected: false, error: null, failures: 0, timer: null, abort: null, generation: 0, fetching: false,
-    pageLoading: false, lastSync: null, renderKeys: {}, logCache: new Map(), logKind: null, followLatest: true, runOptions: [] };
+    pageLoading: false, lastSync: null, renderKeys: {}, logCache: new Map(), logKind: null, followLatest: true, runOptions: [],
+    visible: true, officeMode: '3d', preferences: { threeD: true, motion: 'system' }, officeActors: [] };
+  const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let room = null, roomLoading = null, roomAvailable = null, roomReason = '', roomDisposed = false;
   const el = (tag, text, className) => {
     const item = document.createElement(tag);
     if (text != null) item.textContent = String(text);
@@ -57,7 +60,7 @@
 
   const header = el('div', null, 'obs-heading');
   const headingText = el('div');
-  headingText.append(el('span', 'AGENT OBSERVATORY', 'section-kicker'), el('h2', '에이전트 관제실'));
+  headingText.append(el('span', 'EXECUTION OBSERVATORY', 'section-kicker'), el('h2', '선택한 작업의 실행 기록'));
   const connection = el('span', '기록 연결 대기', 'obs-connection'); connection.setAttribute('role', 'status');
   header.append(headingText, connection);
   const taskLine = el('p', null, 'obs-task-line');
@@ -71,10 +74,26 @@
   const notices = el('div', null, 'obs-notices'); notices.setAttribute('aria-live', 'polite');
   const office = el('div', null, 'obs-office'); office.setAttribute('aria-label', '역할별 작업실');
   const officeTop = el('div', null, 'obs-office-top');
-  const officeSign = el('span', 'LOCAL OPERATIONS · 작업실', 'obs-office-sign');
-  const officeTime = el('span', '기록 대기', 'obs-office-time'); officeTop.append(officeSign, officeTime);
-  const stations = el('div', null, 'obs-stations'); office.append(officeTop, stations);
-  const officeCaption = el('p', '관측된 프로세스만 활동으로 표시합니다. 역할은 실행 주체를 나타내며, 동시에 실행되는 에이전트 수를 뜻하지 않습니다.', 'obs-caption');
+  const officeSign = el('h3', '작업 공간', 'obs-office-sign');
+  const officeViews = el('div', null, 'obs-room-views'); officeViews.setAttribute('role', 'group'); officeViews.setAttribute('aria-label', '작업 공간 보기');
+  const view3d = button('3D 공간', 'obs-view-3d', () => setOfficeMode('3d')); view3d.id = 'observatory-view-3d';
+  const viewList = button('역할 목록', 'obs-view-list', () => setOfficeMode('list')); viewList.id = 'observatory-view-list'; officeViews.append(view3d, viewList);
+  const officeTime = el('span', '기록 대기', 'obs-office-time'); officeTime.id = 'observatory-room-status'; officeTime.setAttribute('role', 'status');
+  officeTop.append(officeSign, officeViews, officeTime);
+  const sceneViewport = el('div', null, 'obs-scene-viewport');
+  const sceneHost = el('div', null, 'obs-scene-host'); sceneHost.id = 'observatory-scene';
+  const sceneFallback = el('div', null, 'obs-scene-fallback'); sceneFallback.id = 'observatory-scene-fallback'; sceneFallback.setAttribute('role', 'status');
+  const sceneControls = el('div', null, 'obs-scene-controls'); sceneControls.setAttribute('role', 'group'); sceneControls.setAttribute('aria-label', '3D 카메라 제어');
+  const zoomIn = button('+', 'obs-zoom-in', () => room?.zoom(1)); zoomIn.id = 'observatory-zoom-in'; zoomIn.setAttribute('aria-label', '3D 공간 확대');
+  const zoomOut = button('−', 'obs-zoom-out', () => room?.zoom(-1)); zoomOut.id = 'observatory-zoom-out'; zoomOut.setAttribute('aria-label', '3D 공간 축소');
+  const cameraReset = button('↺', 'obs-camera-reset', () => room?.reset()); cameraReset.id = 'observatory-reset-camera'; cameraReset.setAttribute('aria-label', '3D 카메라 초기화');
+  sceneControls.append(zoomIn, zoomOut, cameraReset);
+  const sceneLegend = el('div', null, 'obs-scene-legend'); sceneLegend.setAttribute('aria-hidden', 'true');
+  sceneLegend.append(el('span', '실행 중', 'is-active'), el('span', '기록 없음', 'is-idle'), el('span', '선택됨', 'is-selected'));
+  sceneViewport.append(sceneHost, sceneFallback, sceneControls, sceneLegend);
+  const stations = el('div', null, 'obs-stations'); stations.setAttribute('role', 'group'); stations.setAttribute('aria-label', '에이전트와 실행 단계 선택');
+  office.append(officeTop, sceneViewport, stations);
+  const officeCaption = el('p', '실제 호출과 인계를 표시합니다. 역할을 선택하면 같은 시점의 실행 기록과 연결됩니다.', 'obs-caption obs-office-caption');
   const playback = el('div', null, 'obs-playback');
   const previous = button('←', 'obs-previous', () => stepReplay(-1)); previous.setAttribute('aria-label', '이전 이벤트');
   const play = button('기록 재생', 'obs-play', togglePlayback); play.id = 'observatory-play';
@@ -85,6 +104,8 @@
   const replayLabel = el('span', '실시간 기록', 'obs-replay-label'); replayLabel.id = 'observatory-replay-label';
   const live = button('실시간으로', 'obs-live', () => { stopPlayback(); model.followLatest = true; setReplay(null); }, 'obs-live'); live.id = 'observatory-live';
   playback.append(previous, play, next, sliderLabel, slider, replayLabel, live);
+  const workspace = el('div', null, 'obs-workspace');
+  const officePanel = el('section', null, 'obs-office-panel'); officePanel.append(office, officeCaption);
   const explorer = el('div', null, 'obs-explorer');
   const flow = el('section', null, 'obs-flow'); flow.setAttribute('aria-label', '실행 그래프');
   const flowHeading = el('div', null, 'obs-panel-heading'); flowHeading.append(el('h3', '실행 흐름'));
@@ -96,36 +117,33 @@
   const graphLegend = el('p', '실선: 컨트롤러를 통한 역할 간 인계 · 점선: 같은 역할의 다음 실행', 'obs-graph-legend');
   flow.append(flowHeading, graphHint, graph, graphLegend);
   const inspector = el('section', null, 'obs-inspector'); inspector.id = 'observatory-inspector'; inspector.setAttribute('aria-label', '선택한 실행 기록 상세');
-  explorer.append(flow, inspector);
+  workspace.append(officePanel, inspector);
+  explorer.append(flow);
   const eventSection = el('section', null, 'obs-event-section'); eventSection.setAttribute('aria-label', '선택한 실행의 인계 기록');
   const eventHeading = el('div', null, 'obs-panel-heading');
-  const eventHeadingText = el('div'); eventHeadingText.append(el('h3', '선택한 실행의 인계 기록'), el('p', '이 실행에서 전달한 지시와 반환된 결과입니다. 실행 밖의 보류·체크포인트는 아래 작업 상세에 남습니다.', 'obs-caption'));
+  const eventHeadingText = el('div'); eventHeadingText.append(el('h3', '인계 기록'), el('p', '선택한 실행에서 실제로 전달한 지시와 반환된 결과', 'obs-caption'));
   const searchLabel = el('label', null, 'obs-event-search'); searchLabel.append(el('span', '이벤트 검색', 'sr-only'));
   const search = el('input'); search.type = 'search'; search.id = 'observatory-search'; search.placeholder = '역할 · 내용 · 순번 검색'; search.setAttribute('aria-label', '이벤트 검색'); search.addEventListener('input', () => { model.query = search.value; renderEvents(); }); searchLabel.append(search); eventHeading.append(eventHeadingText, searchLabel);
   const eventList = el('ol', null, 'obs-events'); eventList.id = 'observatory-events';
   const eventFooter = el('div', null, 'obs-event-footer');
   const older = button('이전 기록 불러오기', 'obs-older', loadOlder); older.id = 'observatory-older';
   const eventCount = el('span', '', 'obs-caption'); eventCount.setAttribute('aria-live', 'polite'); eventFooter.append(older, eventCount);
-  eventSection.append(eventHeading, eventList, eventFooter);
+  eventSection.append(eventHeading, playback, eventList, eventFooter);
   const coverage = el('p', '관측 범위: agent-workflow가 실행한 단계와 결과. CLI 내부의 개별 도구 호출·하위 에이전트 대화는 이 화면의 기록 범위에 포함되지 않습니다.', 'obs-coverage');
-  root.append(header, taskLine, toolbar, notices, office, officeCaption, playback, explorer, eventSection, coverage);
+  root.append(header, taskLine, toolbar, notices, workspace, explorer, eventSection, coverage);
   root.hidden = true;
 
-  // Original geometric sprites; no third-party character or furniture assets.
-  const spriteMaps = {
-    controller: ['...AAAA...','..AAAAAA..','..ABBBBA..','..BBCBBC..','..BBBBBB..','...BBBB...','..DDDDDD..','.DDDDDDDD.','.BBDEEDBB.','...DDDD...','...D..D...','..FF..FF..'],
-    implement: ['....AA....','...AAAA...','..AAAAAA..','..BBCBBC..','..BBBBBB..','...BBBB...','..DDDDDD..','.DDDEEDDD.','.BBDEEDBB.','...DDDD...','...D..D...','..FF..FF..'],
-    check: ['...AAAA...','..AEEEEA..','..AAAAAA..','..BBCBBC..','..BBBBBB..','...BBBB...','..DDEEDD..','.DDDEEDDD.','.BBDDDDBB.','...DDDD...','...D..D...','..FF..FF..'],
-    review: ['..AAAAAA..','..AAAAAA..','..ABBBBA..','.AACC CCAA.','..BBBBBB..','...BBBB...','..DDDDDD..','.DDDEEDDD.','.BBDEEDBB.','...DDDD...','...D..D...','..FF..FF..'],
-    release: ['...AAAA...','..AAAAAA..','.AABBBBAA.','.ABBCBBAA.','..BBBBBB..','...BBBB...','..DDDDDD..','.DDEEEEDD.','.BBDDDDBB.','...DDDD...','...D..D...','..FF..FF..']
-  };
+  // Original compact robot marks are an accessible visual counterpart to the
+  // procedural 3D agents. Their colour follows the role, never a provider logo.
   function avatar(role) {
-    const image = svgEl('svg', { viewBox: '0 0 12 13', 'aria-hidden': 'true', class: 'obs-avatar', 'shape-rendering': 'crispEdges' });
-    for (const [y, row] of (spriteMaps[role] || spriteMaps.controller).entries()) {
-      for (const [x, pixel] of [...row].entries()) {
-        if (pixel !== '.' && pixel !== ' ') image.append(svgEl('rect', { x: x + 1, y, width: 1, height: 1, class: `pixel-${pixel.toLowerCase()}` }));
-      }
-    }
+    const image = svgEl('svg', { viewBox: '0 0 40 40', 'aria-hidden': 'true', class: `obs-avatar role-${role}` });
+    image.append(svgEl('path', { d: 'M20 4V1', class: 'robot-antenna' }),
+      svgEl('circle', { cx: 20, cy: 2, r: 2, class: 'robot-light' }),
+      svgEl('rect', { x: 3, y: 7, width: 34, height: 28, rx: 12, class: 'robot-shell' }),
+      svgEl('rect', { x: 7, y: 12, width: 26, height: 17, rx: 8, class: 'robot-visor' }),
+      svgEl('rect', { x: 13, y: 17, width: 3, height: 7, rx: 1.5, class: 'robot-light' }),
+      svgEl('rect', { x: 24, y: 17, width: 3, height: 7, rx: 1.5, class: 'robot-light' }),
+      svgEl('path', { d: 'M12 35V38M28 35V38', class: 'robot-antenna' }));
     return image;
   }
   function displayStatus(span) {
@@ -155,7 +173,7 @@
       return [{ ...span, status: ambiguous ? 'unknown' : ended ? span.status : 'running', result,
         ended_at: ended ? span.ended_at : null,
         duration_ms: ended ? span.duration_ms : startTime != null && cursorTime != null ? Math.max(0, cursorTime - startTime) : null,
-        process: ended ? span.process : null, error: ended ? span.error : null, replay_uncertain: ambiguous }];
+        process: ended ? span.process : null, usage: ended ? span.usage : null, error: ended ? span.error : null, replay_uncertain: ambiguous }];
     });
   }
   function selectedRecord() {
@@ -199,6 +217,90 @@
     play.textContent = '재생 일시정지';
   }
 
+  function reducedMotion() { return model.preferences.motion === 'reduce' || motionQuery.matches; }
+  function officeVisible() { return model.visible && !document.hidden && Boolean(model.taskId) && model.preferences.threeD && model.officeMode === '3d'; }
+  function selectActor(actorId) {
+    const actor = model.officeActors.find(item => item.id === actorId);
+    if (actor?.spanId) selectSpan(actor.spanId);
+    else if (actor?.event) selectEvent(actor.event);
+  }
+  function setOfficeMode(mode) {
+    if (mode === '3d' && !model.preferences.threeD) return;
+    model.officeMode = mode;
+    renderOffice(visibleSpans());
+  }
+  function updateRoomPresentation() {
+    const threeD = model.preferences.threeD && model.officeMode === '3d';
+    sceneViewport.hidden = !threeD;
+    view3d.setAttribute('aria-pressed', String(threeD));
+    viewList.setAttribute('aria-pressed', String(!threeD));
+    view3d.disabled = !model.preferences.threeD;
+    view3d.title = model.preferences.threeD ? '3D 작업 공간 보기' : '환경 설정에서 3D 공간을 켤 수 있습니다.';
+    office.classList.toggle('is-list-view', !threeD);
+    office.classList.toggle('is-scene-unavailable', roomAvailable === false);
+    office.dataset.sceneState = !threeD ? 'list' : roomAvailable === true ? 'ready' : roomAvailable === false ? 'unavailable' : 'loading';
+    sceneFallback.hidden = roomAvailable === true;
+    if (!sceneFallback.hidden) {
+      const fragment = document.createDocumentFragment();
+      fragment.append(el('span', roomAvailable === false ? '◇' : '◈', 'obs-scene-placeholder-icon'),
+        el('strong', roomAvailable === false ? '역할 목록으로 계속 확인할 수 있습니다.' : '3D 작업 공간을 준비하고 있습니다.'),
+        el('p', roomAvailable === false ? '이 환경에서 3D 화면을 열지 못했습니다. 아래 역할과 실행 그래프는 같은 기록을 보여줍니다.' : '실제 실행 기록을 작업 공간에 연결합니다.'));
+      if (roomAvailable === false) {
+        const retry = button('3D 다시 시도', 'obs-scene-retry', retryRoom); retry.id = 'observatory-scene-retry'; fragment.append(retry);
+        if (roomReason) { const details = el('details'); details.append(el('summary', '표시 오류 상세'), el('p', clip(roomReason, 350))); fragment.append(details); }
+      }
+      replace(sceneFallback, fragment);
+    }
+    for (const control of [zoomIn, zoomOut, cameraReset]) control.disabled = roomAvailable !== true;
+    sceneLegend.hidden = roomAvailable !== true;
+  }
+  let roomEpoch = 0;
+  async function ensureRoom() {
+    if (room || roomLoading || roomAvailable === false || roomDisposed || !officeVisible()) return;
+    const epoch = roomEpoch;
+    roomLoading = import(`/static/scene3d.js${epoch ? `?retry=${epoch}` : ''}`);
+    try {
+      const module = await roomLoading;
+      if (roomDisposed || epoch !== roomEpoch || !officeVisible()) return;
+      room = module.createOffice(sceneHost, {
+        onSelectActor: selectActor,
+        onAvailabilityChange(result) {
+          if (roomDisposed || epoch !== roomEpoch) return;
+          roomAvailable = result.available === true; roomReason = result.reason || '';
+          updateRoomPresentation();
+        }
+      });
+      updateRoom();
+    } catch (error) {
+      if (epoch !== roomEpoch || roomDisposed) return;
+      roomAvailable = false; roomReason = error.message || '3D 모듈을 불러오지 못했습니다.';
+      sceneHost.dataset.sceneStatus = 'unavailable'; updateRoomPresentation();
+    } finally { if (epoch === roomEpoch) roomLoading = null; }
+  }
+  function retryRoom() {
+    roomEpoch += 1; roomLoading = null;
+    const previous = room; room = null; previous?.dispose();
+    sceneHost.replaceChildren(); roomAvailable = null; roomReason = ''; updateRoomPresentation(); ensureRoom();
+  }
+  function updateRoom() {
+    const spans = visibleSpans(), bySpan = new Map(spans.map(span => [span.id, span.actor])), grouped = new Map();
+    for (const edge of model.data?.edges || []) {
+      const source = bySpan.get(edge.source), target = bySpan.get(edge.target);
+      if (!source || !target) continue;
+      const key = `${source}\u0000${target}`, previous = grouped.get(key);
+      if (previous) previous.count += 1;
+      else grouped.set(key, { source, target, kind: edge.kind, count: 1 });
+    }
+    const selected = selectedRecord();
+    const selectedActor = selected.span?.actor || selected.event?.actor || null;
+    const actors = model.officeActors.map(({ event, ...actor }) => actor);
+    room?.update({ actors, selectedActor, edges: [...grouped.values()], connected: model.connected,
+      replaying: model.replay != null, visible: officeVisible(), reducedMotion: reducedMotion(),
+      theme: document.documentElement.dataset.theme || 'light' });
+    room?.setVisible(officeVisible());
+    updateRoomPresentation();
+    ensureRoom();
+  }
   function renderOffice(spans) {
     const data = model.data, definitions = data?.actors || [];
     const actors = definitions.length ? definitions : [
@@ -209,33 +311,38 @@
       { id: 'release', label: '통합·배포', role: 'release' }
     ];
     const ordered = [...actors].sort((a, b) => roles.indexOf(roleKey(a.role)) - roles.indexOf(roleKey(b.role)));
-    cached('office', [ordered, spans, visibleEvents(), model.replay, model.connected, model.selectedSpan, data?.task?.hold], () => {
+    const selected = selectedRecord(), selectedActor = selected.span?.actor || selected.event?.actor;
+    const events = visibleEvents();
+    model.officeActors = ordered.map(actor => {
+      const related = spans.filter(span => span.actor === actor.id), latest = related.at(-1), role = roleKey(actor.role);
+      const latestEvent = events.filter(event => event.actor === actor.id || event.recipient === actor.id).at(-1);
+      let status = latest ? displayStatus(latest) : 'idle';
+      if (model.replay == null && model.requestedRun == null && data?.task?.hold && !latest) status = 'held';
+      const label = actor.label === 'codex-session' ? 'Codex · 독립 세션' : actor.label === 'claude' ? 'Claude' : actor.label === 'codex' ? 'Codex' : actor.label || actorName(actor.id);
+      return { id: actor.id, label, role, status, active: status === 'running' && model.connected && model.replay == null && model.visible && !document.hidden,
+        selected: actor.id === selectedActor, spanId: latest?.id || null, event: latestEvent || null, count: related.length,
+        goal: latest?.input?.goal || model.task?.goal || '', caption: latest?.label || latestEvent?.summary || '관측된 실행 없음' };
+    });
+    cached('office', [model.officeActors, model.replay, model.connected, Boolean(model.data)], () => {
       const fragment = document.createDocumentFragment();
-      for (const actor of ordered) {
-        const related = spans.filter(span => span.actor === actor.id), latest = related.at(-1), role = roleKey(actor.role);
-        const latestEvent = visibleEvents().filter(event => event.actor === actor.id || event.recipient === actor.id).at(-1);
-        let status = latest ? displayStatus(latest) : 'idle';
-        if (model.replay == null && model.requestedRun == null && data?.task?.hold && !latest) status = 'held';
-        const active = status === 'running' && model.connected && model.replay == null;
-        const station = button('', `obs-actor-${actor.id}`, () => { if (latest) selectSpan(latest.id); else if (latestEvent) selectEvent(latestEvent); }, `obs-station role-${role}${active ? ' is-active' : ''}${latest?.id === model.selectedSpan ? ' is-selected' : ''}`);
-        station.disabled = !latest && !latestEvent; station.dataset.actor = actor.id;
-        station.setAttribute('aria-label', `${roleLabels[role]} ${actor.label || actorName(actor.id)}, ${statusLabel(status)}${latest ? ', 최근 실행 상세 보기' : ''}`);
-        const stationTop = el('span', null, 'obs-station-top'); stationTop.append(el('span', roleLabels[role]), el('span', String(related.length).padStart(2, '0'), 'obs-station-count'));
-        const scene = el('span', null, 'obs-station-scene');
-        const screen = el('span', null, 'obs-monitor'); screen.append(el('i'), el('i'), el('i')); screen.setAttribute('aria-hidden', 'true');
-        const desk = el('span', null, 'obs-desk'); desk.setAttribute('aria-hidden', 'true');
-        const chair = el('span', null, 'obs-chair'); chair.setAttribute('aria-hidden', 'true');
-        scene.append(chair, avatar(role), desk, screen);
-        const name = actor.label === 'codex-session' ? 'Codex · 독립 세션' : actor.label === 'claude' ? 'Claude' : actor.label === 'codex' ? 'Codex' : actor.label || actorName(actor.id);
-        const caption = latest ? clip(latest.label, 40) : latestEvent ? clip(latestEvent.summary, 40) : '관측된 실행 없음';
-        const currentLabel = !model.connected && model.data && status === 'running' ? '연결 끊김 · 이전 기록' : model.replay != null && status === 'running' ? '당시 실행 중' : latestEvent && !latest && status === 'idle' ? '활동 기록 있음' : statusLabel(status);
-        station.append(stationTop, scene, el('span', name, 'obs-station-name'), badge(status, currentLabel), el('span', caption, 'obs-station-task')); fragment.append(station);
+      for (const actor of model.officeActors) {
+        const station = button('', `obs-actor-${actor.id}`, () => selectActor(actor.id), `obs-station role-${actor.role}${actor.active ? ' is-active' : ''}${actor.selected ? ' is-selected' : ''}`);
+        station.disabled = !actor.spanId && !actor.event; station.dataset.actor = actor.id;
+        const currentLabel = !model.connected && model.data && actor.status === 'running' ? '이전 기록' : model.replay != null && actor.status === 'running' ? '당시 실행 중' : actor.event && !actor.spanId && actor.status === 'idle' ? '활동 기록' : statusLabel(actor.status);
+        station.setAttribute('aria-label', `${roleLabels[actor.role]} ${actor.label}, ${currentLabel}${actor.spanId ? ', 최근 실행 상세 보기' : ''}`);
+        station.setAttribute('aria-pressed', String(actor.selected));
+        const body = el('span', null, 'obs-station-body');
+        const name = el('span', null, 'obs-station-top'); name.append(el('span', actor.label, 'obs-station-name'), badge(actor.status, currentLabel));
+        body.append(name, el('span', `${roleLabels[actor.role]} · ${actor.count}회 호출`, 'obs-station-task'));
+        station.append(avatar(actor.role), body); fragment.append(station);
       }
       replace(stations, fragment);
     });
     office.classList.toggle('is-replay', model.replay != null);
     office.classList.toggle('is-disconnected', !model.connected);
-    officeTime.textContent = model.replay != null ? `REPLAY · ${timeLabel(model.events.find(event => Number(event.seq) === model.replay)?.at)}` : model.connected ? `SYNC · ${timeLabel(model.lastSync)}` : model.data ? 'CONNECTION LOST · 이전 기록' : 'WAITING FOR RECORDS';
+    root.dataset.motion = reducedMotion() ? 'reduced' : 'full';
+    officeTime.textContent = model.replay != null ? `기록 재생 · ${timeLabel(model.events.find(event => Number(event.seq) === model.replay)?.at)}` : model.connected ? '연결됨' : model.data ? '이전 기록' : '연결 중';
+    updateRoom();
   }
 
   function graphNode(span, index, aggregate = false, selected = model.selectedSpan === span.id) {
@@ -258,21 +365,23 @@
   function drawGraph(spans, layout, resized) {
     const fragment = document.createDocumentFragment();
     if (!spans.length) {
-      const empty = el('div', null, 'obs-empty'); empty.append(el('span', '↗', 'obs-empty-mark'), el('h4', model.data?.legacy ? '기존 기록을 시간순으로 확인하세요.' : '첫 실행을 기다리고 있습니다.'), el('p', model.data?.legacy ? '단계별 관측 이전의 작업입니다. 아래 이벤트는 보존하며, 누락된 실행 시간이나 대화를 만들지 않습니다.' : '워크플로를 실행하면 구현, 검사, 독립 리뷰의 실제 과정이 여기에 연결됩니다.')); fragment.append(empty); replace(graph, fragment); return;
+      const empty = el('div', null, 'obs-empty');
+      empty.append(el('span', '↗', 'obs-empty-mark'), el('h4', model.data?.legacy ? '기존 기록을 시간순으로 확인하세요.' : '첫 실행을 기다리고 있습니다.'),
+        el('p', model.data?.legacy ? '단계별 관측 이전의 작업입니다. 아래 이벤트는 보존하며, 없던 실행 시간이나 대화를 만들지 않습니다.' : '워크플로를 실행하면 실제 구현·검사·독립 리뷰가 순서대로 연결됩니다.'));
+      fragment.append(empty); replace(graph, fragment); return;
     }
     const { compact } = layout;
     const previousSelected = graph.querySelector('.obs-node.is-selected');
+    const previousId = previousSelected?.dataset.spanId;
     const previousOffset = previousSelected ? previousSelected.offsetTop - graph.scrollTop : null;
     const canvas = el('div', null, `obs-graph-canvas${model.mode === 'roles' ? ' is-aggregate' : ''}${compact ? ' is-compact' : ''}`);
-    const width = compact ? Math.max(1, layout.viewportWidth) : 760, laneWidth = 144, offset = 24;
-    const nodeWidth = compact ? Math.min(240, Math.max(1, width - 64)) : 120, nodeHeight = compact ? 82 : 69;
-    const rowHeight = compact ? 112 : 91, centerX = (width - nodeWidth) / 2;
-    const positions = new Map();
     let graphNodes, edges;
     if (model.mode === 'roles') {
       const groups = new Map();
       for (const span of spans) { if (!groups.has(span.actor)) groups.set(span.actor, []); groups.get(span.actor).push(span); }
-      graphNodes = [...groups].map(([actor, items]) => ({ ...items.at(-1), actor, count: items.length, passed: items.filter(span => ['succeeded', 'pass'].includes(displayStatus(span))).length, attention: items.filter(span => ['failed', 'blocked', 'changes_requested', 'unknown', 'interrupted'].includes(displayStatus(span))).length }));
+      graphNodes = [...groups].map(([actor, items]) => ({ ...items.at(-1), actor, count: items.length,
+        passed: items.filter(span => ['succeeded', 'pass'].includes(displayStatus(span))).length,
+        attention: items.filter(span => ['failed', 'blocked', 'changes_requested', 'unknown', 'interrupted'].includes(displayStatus(span))).length }));
       const bySpan = new Map(spans.map(span => [span.id, span.actor]));
       const byActor = new Map(graphNodes.map(span => [span.actor, span]));
       const grouped = new Map();
@@ -284,33 +393,25 @@
         else grouped.set(key, { ...edge, source: byActor.get(source).id, target: byActor.get(target).id, count: 1 });
       }
       edges = [...grouped.values()];
-      const laneCounts = new Map();
-      for (const [index, span] of graphNodes.entries()) {
-        const role = roleKey(span.role), row = laneCounts.get(role) || 0; laneCounts.set(role, row + 1);
-        positions.set(span.id, compact ? { x: centerX, y: 36 + index * 124 } : { x: offset + roles.indexOf(role) * laneWidth, y: 66 + row * 155 });
-      }
-    } else {
-      graphNodes = spans; edges = model.data?.edges || [];
-      spans.forEach((span, index) => positions.set(span.id, { x: compact ? centerX : offset + roles.indexOf(roleKey(span.role)) * laneWidth, y: (compact ? 36 : 43) + index * rowHeight }));
-    }
+    } else { graphNodes = spans; edges = model.data?.edges || []; }
+    const nodeWidth = compact ? Math.min(252, Math.max(1, layout.viewportWidth - 64)) : 156;
+    const nodeHeight = compact ? 82 : 88, gap = compact ? 30 : 28;
+    const requiredWidth = graphNodes.length * (nodeWidth + gap) - gap + 40;
+    const width = compact ? Math.max(1, layout.viewportWidth) : Math.max(layout.viewportWidth, requiredWidth);
+    const start = compact ? (width - nodeWidth) / 2 : Math.max(20, (width - requiredWidth + 40) / 2);
+    const positions = new Map();
+    graphNodes.forEach((span, index) => positions.set(span.id, compact
+      ? { x: start, y: 28 + index * (nodeHeight + gap) }
+      : { x: start + index * (nodeWidth + gap), y: model.mode === 'roles' ? 60 : 28 }));
     const selectedActor = spans.find(span => span.id === model.selectedSpan)?.actor;
     const selectedNodeId = model.mode === 'roles' ? graphNodes.find(span => span.actor === selectedActor)?.id : model.selectedSpan;
-    const height = Math.max(model.mode === 'roles' ? 245 : 180, ...[...positions.values()].map(position => position.y + (compact ? nodeHeight + 24 : 112)));
+    const height = compact ? Math.max(180, graphNodes.length * (nodeHeight + gap) + 28) : model.mode === 'roles' ? 182 : 140;
     canvas.style.width = `${width}px`; canvas.style.height = `${height}px`;
     const drawing = svgEl('svg', { viewBox: `0 0 ${width} ${height}`, width, height, 'aria-hidden': 'true', class: 'obs-edges' });
     const defs = svgEl('defs');
-    const marker = svgEl('marker', { id: 'observatory-arrow', viewBox: '0 0 8 8', refX: 6, refY: 4, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' }); marker.append(svgEl('path', { d: 'M1 1L6 4L1 7', fill: 'none', stroke: 'context-stroke', 'stroke-width': 1.5 })); defs.append(marker); drawing.append(defs);
-    if (compact) {
-      drawing.append(svgEl('path', { d: `M${width / 2} 33V${height - 10}`, class: 'obs-lane-line' }));
-      const lane = el('span', model.mode === 'roles' ? '역할별 호출 집계' : '시간순 실행', 'obs-lane-label');
-      lane.style.left = `${centerX}px`; lane.style.width = `${nodeWidth}px`; canvas.append(lane);
-    } else {
-      roles.forEach((role, index) => {
-        const x = offset + index * laneWidth;
-        drawing.append(svgEl('path', { d: `M${x + 60} 33V${height - 10}`, class: 'obs-lane-line' }));
-        const lane = el('span', roleLabels[role], 'obs-lane-label'); lane.style.left = `${x}px`; canvas.append(lane);
-      });
-    }
+    const marker = svgEl('marker', { id: 'observatory-arrow', viewBox: '0 0 8 8', refX: 6, refY: 4, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' });
+    marker.append(svgEl('path', { d: 'M1 1L6 4L1 7', fill: 'none', stroke: 'context-stroke', 'stroke-width': 1.5 })); defs.append(marker); drawing.append(defs);
+    if (compact) drawing.append(svgEl('path', { d: `M${width / 2} 16V${height - 12}`, class: 'obs-lane-line' }));
     for (const edge of edges) {
       const from = positions.get(edge.source), to = positions.get(edge.target);
       if (!from || !to) continue;
@@ -327,28 +428,32 @@
             tx = (x + 3 * rail) / 4; ty = (y1 + y2) / 2;
           }
         } else if (edge.source === edge.target) {
-          d = `M${from.x + 108} ${from.y + 40}C${from.x + 151} ${from.y - 9},${from.x + 148} ${from.y + 103},${from.x + 104} ${from.y + 64}`; tx = from.x + 142; ty = from.y + 47;
+          d = `M${from.x + nodeWidth * .65} ${from.y}C${from.x + nodeWidth + 30} ${from.y - 49},${from.x + nodeWidth + 30} ${from.y + nodeHeight + 28},${from.x + nodeWidth} ${from.y + nodeHeight * .65}`;
+          tx = from.x + nodeWidth + 15; ty = from.y + 10;
         } else {
-          const forward = to.x > from.x, x1 = from.x + (forward ? 76 : 43), x2 = to.x + (forward ? 43 : 76), y = Math.min(from.y, to.y) - (forward ? 32 : 48);
-          d = `M${x1} ${from.y}C${x1} ${y},${x2} ${y},${x2} ${to.y}`; tx = (x1 + x2) / 2; ty = y + 6;
+          const forward = to.x > from.x, x1 = from.x + nodeWidth * (forward ? .65 : .35), x2 = to.x + nodeWidth * (forward ? .35 : .65);
+          const y = Math.min(from.y, to.y) - (forward ? 30 : 56);
+          d = `M${x1} ${from.y}C${x1} ${y},${x2} ${y},${x2} ${to.y}`; tx = (x1 + x2) / 2; ty = y + 7;
         }
-      } else {
+      } else if (compact) {
         const x1 = from.x + nodeWidth / 2, y1 = from.y + nodeHeight, x2 = to.x + nodeWidth / 2, y2 = to.y, middle = (y1 + y2) / 2;
-        d = `M${x1} ${y1}C${x1} ${middle},${x2} ${middle},${x2} ${y2}`; tx = (x1 + x2) / 2; ty = middle;
+        d = `M${x1} ${y1}C${x1} ${middle},${x2} ${middle},${x2} ${y2}`;
+      } else {
+        const x1 = from.x + nodeWidth, y1 = from.y + nodeHeight / 2, x2 = to.x, y2 = to.y + nodeHeight / 2, middle = (x1 + x2) / 2;
+        d = `M${x1} ${y1}C${middle} ${y1},${middle} ${y2},${x2} ${y2}`;
       }
       const line = svgEl('path', { d, class: `obs-edge ${edge.kind === 'handoff' ? 'is-handoff' : 'is-sequence'}${[edge.source, edge.target].includes(selectedNodeId) ? ' is-selected' : ''}`, 'marker-end': 'url(#observatory-arrow)' });
       const title = svgEl('title'); title.textContent = `${edge.label || '컨트롤러의 다음 실행'}${edge.count ? ` · ${edge.count}회` : ''}`; line.append(title); drawing.append(line);
-      if (model.mode === 'roles' && edge.count) {
-        const label = svgEl('text', { x: tx, y: ty, 'text-anchor': 'middle', class: 'obs-edge-count' }); label.textContent = String(edge.count); drawing.append(label);
-      }
+      if (model.mode === 'roles' && edge.count) { const label = svgEl('text', { x: tx, y: ty, 'text-anchor': 'middle', class: 'obs-edge-count' }); label.textContent = String(edge.count); drawing.append(label); }
     }
     canvas.prepend(drawing);
+    const order = new Map(spans.map((span, index) => [span.id, index]));
     graphNodes.forEach((span, index) => {
-      const item = graphNode(span, spans.findIndex(source => source.id === span.id) >= 0 ? spans.findIndex(source => source.id === span.id) : index, model.mode === 'roles', selectedNodeId === span.id), position = positions.get(span.id);
+      const item = graphNode(span, order.get(span.id) ?? index, model.mode === 'roles', selectedNodeId === span.id), position = positions.get(span.id);
       item.style.left = `${position.x}px`; item.style.top = `${position.y}px`; item.style.width = `${nodeWidth}px`; item.style.height = `${nodeHeight}px`; canvas.append(item);
     });
     fragment.append(canvas); replace(graph, fragment);
-    if (positions.has(selectedNodeId) && (resized || model.followLatest && model.replay == null && model.mode === 'steps')) {
+    if (positions.has(selectedNodeId) && (resized || previousId !== selectedNodeId || model.followLatest && model.replay == null)) {
       const selected = positions.get(selectedNodeId);
       const anchor = resized && previousOffset != null ? Math.max(12, Math.min(previousOffset, graph.clientHeight - nodeHeight - 12)) : (graph.clientHeight - nodeHeight) / 2;
       graph.scrollTop = Math.max(0, selected.y - anchor);
@@ -366,63 +471,82 @@
   }
   function drawInspector() {
     const { span, event } = selectedRecord();
-    const fragment = document.createDocumentFragment(), heading = el('div', null, 'obs-panel-heading'); heading.append(el('h3', '선택한 기록'));
+    const recordKey = `${span?.id || ''}:${event?.seq || ''}`;
+    const opened = inspector.dataset.recordKey === recordKey ? new Set([...inspector.querySelectorAll('details[open]')].map(item => item.dataset.recordDetail)) : new Set();
+    const fragment = document.createDocumentFragment(), heading = el('div', null, 'obs-panel-heading');
+    heading.append(el('h3', span ? '선택한 에이전트' : '선택한 기록'));
     if (!span && !event) {
-      fragment.append(heading, el('div', '작업실의 역할, 그래프의 단계 또는 아래 이벤트를 선택하세요. 입력 목표, 반환된 결과와 실행 근거를 연결해서 보여줍니다.', 'obs-inspector-placeholder')); replace(inspector, fragment); return;
+      fragment.append(heading, el('div', '작업 공간의 에이전트나 아래 실행 단계를 선택하세요. 목표, 반환된 결과와 실행 근거를 함께 확인할 수 있습니다.', 'obs-inspector-placeholder'));
+      replace(inspector, fragment); return;
     }
     const status = event?.status || (span ? displayStatus(span) : null);
     if (status) heading.append(badge(status)); fragment.append(heading);
-    if (event) {
-      fragment.append(el('p', `#${event.seq} · ${eventLabels[event.kind] || event.kind}`, 'obs-record-id'));
-      fragment.append(inspectorBlock('기록 내용', event.summary || eventLabels[event.kind] || event.kind));
-      if (event.recipient) fragment.append(inspectorBlock('전달 경로', `${actorName(event.actor)} → ${actorName(event.recipient)}`));
-    }
     if (span) {
-      fragment.append(el('p', span.label, 'obs-inspector-title'));
-      const fields = el('dl', null, 'obs-fields');
-      addField(fields, '역할', actorName(span.actor)); addField(fields, '실행 ID', span.run_id); addField(fields, '단계 ID', span.id);
-      addField(fields, '시작', dateLabel(span.started_at)); addField(fields, '종료', span.ended_at ? dateLabel(span.ended_at) : model.replay != null ? '이 시점에는 종료 기록 없음' : '종료 기록 없음');
-      addField(fields, '소요 시간', duration(span.duration_ms)); addField(fields, '모델', span.model || 'CLI가 모델을 기록하지 않음');
-      if (span.process?.exit_code != null) addField(fields, '종료 코드', span.process.exit_code);
-      if (span.process?.timed_out) addField(fields, '시간 제한', '초과');
-      if (span.usage?.tokens != null) addField(fields, '보고된 토큰', span.usage.tokens);
-      addField(fields, '보고된 비용', span.usage?.reported_cost_usd != null ? `$${Number(span.usage.reported_cost_usd).toFixed(6)}` : '미보고');
-      fragment.append(fields);
+      const identity = el('div', null, `obs-agent-identity role-${roleKey(span.role)}`), name = el('div');
+      name.append(el('strong', actorName(span.actor)), el('span', span.label));
+      identity.append(avatar(roleKey(span.role)), name); fragment.append(identity);
+      if (span.input?.goal) fragment.append(inspectorBlock('현재 실행의 목표', span.input.goal));
+      const summary = el('dl', null, 'obs-summary-facts');
+      let elapsed = span.duration_ms;
+      if (elapsed == null && span.status === 'running' && model.replay == null) {
+        const start = timestamp(span.started_at), observed = timestamp(model.lastSync);
+        if (start != null && observed != null) elapsed = Math.max(0, observed - start);
+      }
+      addField(summary, '역할', roleLabels[roleKey(span.role)]); addField(summary, span.status === 'running' ? '관측 경과' : '소요 시간', duration(elapsed));
+      addField(summary, '모델', span.model || '미기록'); fragment.append(summary);
       if (span.replay_uncertain) fragment.append(el('p', '이전 이벤트 페이지에 정확한 시작·종료 순번이 없습니다. 같은 초의 경계는 확정하지 않습니다.', 'obs-inline-warning'));
       if (span.error) fragment.append(inspectorBlock('실행 오류', span.error));
-      if (span.input?.goal) fragment.append(inspectorBlock('전달한 목표', span.input.goal));
-      if (span.input?.criteria?.length) {
-        const block = el('div', null, 'obs-inspector-block'), list = el('ul'); block.append(el('h4', '완료 조건'));
-        for (const criterion of span.input.criteria) list.append(el('li', textValue(criterion)));
+      if (span.result?.summary) fragment.append(inspectorBlock('반환된 요약', span.result.summary));
+      if (span.result?.verdict || span.result?.outcome) fragment.append(inspectorBlock('판정', statusLabel(span.result.verdict || span.result.outcome)));
+      if (span.result?.next_action) fragment.append(inspectorBlock('다음 행동', span.result.next_action));
+      if (span.result?.findings?.length) {
+        const block = el('div', null, 'obs-inspector-block'), list = el('ul'); block.append(el('h4', '리뷰 지적'));
+        for (const finding of span.result.findings) list.append(el('li', `${finding.blocking ? '[차단] ' : ''}${finding.detail || textValue(finding)}${finding.evidence ? `\n근거: ${finding.evidence}` : ''}`));
         block.append(list); fragment.append(block);
       }
-      if (span.result) {
-        if (span.result.summary) fragment.append(inspectorBlock('반환된 요약', span.result.summary));
-        if (span.result.verdict || span.result.outcome) fragment.append(inspectorBlock('판정', statusLabel(span.result.verdict || span.result.outcome)));
-        if (span.result.next_action) fragment.append(inspectorBlock('다음 행동', span.result.next_action));
-        if (span.result.findings?.length) {
-          const block = el('div', null, 'obs-inspector-block'), list = el('ul'); block.append(el('h4', '리뷰 지적'));
-          for (const finding of span.result.findings) list.append(el('li', `${finding.blocking ? '[차단] ' : ''}${finding.detail || textValue(finding)}${finding.evidence ? `\n근거: ${finding.evidence}` : ''}`));
-          block.append(list); fragment.append(block);
-        }
-      }
       if (span.artifacts?.length) {
-        const block = el('div', null, 'obs-inspector-block'); block.append(el('h4', '프로세스 원본 로그'));
-        block.append(el('p', model.replay == null ? '버튼을 누를 때만 해당 단계의 저장된 로그를 읽습니다.' : '현재 저장된 로그입니다. 재생 시점 이후 내용이 포함될 수 있습니다.', 'obs-caption'));
+        const block = el('div', null, 'obs-inspector-block obs-logs-block'); block.append(el('h4', '실행 로그'));
         const controls = el('div', null, 'obs-log-controls');
         for (const kind of ['stdout', 'stderr'].filter(kind => span.artifacts.includes(kind))) controls.append(button(kind === 'stdout' ? '출력 로그 열기' : '오류 로그 열기', `obs-log-${kind}`, () => loadLog(span.id, kind)));
         block.append(controls);
+        if (model.replay != null) block.append(el('p', '현재 저장된 로그를 읽습니다. 재생 시점 이후 내용이 포함될 수 있습니다.', 'obs-caption'));
         if (model.logKind) {
           const cached = model.logCache.get(`${span.id}:${model.logKind}`);
           if (cached) block.append(el('pre', cached, 'obs-log'));
         }
         fragment.append(block);
       }
-      fragment.append(el('p', '프로세스 정상 종료와 작업의 완료 판정은 별개입니다. 검증 증거의 최신성은 아래 작업 상세에서 확인하세요.', 'obs-caption'));
+      if (span.input?.criteria?.length) {
+        const block = el('details', null, 'obs-record-details'), list = el('ul'); block.dataset.recordDetail = 'criteria';
+        const summary = el('summary', `완료 조건 ${span.input.criteria.length}개`); summary.dataset.focus = 'obs-criteria'; block.append(summary);
+        for (const criterion of span.input.criteria) list.append(el('li', textValue(criterion)));
+        block.append(list); fragment.append(block);
+      }
+      const details = el('details', null, 'obs-record-details'); details.dataset.recordDetail = 'evidence';
+      const evidenceSummary = el('summary', '실행 근거와 사용량'); evidenceSummary.dataset.focus = 'obs-evidence'; details.append(evidenceSummary);
+      const fields = el('dl', null, 'obs-fields');
+      addField(fields, '실행 ID', span.run_id); addField(fields, '단계 ID', span.id);
+      addField(fields, '시작', dateLabel(span.started_at)); addField(fields, '종료', span.ended_at ? dateLabel(span.ended_at) : model.replay != null ? '이 시점에는 종료 기록 없음' : '종료 기록 없음');
+      if (span.process?.exit_code != null) addField(fields, '종료 코드', span.process.exit_code);
+      if (span.process?.timed_out) addField(fields, '시간 제한', '초과');
+      if (span.usage?.tokens != null) addField(fields, '보고된 토큰', span.usage.tokens);
+      addField(fields, '보고된 비용', span.usage?.reported_cost_usd != null ? `$${Number(span.usage.reported_cost_usd).toFixed(6)}` : '미보고');
+      details.append(fields); fragment.append(details);
+      fragment.append(el('p', '과거 실행 결과와 현재 작업의 검증 상태는 다를 수 있습니다. 작업 상세에서 최신 증거를 확인하세요.', 'obs-caption'));
     }
-    if (event && event.data && Object.keys(event.data).length) {
-      const block = el('details', null, 'obs-event-data'); block.append(el('summary', '구조화된 이벤트 데이터'), el('pre', textValue(event.data))); fragment.append(block);
+    if (event) {
+      const eventBlock = el('div', null, 'obs-selected-event');
+      eventBlock.append(el('p', `#${event.seq} · ${eventLabels[event.kind] || event.kind}`, 'obs-record-id'), inspectorBlock('선택한 이벤트', event.summary || eventLabels[event.kind] || event.kind));
+      if (event.recipient) eventBlock.append(inspectorBlock('전달 경로', `${actorName(event.actor)} → ${actorName(event.recipient)}`));
+      fragment.append(eventBlock);
+      if (event.data && Object.keys(event.data).length) {
+        const block = el('details', null, 'obs-event-data'); block.dataset.recordDetail = 'event';
+        const summary = el('summary', '구조화된 이벤트 데이터'); summary.dataset.focus = 'obs-event-data';
+        block.append(summary, el('pre', textValue(event.data))); fragment.append(block);
+      }
     }
+    for (const detail of fragment.querySelectorAll('details')) detail.open = opened.has(detail.dataset.recordDetail);
+    inspector.dataset.recordKey = recordKey;
     replace(inspector, fragment);
   }
   async function loadLog(spanId, kind) {
@@ -435,7 +559,7 @@
     } catch (error) { if (generation === model.generation) model.logCache.set(`${spanId}:${kind}`, error.message); }
     if (generation === model.generation) { model.renderKeys.inspector = null; renderInspector(); }
   }
-  function renderInspector() { const selected = selectedRecord(); cached('inspector', [selected, model.logKind, model.replay], drawInspector); }
+  function renderInspector() { const selected = selectedRecord(); cached('inspector', [selected, model.logKind, model.replay, selected.span?.status === 'running' ? model.lastSync : null], drawInspector); }
 
   function renderEvents() {
     const current = visibleEvents(), query = model.query.trim().toLocaleLowerCase();
@@ -465,8 +589,8 @@
     eventCount.textContent = `${filtered.length}개 표시 · ${model.events.length}개 불러옴${model.pagination?.has_more ? ' · 이전 기록 있음' : ''}`;
   }
   function render() {
-    if (!model.taskId) { root.hidden = true; return; }
-    root.hidden = false;
+    if (!model.taskId) { root.hidden = true; room?.setVisible(false); return; }
+    root.hidden = !model.visible;
     const data = model.data, task = data?.task || model.task;
     taskLine.textContent = `${task?.id || model.taskId} · ${task?.goal || '선택한 작업'}`;
     connection.textContent = model.connected ? `연결됨 · ${timeLabel(model.lastSync)}` : model.error ? '연결 확인 필요 · 이전 기록' : '실행 기록 연결 중';
@@ -524,10 +648,10 @@
   }
   function schedule() {
     clearTimeout(model.timer);
-    if (model.taskId && !document.hidden) model.timer = setTimeout(fetchData, Math.min(30000, 2000 * 2 ** model.failures));
+    if (model.taskId && model.visible && !document.hidden) model.timer = setTimeout(fetchData, Math.min(30000, 2000 * 2 ** model.failures));
   }
   async function fetchData() {
-    if (!model.taskId || model.fetching || document.hidden) return;
+    if (!model.taskId || model.fetching || document.hidden || !model.visible) return;
     clearTimeout(model.timer);
     const generation = model.generation;
     const controller = new AbortController(); model.abort = controller; model.fetching = true;
@@ -543,7 +667,7 @@
       if (model.followLatest && model.replay == null && data.spans?.length) { model.selectedSpan = data.spans.at(-1).id; model.selectedEvent = null; }
       render();
     } catch (error) {
-      if (generation !== model.generation || document.hidden) return;
+      if (generation !== model.generation || document.hidden || !model.visible) return;
       model.connected = false; model.error = error.name === 'AbortError' ? '관측 서버 응답 시간이 초과됐습니다.' : error.message; model.failures = Math.min(4, model.failures + 1); stopPlayback(); render();
     } finally {
       clearTimeout(timeout);
@@ -578,11 +702,32 @@
         resetScope(); model.taskId = taskId; model.requestedRun = null; render(); if (taskId) fetchData();
       }
     },
-    refresh: fetchData
+    refresh: fetchData,
+    setVisible(value) {
+      const visible = value === true;
+      if (model.visible === visible) return;
+      model.visible = visible;
+      if (!visible) { clearTimeout(model.timer); model.abort?.abort(); stopPlayback(); model.connected = false; room?.setVisible(false); }
+      render();
+      if (visible) fetchData();
+    }
   };
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { clearTimeout(model.timer); model.abort?.abort(); stopPlayback(); office.classList.add('is-paused'); }
-    else { office.classList.remove('is-paused'); fetchData(); }
+    else { office.classList.remove('is-paused'); model.connected = false; fetchData(); }
+    if (model.taskId) render();
+  });
+  window.addEventListener('workflow:preferences', event => {
+    const preferences = event.detail || {};
+    if (typeof preferences.threeD === 'boolean') { model.preferences.threeD = preferences.threeD; model.officeMode = preferences.threeD ? '3d' : 'list'; }
+    if (['system', 'reduce'].includes(preferences.motion)) model.preferences.motion = preferences.motion;
+    if (model.taskId) renderOffice(visibleSpans());
+  });
+  motionQuery.addEventListener('change', () => { if (model.taskId) renderOffice(visibleSpans()); });
+  new MutationObserver(() => { if (model.taskId) updateRoom(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  window.addEventListener('pagehide', event => {
+    room?.setVisible(false);
+    if (!event.persisted) { roomDisposed = true; room?.dispose(); }
   });
   let resizeFrame = null;
   function resizeGraph() {

@@ -106,9 +106,10 @@ def handler(home, token):
                 self.origin()
                 parsed = urlparse(self.path)
                 path = unquote(parsed.path)
-                if path in ("/", "/static/app.js", "/static/styles.css", "/static/observatory.js", "/static/observatory.css"):
+                if path in ("/", "/static/app.js", "/static/styles.css", "/static/observatory.js", "/static/observatory.css",
+                            "/static/saas.css", "/static/scene3d.js", "/static/scene3d.css", "/static/three-vendor.js", "/static/THREE_LICENSE.txt"):
                     name = "index.html" if path == "/" else path.rsplit("/", 1)[1]
-                    mime = "text/html" if name == "index.html" else "text/javascript" if name.endswith(".js") else "text/css"
+                    mime = "text/html" if name == "index.html" else "text/javascript" if name.endswith(".js") else "text/css" if name.endswith(".css") else "text/plain"
                     return self.response((assets / name).read_bytes(), content_type=mime + "; charset=utf-8")
                 if path == "/demo":
                     p = Path(home) / "demo/site/index.html"

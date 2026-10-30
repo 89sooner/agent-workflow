@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-10-30T11:08:53.138998+00:00",
+  "base_commit": "129237ebf5294301f5c47af0f17726ed6ed590f9",
+  "scope": "Image-first Three.js observatory and SaaS workspace follow-up on v0.4.0; local acceptance, no live model invocation or production deployment",
+  "environment": {
+    "python": "3.12.14",
+    "node": "v24.22.1",
+    "playwright": "1.51.1",
+    "browser": "Chromium bundled with Playwright 1.51.1",
+    "webgl": "SwiftShader software rendering",
+    "three": "0.187.0",
+    "esbuild": "0.28.2"
+  },
+  "results": [
+    {
+      "name": "server_http",
+      "command": "python3 -m unittest discover -s tests -p test_server.py -v",
+      "result": "passed",
+      "count": 8,
+      "count_unit": "unittest cases"
+    },
+    {
+      "name": "dashboard",
+      "command": "python3 tests/ui_integration.py",
+      "result": "passed",
+      "count": 6,
+      "count_unit": "browser scenario groups, including invalid hidden execution options",
+      "observed_pass_lines": [
+        "PASS search, keyboard, CSRF queue, duplicate disable, cancel",
+        "PASS attention filter, stale evidence, literal rendering, release request",
+        "PASS selected task and theme persistence, event expansion through refresh",
+        "PASS 375/390/768/1440 widths, mobile accessible refresh, reduced motion",
+        "PASS profile task form, execution options, individual stop and resume",
+        "PASS empty state, connection failure and recovery, zero uncaught errors"
+      ]
+    },
+    {
+      "name": "observability",
+      "command": "python3 tests/observability_integration.py",
+      "result": "passed",
+      "count": 5,
+      "count_unit": "actual controller/browser scenario groups",
+      "observed_pass_lines": [
+        "PASS actual trace, retry loop, actor identity, graph selection, escaped data, explicit log access",
+        "PASS replay is read-only, historical run selection, search, structured export",
+        "PASS responsive layout, light theme and reduced-motion browser",
+        "PASS actual queue execution, live pixel activity, durable hold boundary, unhold and completion",
+        "PASS worktree observation error visibility, recovery, and zero browser exceptions"
+      ]
+    },
+    {
+      "name": "saas_3d",
+      "command": "python3 tests/saas_integration.py",
+      "result": "passed",
+      "count": 7,
+      "count_unit": "actual controller/WebGL/browser scenario groups",
+      "observed_pass_lines": [
+        "PASS actual Three.js pixels (175 colors), raycast selection, graph/inspector synchronization, zoom/reset, idle render loop",
+        "PASS source-project grouping, real search and navigation, persisted 3D preference, accessible list alternative",
+        "PASS 390/768/1600 responsive layout, real canvas resizing and selection retention",
+        "PASS 768×390 landscape wheel access to search/tasks, drawer inert state and heading focus after selection",
+        "PASS real queued activity, system/user motion, replay and hidden-view pause, durable hold at actual process boundary",
+        "PASS unavailable WebGL preserves actor selection, execution graph, hold and unhold",
+        "PASS real WebGL context loss fallback, same-origin assets, strict CSP and zero uncaught exceptions"
+      ]
+    },
+    {
+      "name": "pinned_vendor",
+      "command": "npm run check:vendor",
+      "result": "passed",
+      "count": null,
+      "count_unit": "committed bundle equals rebuild from locked packages"
+    },
+    {
+      "name": "wheel_assets",
+      "command": "python3 -m pip wheel . --no-deps --no-build-isolation; inspect wheel ZIP",
+      "result": "passed",
+      "count": 5,
+      "count_unit": "new SaaS/3D JS, CSS and license assets included"
+    }
+  ],
+  "actual_components": [
+    "temporary Git repositories and managed worktree",
+    "SQLite run/span/event store",
+    "loopback HTTP API",
+    "queue and real managed subprocess boundaries",
+    "Three.js WebGL canvas and mesh raycast"
+  ],
+  "synthetic_components": [
+    "agent CLI executable responses",
+    "demo project goals and task names"
+  ],
+  "verified_behaviors": [
+    "mesh selection synchronizes inspector and graph",
+    "camera zoom and reset",
+    "original-project grouping across isolated worktrees",
+    "project-scoped live metrics and queue",
+    "navigation and Ctrl/Command+K search",
+    "theme, 3D and motion preferences",
+    "replay does not reveal future results or invoke work",
+    "3D-off and WebGL-loss fallback preserve task controls",
+    "live activity stops in replay, reduced motion and hidden views",
+    "390/768/1600 widths without document overflow",
+    "768x390 actual wheel navigation and task-selection focus",
+    "invalid execution options reveal the task form before blocking submission",
+    "strict CSP and same-origin assets",
+    "zero uncaught browser exceptions"
+  ],
+  "screenshots": {
+    "docs/images/saas-dark.png": {
+      "bytes": 241243,
+      "sha256": "c66020c0eed01e34f2ed88481812bbe065d253babc3a7e5afca4164f28ec8917"
+    },
+    "docs/images/saas-desktop.png": {
+      "bytes": 240147,
+      "sha256": "f2f256315ac50648556b3959164b96d253c812d13626e4e569e6dadaea6700fe"
+    },
+    "docs/images/saas-fallback.png": {
+      "bytes": 240254,
+      "sha256": "7297d0131f6e90ea1431287a7b6d77670303f280fbf5c3e446ce193c1fa0e8d9"
+    },
+    "docs/images/saas-live.png": {
+      "bytes": 221922,
+      "sha256": "33b15e9bf6de4d23fee9249e5962058fc7490e62c0eb94607b36d41d3ef1cf83"
+    },
+    "docs/images/saas-mobile.png": {
+      "bytes": 83951,
+      "sha256": "eb5cdc2c38d42871f26f6ab9fa150cd81a960c0cda7a2f383d67a7402c83f08e"
+    }
+  },
+  "ci": {
+    "workflow": ".github/workflows/ci.yml",
+    "required_jobs": [
+      "Controller / Python 3.11",
+      "Controller / Python 3.13",
+      "Browser / actual local workflows"
+    ],
+    "note": "Published-head CI results are authoritative and linked from the pull request. The pre-existing full controller suite contains 178 tests."
+  },
+  "limits": [
+    "software WebGL acceptance does not cover hardware GPU, Safari or every mobile browser",
+    "no authenticated multi-tenant service or internet deployment",
+    "project filter is navigation, not tenant isolation",
+    "does not collect unrecorded CLI internals, tool calls or subagent conversations",
+    "no measured end-user productivity improvement claimed"
+  ]
+}

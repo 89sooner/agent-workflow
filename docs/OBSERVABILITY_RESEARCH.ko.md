@@ -4,9 +4,9 @@
 
 ## 1. 설계 결론
 
-agent-workflow의 관제실은 역할별 픽셀 작업실, 개별 호출을 펼친 실행 그래프, 시간순 인계 기록, 선택한 단계의 상세를 같은 실행 기록에 연결한다. 작업실은 누가 무엇을 하는지 빠르게 파악하는 데 쓰고, 그래프와 상세 기록은 순서·반복·실패와 근거를 확인하는 데 쓴다.
+agent-workflow의 관제실은 역할별 작업실, 개별 호출을 펼친 실행 그래프, 시간순 인계 기록, 선택한 단계의 상세를 같은 실행 기록에 연결한다. 작업실은 누가 무엇을 하는지 빠르게 파악하는 데 쓰고, 그래프와 상세 기록은 순서·반복·실패와 근거를 확인하는 데 쓴다.
 
-주 구조는 Langfuse·Phoenix·AgentOps 등의 trace 탐색 방식을 참고했다. Pixel Agents에서는 역할과 활동 상태를 읽기 쉽게 표현하는 방식을 참고했다. 기존 Python 표준 라이브러리 서버, SQLite, 정적 JavaScript/CSS/SVG 안에서 구현하므로 별도의 관측 서비스나 Node 런타임을 사용자에게 요구하지 않는다.
+주 구조는 Langfuse·Phoenix·AgentOps 등의 trace 탐색 방식을 참고했다. Pixel Agents에서는 역할과 활동 상태를 읽기 쉽게 표현하는 방식을 참고했다. 최초 구현은 SVG/CSS 작업실이었다. 같은 날 사용자의 후속 요청에 따라 완성 화면 이미지를 먼저 제작하고, 작업실을 Three.js 3D 공간으로 확장했다. 기존 Python 표준 라이브러리 서버와 SQLite를 유지하고 Three.js를 로컬 정적 번들로 제공하므로 별도의 관측 서비스나 Node 런타임을 사용자에게 요구하지 않는다. 후속 구현은 [3D 관제실과 SaaS형 워크스페이스](SAAS_OBSERVATORY.ko.md)에 기록했다.
 
 이 조합이 새 agent-workflow 사용자의 생산성을 높인다는 실험 결과는 아직 없다. 아래의 제품 기능, 관련 연구, 현재 프로젝트의 실행 구조를 대조하여 내린 설계 판단이다. 기록되지 않은 에이전트 간 대화나 내부 생각을 화면에서 만들어내지 않는 것이 전제다.
 
@@ -34,7 +34,7 @@ agent-workflow의 관제실은 역할별 픽셀 작업실, 개별 호출을 펼�
 
 수집 경로는 Claude hooks와 JSONL 추정 fallback이다. 정상화한 이벤트를 runtime store와 transport를 거쳐 화면에 전달한다. 확인한 provider registry에는 Claude만 있었고, Codex 등은 README의 로드맵이었다. 이 프로젝트를 그대로 실행하는 것만으로 agent-workflow의 Codex·Claude·독립 리뷰·검사·릴리스를 모두 관측할 수 있다고 보기는 어렵다.
 
-코드는 MIT이며 저작권 고지가 있다. 캐릭터·가구 자산 전체의 출처와 별도 조건까지 검증한 것은 아니다. agent-workflow는 기존 sprite를 복사하지 않고 자체 SVG/CSS 표현을 사용한다.
+코드는 MIT이며 저작권 고지가 있다. 캐릭터·가구 자산 전체의 출처와 별도 조건까지 검증한 것은 아니다. agent-workflow는 기존 sprite를 복사하지 않고 자체 SVG 역할 아이콘과 코드로 만든 3D geometry를 사용한다.
 
 직접 확인한 근거:
 
@@ -59,7 +59,7 @@ agent-workflow의 관제실은 역할별 픽셀 작업실, 개별 호출을 펼�
 | [agentwatch](https://github.com/mishanefedov/agentwatch) | 여러 로컬 CLI adapter, TUI/SSE web timeline·graph, source별 coverage 설명 | 통합 event schema와 지원 범위 공개 | 외부 transcript parser보다 native instrumentation을 우선한다. 작은 프로젝트라는 채택 한계도 고려했다. |
 | [Agent Monitor](https://github.com/donvito/agent-monitor) | Codex/Claude/Pi/Hermes 로컬 trace, agent tree, 선택 trace, 모델별 사용량 | Run→agent→trace 탐색, 실제·추정 비용 구분 | 역할·실행·근거를 연결하고 데모 자료는 synthetic임을 표시하는 방식을 참고했다. |
 | [Agent Visualiser](https://github.com/JoelHutchinson/agent-visualiser) | Claude JSONL 또는 OTLP를 Vue/canvas office와 agent hierarchy에 연결 | Source가 제공하는 시작·종료 정보에 따른 상태 표현 | 완료 때 받은 span을 실제 실행 중 신호로 오인하지 않도록 한다. 채택 검증은 부족하다. |
-| [Agent Office — Munizada](https://github.com/Munizada/agent-office) | React/Three.js 3D 공간, CLI subprocess, SSE. README가 prototype 범위를 명시 | 작업 상태와 장식적 움직임 구분, 시간순 상세 | 별도 CLI slot을 조정된 workflow와 혼동하지 않는다. 3D를 핵심으로 선택할 근거는 부족하다. |
+| [Agent Office — Munizada](https://github.com/Munizada/agent-office) | React/Three.js 3D 공간, CLI subprocess, SSE. README가 prototype 범위를 명시 | 작업 상태와 장식적 움직임 구분, 시간순 상세 | 별도 CLI slot을 조정된 workflow와 혼동하지 않는다. 3D의 효과를 입증한 자료로 취급하지 않으며, 후속 사용자 요청에 따라 선택 가능한 3D 보기를 구현했다. |
 | [Claude Office Visualizer — Doc-Code](https://github.com/Doc-Code/agent-office) | Boss/subagent pixel simulation, WebSocket, 작업 whiteboard | 작업 상태 요약과 delegation 표현 | 랜덤 인사·커피·장식은 실행 근거에 포함하지 않는다. |
 | [Flowise](https://docs.flowiseai.com/using-flowise/analytics) | Visual authoring, Agentflow V2 step tracing, V1 checkpoint parent 관계 | Graph definition과 execution/checkpoint 구분 | 고정된 코드 파이프라인은 유지하고 실제 실행 기록을 시각화한다. |
 
@@ -86,7 +86,7 @@ GitHub stars는 관심과 채택의 간접 신호다. 만족도, 생산성, 안�
 | [Munizada/agent-office](https://api.github.com/repos/Munizada/agent-office) | 0 | Prototype 자체의 범위를 존중한다. |
 | [Doc-Code/agent-office](https://api.github.com/repos/Doc-Code/agent-office) | 0 | 화려한 표현을 효과의 증거로 취급하지 않는다. |
 
-따라서 널리 사용되는 관측 도구의 탐색 관례를 주 구조로 삼고, 픽셀 작업실을 보완적으로 결합했다. 별도의 통제 실험이나 검증된 만족도 자료 없이 “픽셀 또는 3D가 더 효과적”이라고 결론 내리지 않았다. GitHub의 `NOASSERTION` 라이선스 metadata도 라이선스가 없다는 결론으로 사용하지 않았다.
+따라서 널리 사용되는 관측 도구의 탐색 관례를 주 구조로 삼고, 역할별 작업실을 보완적으로 결합했다. 후속 3D 보기는 사용자의 표현 방식 요구와 실제 동작 검증에 따라 채택했다. 별도의 통제 실험이나 검증된 만족도 자료 없이 “픽셀 또는 3D가 더 효과적”이라고 결론 내리지 않았다. GitHub의 `NOASSERTION` 라이선스 metadata도 라이선스가 없다는 결론으로 사용하지 않았다.
 
 ## 6. 관련 연구 2편
 
@@ -123,7 +123,8 @@ Dibia et al., 2024, arXiv:2408.15247. 실시간 stream과 사후 profiler를 함
 | 현재 증거와 과거 trace 분리 | 기존 agent-workflow fingerprint 계약 | 과거의 성공을 현재 코드의 통과로 표시하지 않는다. |
 | 기록 재생과 재실행 분리 | Studio의 시점 탐색에서 얻은 사용성 원칙 | replay는 조회 커서만 바꾸며 모델 호출·배포를 발생시키지 않는다. |
 | 상세 로그는 선택해서 조회 | 관측기의 선택 상세 패턴 | 원문을 기본 API·화면에 중복 노출하지 않고 필요한 근거만 읽는다. |
-| 표준 라이브러리 + 정적 SVG/CSS | 기존 설치 비용과 한정된 역할·단계 구조 | 별도 graph/3D engine, 외부 서버, CDN 없이 구현할 수 있다. |
+| 표준 라이브러리 서버 + 정적 프런트엔드 | 기존 설치 비용과 한정된 역할·단계 구조 | 그래프는 SVG/CSS, 후속 3D 보기는 고정 버전의 로컬 Three.js 번들을 쓴다. 외부 서버·CDN·사용자용 Node 런타임이 필요하지 않다. |
+| 3D와 역할 목록의 병행 | 후속 사용자 요청, 기존 접근성과 기록 정확성 조건 | 완성 시안 이후 구현하며, 실제 actor·인계와 같은 재생 시점을 사용한다. WebGL 미지원·3D 끄기에서도 선택·그래프·작업 제어가 유지된다. |
 
 키보드 조작, 작은 화면, 색상 외 텍스트 상태, 줄어든 동작 선호(`prefers-reduced-motion`), 안전한 텍스트 렌더링도 구현 기준으로 삼았다. 이들은 에이전트 처리 성능을 높이는 기능이라기보다 관측 화면을 일관되게 사용할 수 있게 하는 조건이다.
 
