@@ -210,5 +210,9 @@ def get(store, name):
 
 
 def list_profiles(store):
-    init(store)
+    if getattr(store, "read_only", False):
+        if not store.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", ("profiles",)).fetchone():
+            return []
+    else:
+        init(store)
     return [json.loads(row[0]) for row in store.db.execute("SELECT data FROM profiles ORDER BY name")]

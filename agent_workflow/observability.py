@@ -21,6 +21,9 @@ _context = contextvars.ContextVar("workflow_trace", default=None)
 SCHEMA_VERSION = 1
 MAX_SPANS = 250
 MAX_EVENTS = 500
+MAX_PROJECT_TASKS = 200
+MAX_PROJECT_RUNS = 500
+MAX_PROJECT_SPANS = 1000
 
 
 def ensure_schema(store):
@@ -248,6 +251,14 @@ def process_span(store, task, directory, command, agent=None, role=None, model=N
         data = {"model": model, "directory": _directory(store, task["id"], directory),
                 "input": {"goal": _text(task.get("goal")), "criteria": [_text(x) for x in task.get("criteria", [])[:50]]},
                 "executable": Path(str(command[0])).name if command else None, "usage": None, "result": None}
+        if role in {"implement", "review"}:
+            name = (task.get("agent_names") or {}).get(role)
+            data["agent_identity"] = {
+                "instance_id": "agent:" + span_id, "provider": actor.split(":", 1)[0],
+                "label": _text(name.strip(), 120) if isinstance(name, str) and name.strip() else actor.split(":", 1)[0] + " · " + _role_label(role) + " · " + task["id"],
+                "name_source": "assigned" if isinstance(name, str) and name.strip() else "generated",
+                "model": model, "observed_model": None, "native_session_id": None,
+            }
         with store.db:
             store.db.execute("""INSERT INTO observation_spans
                 (id,run_id,task_id,parent_id,previous_span_id,actor,role,label,status,started_at,owner_pid,owner_identity,data)
@@ -289,6 +300,17 @@ def _span(row):
         item.pop(key, None)
     item.update({key: data.get(key) for key in ("model", "usage", "input", "result", "process", "error")})
     item["artifacts"] = ["stdout", "stderr"] if data.get("directory") else []
+    item["original_actor"] = item["actor"]
+    if item["role"] in {"implement", "review"}:
+        provider = item["actor"].split(":", 1)[0]
+        identity = data.get("agent_identity") or {
+            "label": provider + " · " + _role_label(item["role"]) + " · " + item["task_id"], "name_source": "generated",
+            "provider": provider, "model": data.get("model"), "observed_model": None, "native_session_id": None,
+        }
+        # The controller records one invocation per span. A provider or name is
+        # never a session identity, and later task assignments cannot rename history.
+        item["agent_identity"] = {**identity, "instance_id": "agent:" + item["id"]}
+        item["actor"] = item["agent_identity"]["instance_id"]
     return item
 
 
@@ -328,29 +350,59 @@ def _edges(spans):
 
 
 def _actors(task, spans, run_status=None):
-    roles = [("controller", "컨트롤러", "controller")]
-    if spans:
-        for span in spans:
-            if span["role"] in {"implement", "review"} and not any(item[0] == span["actor"] for item in roles):
-                roles.append((span["actor"], span["actor"].split(":", 1)[0], span["role"]))
-    else:
-        roles.append((actor_for(task, "implement"), task.get("owner", "미지정"), "implement"))
-        if task.get("reviewer") != "none":
-            roles.append((actor_for(task, "review"), task.get("reviewer", "미지정"), "review"))
-    roles += [("checks", "검사 실행기", "check"), ("release", "통합·배포", "release")]
     actors = []
-    for actor_id, label, role in roles:
+    for span in spans:
+        if span["role"] not in {"implement", "review"}:
+            continue
+        identity = span["agent_identity"]
+        actors.append({**identity, "id": span["actor"], "role": span["role"],
+                       "kind": "agent", "status": span["status"], "span_id": span["id"],
+                       "task_id": task["id"], "task_goal": task.get("goal"),
+                       "original_actor": span["original_actor"],
+                       "last_seen": span.get("ended_at") or span.get("started_at")})
+    if not spans:
+        for role in ("implement", "review"):
+            provider = task.get("reviewer" if role == "review" else "owner", "unknown")
+            if provider == "none":
+                continue
+            name = (task.get("agent_names") or {}).get(role)
+            assigned = isinstance(name, str) and bool(name.strip())
+            actors.append({"id": "assignment:" + task["id"] + ":" + role, "instance_id": None,
+                           "kind": "assignment", "label": _text(name.strip(), 120) if assigned else provider + " · " + _role_label(role) + " · " + task["id"],
+                           "name_source": "assigned" if assigned else "generated", "provider": provider,
+                           "model": None, "observed_model": None, "native_session_id": None,
+                           "role": role, "status": "held" if task.get("hold") else "idle",
+                           "span_id": None, "task_id": task["id"], "task_goal": task.get("goal"), "last_seen": None})
+    for actor_id, label, role in (("controller", "컨트롤러", "controller"),
+                                  ("checks", "검사 실행기", "check"), ("release", "통합·배포", "release")):
         related = [span for span in spans if span["actor"] == actor_id]
         latest = related[-1] if related else None
         status = (latest or {}).get("status", "idle")
-        if actor_id == "controller" and run_status == "running":
-            status = "running"
-        if task.get("hold") and not spans:
-            status = "held"
-        actors.append({"id": actor_id, "label": label, "role": role, "status": status,
-                       "span_id": latest["id"] if latest else None, "task_id": task["id"],
-                       "task_goal": task.get("goal"), "last_seen": (latest or {}).get("ended_at") or (latest or {}).get("started_at")})
+        if actor_id == "controller" and run_status in {"running", "unknown"}:
+            status = run_status
+        actors.append({"id": actor_id, "instance_id": None, "label": label, "name_source": "system",
+                       "kind": "controller" if actor_id == "controller" else "service",
+                       "provider": None, "model": None, "observed_model": None, "native_session_id": None,
+                       "role": role, "status": status, "span_id": latest["id"] if latest else None,
+                       "task_id": task["id"], "task_goal": task.get("goal"),
+                       "last_seen": (latest or {}).get("ended_at") or (latest or {}).get("started_at")})
     return actors
+
+
+def _link_event_actors(events, spans):
+    by_span = {span["id"]: span for span in spans}
+    starts = [event for event in events if event["kind"] == "process_started" and event.get("span_id") in by_span]
+    for event in events:
+        span = by_span.get(event.get("span_id"))
+        if not span and event["kind"] == "agent_started":
+            start = next((item for item in starts if item["seq"] > event["seq"] and item["run_id"] == event["run_id"] and item["recipient"] == event["recipient"]), None)
+            span = by_span.get(start["span_id"]) if start else None
+        if span and span.get("agent_identity"):
+            for field in ("actor", "recipient"):
+                if event.get(field) == span["original_actor"]:
+                    event["original_" + field] = event[field]
+                    event[field] = span["actor"]
+    return events
 
 
 def view(store, task_id, run_id=None, before=None, limit=200, exporting=False):
@@ -395,7 +447,7 @@ def view(store, task_id, run_id=None, before=None, limit=200, exporting=False):
         activities = [{"seq": row["seq"], "run_id": None, "span_id": None, "at": row["at"], "kind": row["kind"],
                        "actor": "controller", "recipient": None, "summary": _EVENT_LABELS.get(row["kind"], row["kind"]),
                        "status": None, "data": encode(_public_details(row["kind"], json.loads(row["data"])))} for row in old]
-    events = [_activity(row) for row in reversed(activities[:event_limit])]
+    events = _link_event_actors([_activity(row) for row in reversed(activities[:event_limit])], spans)
     warnings = []
     if legacy:
         warnings.append("이 작업에는 단계별 관측 기록이 없습니다. 기존 이벤트만 표시하며 실행 시간과 대화를 추정하지 않습니다.")
@@ -411,6 +463,127 @@ def view(store, task_id, run_id=None, before=None, limit=200, exporting=False):
                          "handoffs": "controller-mediated", "usage": "provider-reported-or-unknown"},
             "pagination": {"has_more": len(activities) > event_limit, "next_before": events[0]["seq"] if events else None,
                            "span_limit": cap, "spans_truncated": len(rows) > cap}}
+
+
+def project_view(store, project=None, limit=100):
+    """Bounded, read-only project overview; queue envelopes and their runs count once.
+
+    Session internals are deliberately absent. ``running`` means a recorded
+    controller process identity is still present; it does not mean model activity.
+    """
+    if type(limit) is not int or not 1 <= limit <= MAX_PROJECT_TASKS:
+        raise WorkflowError(f"limit는 1~{MAX_PROJECT_TASKS} 정수입니다.")
+    tables = {row[0] for row in store.db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    where, params = "", []
+    if project:
+        from .connections import project_key
+        project = str(Path(project).expanduser().resolve())
+        wanted = project_key(project)
+        expression = "coalesce(json_extract(t.data,'$.workspace.source'),json_extract(t.data,'$.project_config.project'),json_extract(t.data,'$.project'))"
+        sources = [row[0] for row in store.db.execute(f"SELECT DISTINCT {expression} FROM tasks t") if row[0] and project_key(row[0]) == wanted]
+        where = "WHERE coalesce(json_extract(t.data,'$.workspace.source'),json_extract(t.data,'$.project_config.project'),json_extract(t.data,'$.project')) IN (" + ",".join("?" for _ in sources) + ")"
+        params.extend(sources)
+    task_count = store.db.execute(f"SELECT count(*) FROM tasks t {where}", params).fetchone()[0]
+    rows = store.db.execute(f"""SELECT t.data,t.revision,c.data FROM tasks t
+        LEFT JOIN task_controls c ON c.task_id=t.id {where}
+        ORDER BY (json_extract(t.data,'$.status') IN ('implementing','reviewing','checking')) DESC,
+        json_extract(t.data,'$.updated_at') DESC,t.rowid DESC LIMIT ?""", (*params, limit)).fetchall()
+    tasks = [{**json.loads(row[0]), "revision": row[1], "hold": json.loads(row[2]) if row[2] else None} for row in rows]
+    by_task = {task["id"]: task for task in tasks}
+    ids = list(by_task)
+    slots = ",".join("?" for _ in ids)
+    run_rows, job_rows = [], []
+    if ids and "observation_runs" in tables:
+        run_rows = store.db.execute(f"SELECT rowid AS sequence,* FROM observation_runs WHERE task_id IN ({slots}) ORDER BY (status='running') DESC,rowid DESC LIMIT ?", (*ids, MAX_PROJECT_RUNS + 1)).fetchall()
+    runs = []
+    for row in run_rows[:MAX_PROJECT_RUNS]:
+        item = dict(row)
+        item["status"] = _effective_status(row)
+        item.pop("owner_pid", None); item.pop("owner_identity", None)
+        runs.append(item)
+    if ids and "jobs" in tables:
+        job_rows = store.db.execute(f"SELECT * FROM jobs WHERE task_id IN ({slots}) ORDER BY (status IN ('queued','running')) DESC,rowid DESC LIMIT ?", (*ids, MAX_PROJECT_RUNS + 1)).fetchall()
+    jobs = {row["id"]: dict(row) for row in job_rows[:MAX_PROJECT_RUNS]}
+    grouped = {}
+    for run in runs:
+        key = "job:" + run["job_id"] if run.get("job_id") else "run:" + run["id"]
+        grouped.setdefault(key, []).append(run)
+    for job_id in jobs:
+        grouped.setdefault("job:" + job_id, [])
+    executions = []
+    for key, linked in grouped.items():
+        linked.sort(key=lambda item: (item["started_at"], item["sequence"]), reverse=True)
+        job_id = key.removeprefix("job:") if key.startswith("job:") else None
+        job = jobs.get(job_id)
+        latest = linked[0] if linked else None
+        running = next((item for item in linked if item["status"] == "running"), None)
+        status = (job or latest)["status"]
+        if running:
+            status = "running"
+        elif job and status == "running":
+            status = "unknown"
+        executions.append({"id": key, "source": "queue" if job_id else "direct", "job_id": job_id,
+                           "run_id": (running or latest or {}).get("id"), "run_ids": [item["id"] for item in linked],
+                           "task_id": (job or latest)["task_id"], "action": (job or latest)["action"],
+                           "status": status, "recorded_status": (job or latest)["status"],
+                           "started_at": (job or latest).get("started_at") or (job or {}).get("created_at"),
+                           "ended_at": job.get("finished_at") if job else (latest or {}).get("ended_at"),
+                           "error": (job or latest).get("error"),
+                           "status_source": "controller-process" if running else "queue-record" if job else "run-record"})
+    executions.sort(key=lambda item: (item["status"] == "running", item.get("started_at") or "", item["id"]), reverse=True)
+    selected = {}
+    for task in tasks:
+        related = [item for item in runs if item["task_id"] == task["id"]]
+        if related:
+            selected[task["id"]] = next((item for item in related if item["status"] == "running"),
+                                         max(related, key=lambda item: (item["started_at"], item["sequence"])))
+    selected_ids = [item["id"] for item in selected.values()]
+    span_rows, event_rows = [], []
+    if selected_ids:
+        run_slots = ",".join("?" for _ in selected_ids)
+        if "observation_spans" in tables:
+            span_rows = store.db.execute(f"SELECT * FROM observation_spans WHERE run_id IN ({run_slots}) ORDER BY (status='running') DESC,sequence DESC LIMIT ?", (*selected_ids, MAX_PROJECT_SPANS + 1)).fetchall()
+        if "observation_events" in tables:
+            event_rows = store.db.execute(f"SELECT * FROM observation_events WHERE run_id IN ({run_slots}) ORDER BY seq DESC LIMIT ?", (*selected_ids, MAX_EVENTS + 1)).fetchall()
+    spans = sorted((_span(row) for row in span_rows[:MAX_PROJECT_SPANS]), key=lambda item: item["sequence"])
+    events = _link_event_actors([{**_activity(row), "task_id": row["task_id"]} for row in reversed(event_rows[:MAX_EVENTS])], spans)
+    actors = []
+    for task in tasks:
+        related = [span for span in spans if span["task_id"] == task["id"]]
+        task_actors = _actors(task, related, selected.get(task["id"], {}).get("status"))
+        if selected.get(task["id"]) and not related:
+            task_actors = [actor for actor in task_actors if actor["kind"] != "assignment"]
+        for actor in task_actors:
+            if actor["kind"] in {"controller", "service"}:
+                actor["id"] = "task:" + task["id"] + ":" + actor["id"]
+        actors.extend(task_actors)
+    for span in spans:
+        if span["actor"] in {"controller", "checks", "release"}:
+            span["actor"] = "task:" + span["task_id"] + ":" + span["actor"]
+    for event in events:
+        for field in ("actor", "recipient"):
+            if event.get(field) in {"controller", "checks", "release"}:
+                event[field] = "task:" + event["task_id"] + ":" + event[field]
+    # Project view is a navigation surface. Full input, usage and result details
+    # stay in the per-task endpoint instead of repeating large contracts per span.
+    for actor in actors:
+        actor["task_goal"] = _text(actor.get("task_goal"), 240)
+    spans = [{key: span.get(key) for key in ("id", "run_id", "task_id", "actor", "role", "label", "status",
+              "sequence", "previous_span_id", "started_at", "ended_at", "duration_ms")} for span in spans]
+    events = [{key: event.get(key) for key in ("seq", "task_id", "run_id", "span_id", "at", "kind", "actor", "recipient", "summary", "status")} for event in events]
+    return {"schema_version": SCHEMA_VERSION, "generated_at": now(), "project": project,
+            "tasks": [{key: task.get(key) for key in ("id", "goal", "project", "status", "owner", "reviewer", "hold", "updated_at")} for task in tasks],
+            "runs": runs, "executions": executions, "actors": actors, "spans": spans, "events": events, "edges": _edges(spans),
+            "counts": {"tasks": task_count, "executions": len(executions),
+                       "running": sum(item["status"] == "running" for item in executions),
+                       "queued": sum(item["status"] == "queued" for item in executions),
+                       "unknown": sum(item["status"] == "unknown" for item in executions),
+                       "agents_running": sum(item["kind"] == "agent" and item["status"] == "running" for item in actors)},
+            "truncated": {"tasks": task_count > limit, "runs": len(run_rows) > MAX_PROJECT_RUNS,
+                          "jobs": len(job_rows) > MAX_PROJECT_RUNS, "spans": len(span_rows) > MAX_PROJECT_SPANS,
+                          "events": len(event_rows) > MAX_EVENTS},
+            "coverage": {"source": "controller", "cli_internal_tools": False, "raw_prompts": False,
+                         "running_means": "controller-process-alive", "identity": "invocation", "counts": "loaded-records-except-task-total"}}
 
 
 def artifact(store, span_id, kind):

@@ -13,7 +13,8 @@
   const model = { taskId: null, task: null, detail: null, requestedRun: null, data: null, events: [], pagination: null,
     selectedSpan: null, selectedEvent: null, replay: null, playing: null, mode: 'steps', query: '',
     connected: false, error: null, failures: 0, timer: null, abort: null, generation: 0, fetching: false,
-    pageLoading: false, lastSync: null, renderKeys: {}, logCache: new Map(), logKind: null, followLatest: true, runOptions: [],
+    pageLoading: false, lastSync: null, renderKeys: {}, logCache: new Map(), logKind: null, followLatest: false, runOptions: [],
+    project: null, ledger: null, onSelectTask: null, selectedActor: null, motionCursor: null, transfers: [],
     visible: true, officeMode: '3d', preferences: { threeD: true, motion: 'system' }, officeActors: [] };
   const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
   let room = null, roomLoading = null, roomAvailable = null, roomReason = '', roomDisposed = false;
@@ -31,8 +32,10 @@
   const safeStatus = value => Object.hasOwn(statusLabels, value) ? value : 'unknown';
   const statusLabel = value => statusLabels[value] || value || '미기록';
   const roleKey = value => ['integration_check', 'deploy', 'health', 'release'].includes(value) ? 'release' : value === 'check' || value === 'checks' ? 'check' : ['implement', 'review'].includes(value) ? value : 'controller';
-  const actorRole = actor => actor === 'release' ? 'release' : actor === 'checks' ? 'check' : roleKey(String(actor || '').split(':').pop());
-  const actorName = actor => actor === 'controller' ? '컨트롤러' : actor === 'checks' ? '검사 실행기' : actor === 'release' ? '통합·배포' : String(actor || '미기록').replace(/^codex-session(?=:|$)/, 'Codex 독립 세션').replace(/^claude(?=:|$)/, 'Claude').replace(/^codex(?=:|$)/, 'Codex').replace(':implement', ' · 구현').replace(':review', ' · 리뷰');
+  const actorDefinition = id => model.data?.actors?.find(actor => actor.id === id);
+  const actorRole = actor => actorDefinition(actor) ? roleKey(actorDefinition(actor).role) : actor === 'release' ? 'release' : actor === 'checks' ? 'check' : roleKey(String(actor || '').split(':').pop());
+  const actorName = actor => actorDefinition(actor)?.label || ( actor === 'controller' ? '컨트롤러' : actor === 'checks' ? '검사 실행기' : actor === 'release' ? '통합·배포' : String(actor || '미기록').replace(/^codex-session(?=:|$)/, 'Codex 독립 세션').replace(/^claude(?=:|$)/, 'Claude').replace(/^codex(?=:|$)/, 'Codex').replace(':implement', ' · 구현').replace(':review', ' · 리뷰'));
+  const ledgerURL = url => { const parsed = new URL(url, location.origin); if (model.ledger) parsed.searchParams.set('ledger', model.ledger); return parsed.pathname + parsed.search; };
   const textValue = value => value == null ? '' : typeof value === 'string' ? value : JSON.stringify(value, null, 2);
   const timestamp = value => { if (value == null || value === '') return null; const n = new Date(value).getTime(); return Number.isFinite(n) ? n : null; };
   const timeLabel = value => timestamp(value) == null ? '시간 미기록' : new Date(value).toLocaleTimeString('ko-KR', { hour12: false });
@@ -70,14 +73,15 @@
   runSelect.addEventListener('change', () => chooseRun(runSelect.value || null));
   const exportLink = el('a', 'JSON 내보내기', 'obs-button'); exportLink.id = 'observatory-export'; exportLink.setAttribute('download', '');
   const reload = button('기록 새로고침', 'obs-refresh', () => fetchData(), 'obs-subtle'); reload.id = 'observatory-refresh';
-  toolbar.append(runLabel, exportLink, reload);
+  const follow = button('선택 유지', 'obs-follow', () => { model.followLatest = !model.followLatest; if (model.followLatest) model.selectedSpan = model.data?.spans?.at(-1)?.id || null; render(); }); follow.id = 'observatory-follow';
+  toolbar.append(runLabel, follow, exportLink, reload);
   const notices = el('div', null, 'obs-notices'); notices.setAttribute('aria-live', 'polite');
   const office = el('div', null, 'obs-office'); office.setAttribute('aria-label', '역할별 작업실');
   const officeTop = el('div', null, 'obs-office-top');
   const officeSign = el('h3', '작업 공간', 'obs-office-sign');
   const officeViews = el('div', null, 'obs-room-views'); officeViews.setAttribute('role', 'group'); officeViews.setAttribute('aria-label', '작업 공간 보기');
   const view3d = button('3D 공간', 'obs-view-3d', () => setOfficeMode('3d')); view3d.id = 'observatory-view-3d';
-  const viewList = button('역할 목록', 'obs-view-list', () => setOfficeMode('list')); viewList.id = 'observatory-view-list'; officeViews.append(view3d, viewList);
+  const viewList = button('에이전트 목록', 'obs-view-list', () => setOfficeMode('list')); viewList.id = 'observatory-view-list'; officeViews.append(view3d, viewList);
   const officeTime = el('span', '기록 대기', 'obs-office-time'); officeTime.id = 'observatory-room-status'; officeTime.setAttribute('role', 'status');
   officeTop.append(officeSign, officeViews, officeTime);
   const sceneViewport = el('div', null, 'obs-scene-viewport');
@@ -93,7 +97,7 @@
   sceneViewport.append(sceneHost, sceneFallback, sceneControls, sceneLegend);
   const stations = el('div', null, 'obs-stations'); stations.setAttribute('role', 'group'); stations.setAttribute('aria-label', '에이전트와 실행 단계 선택');
   office.append(officeTop, sceneViewport, stations);
-  const officeCaption = el('p', '실제 호출과 인계를 표시합니다. 역할을 선택하면 같은 시점의 실행 기록과 연결됩니다.', 'obs-caption obs-office-caption');
+  const officeCaption = el('p', '이름은 기록된 할당 정보를 사용합니다. 움직임은 관측된 프로세스 실행과 결과 전달을 나타내며, 내부 도구 사용을 추정하지 않습니다.', 'obs-caption obs-office-caption');
   const playback = el('div', null, 'obs-playback');
   const previous = button('←', 'obs-previous', () => stepReplay(-1)); previous.setAttribute('aria-label', '이전 이벤트');
   const play = button('기록 재생', 'obs-play', togglePlayback); play.id = 'observatory-play';
@@ -218,9 +222,10 @@
   }
 
   function reducedMotion() { return model.preferences.motion === 'reduce' || motionQuery.matches; }
-  function officeVisible() { return model.visible && !document.hidden && Boolean(model.taskId) && model.preferences.threeD && model.officeMode === '3d'; }
+  function officeVisible() { return model.visible && !document.hidden && Boolean(model.taskId || model.project) && model.preferences.threeD && model.officeMode === '3d'; }
   function selectActor(actorId) {
     const actor = model.officeActors.find(item => item.id === actorId);
+    if (model.project && actor?.taskId) { model.selectedActor = actor.id; model.onSelectTask?.(actor.taskId); return; }
     if (actor?.spanId) selectSpan(actor.spanId);
     else if (actor?.event) selectEvent(actor.event);
   }
@@ -292,9 +297,13 @@
       else grouped.set(key, { source, target, kind: edge.kind, count: 1 });
     }
     const selected = selectedRecord();
-    const selectedActor = selected.span?.actor || selected.event?.actor || null;
-    const actors = model.officeActors.map(({ event, ...actor }) => actor);
+    const selectedActor = selected.span?.actor || selected.event?.actor || model.selectedActor || null;
+    const allActors = model.officeActors.map(({ event, ...actor }) => actor);
+    const actors = [...allActors].sort((a, b) => Number(b.selected) - Number(a.selected) || Number(b.active) - Number(a.active)).slice(0, 8);
+    sceneHost.dataset.visibleAgents = String(actors.length); sceneHost.dataset.totalAgents = String(allActors.length);
+    officeCaption.textContent = `${allActors.length > 8 ? `3D에는 선택·실행 중 에이전트 우선 ${actors.length}명을 표시합니다. 전체 ${allActors.length}명은 아래 목록에서 확인하세요. ` : ''}이름은 기록된 할당 정보를 사용합니다. 움직임은 관측된 프로세스 실행과 결과 전달을 나타내며 내부 도구 사용을 추정하지 않습니다.`;
     room?.update({ actors, selectedActor, edges: [...grouped.values()], connected: model.connected,
+      scope: `${model.ledger || ''}:${model.project || model.taskId || ''}:${model.data?.selected_run_id || ''}`, transfers: model.transfers,
       replaying: model.replay != null, visible: officeVisible(), reducedMotion: reducedMotion(),
       theme: document.documentElement.dataset.theme || 'light' });
     room?.setVisible(officeVisible());
@@ -302,7 +311,18 @@
     ensureRoom();
   }
   function renderOffice(spans) {
-    const data = model.data, definitions = data?.actors || [];
+    const data = model.data;
+    let definitions = data?.actors || [];
+    if (model.project) {
+      const unfinished = new Set((data?.tasks || []).filter(task => task.status !== 'completed').map(task => task.id));
+      const agents = definitions.filter(actor => actor.kind === 'agent' || actor.kind === 'assignment');
+      const relevant = agents.filter(actor => actor.status === 'running' || actor.status === 'unknown' || unfinished.has(actor.task_id));
+      const recent = [...agents].sort((a,b) => String(b.last_seen || '').localeCompare(String(a.last_seen || ''))).slice(0, 8);
+      const chosen = relevant.length ? relevant : recent;
+      const taskIds = new Set(chosen.map(actor => actor.task_id));
+      definitions = definitions.filter(actor => chosen.includes(actor) || (taskIds.has(actor.task_id) && actor.status === 'running'));
+      // A completed project shows recent historical agents, explicitly without live motion.
+    }
     const actors = definitions.length ? definitions : [
       { id: 'controller', label: '컨트롤러', role: 'controller' },
       { id: `${model.task?.owner || '미지정'}:implement`, label: model.task?.owner || '미지정', role: 'implement' },
@@ -311,29 +331,31 @@
       { id: 'release', label: '통합·배포', role: 'release' }
     ];
     const ordered = [...actors].sort((a, b) => roles.indexOf(roleKey(a.role)) - roles.indexOf(roleKey(b.role)));
-    const selected = selectedRecord(), selectedActor = selected.span?.actor || selected.event?.actor;
+    const selected = selectedRecord(), selectedActor = selected.span?.actor || selected.event?.actor || model.selectedActor;
     const events = visibleEvents();
     model.officeActors = ordered.map(actor => {
       const related = spans.filter(span => span.actor === actor.id), latest = related.at(-1), role = roleKey(actor.role);
       const latestEvent = events.filter(event => event.actor === actor.id || event.recipient === actor.id).at(-1);
-      let status = latest ? displayStatus(latest) : 'idle';
+      let status = latest ? displayStatus(latest) : model.project ? actor.status || 'idle' : 'idle';
       if (model.replay == null && model.requestedRun == null && data?.task?.hold && !latest) status = 'held';
-      const label = actor.label === 'codex-session' ? 'Codex · 독립 세션' : actor.label === 'claude' ? 'Claude' : actor.label === 'codex' ? 'Codex' : actor.label || actorName(actor.id);
-      return { id: actor.id, label, role, status, active: status === 'running' && model.connected && model.replay == null && model.visible && !document.hidden,
+      const label = actor.label || actorName(actor.id);
+      return { id: actor.id, label, role, status, statusLabel: statusLabel(status), nameSource: actor.name_source, taskId: actor.task_id || model.taskId, lastSeen: actor.last_seen, active: status === 'running' && model.connected && model.replay == null && model.visible && !document.hidden,
         selected: actor.id === selectedActor, spanId: latest?.id || null, event: latestEvent || null, count: related.length,
-        goal: latest?.input?.goal || model.task?.goal || '', caption: latest?.label || latestEvent?.summary || '관측된 실행 없음' };
+        goal: actor.task_goal || latest?.input?.goal || model.task?.goal || '', caption: latest?.label || latestEvent?.summary || '관측된 실행 없음' };
     });
     cached('office', [model.officeActors, model.replay, model.connected, Boolean(model.data)], () => {
       const fragment = document.createDocumentFragment();
       for (const actor of model.officeActors) {
         const station = button('', `obs-actor-${actor.id}`, () => selectActor(actor.id), `obs-station role-${actor.role}${actor.active ? ' is-active' : ''}${actor.selected ? ' is-selected' : ''}`);
-        station.disabled = !actor.spanId && !actor.event; station.dataset.actor = actor.id;
+        station.disabled = !actor.spanId && !actor.event && !(model.project && actor.taskId); station.dataset.actor = actor.id;
         const currentLabel = !model.connected && model.data && actor.status === 'running' ? '이전 기록' : model.replay != null && actor.status === 'running' ? '당시 실행 중' : actor.event && !actor.spanId && actor.status === 'idle' ? '활동 기록' : statusLabel(actor.status);
         station.setAttribute('aria-label', `${roleLabels[actor.role]} ${actor.label}, ${currentLabel}${actor.spanId ? ', 최근 실행 상세 보기' : ''}`);
         station.setAttribute('aria-pressed', String(actor.selected));
         const body = el('span', null, 'obs-station-body');
         const name = el('span', null, 'obs-station-top'); name.append(el('span', actor.label, 'obs-station-name'), badge(actor.status, currentLabel));
-        body.append(name, el('span', `${roleLabels[actor.role]} · ${actor.count}회 호출`, 'obs-station-task'));
+        body.append(name, el('span', `${roleLabels[actor.role]}${actor.nameSource === 'generated' ? ' · 자동 이름' : ''}`, 'obs-station-task'));
+        if (actor.goal) { const goal = el('span', clip(actor.goal, 60), 'obs-station-task'); goal.title = actor.goal; body.append(goal); }
+        station.title = `${actor.label} · ${actor.taskId || ''}\n${actor.goal}${actor.lastSeen ? `\n마지막 관측: ${dateLabel(actor.lastSeen)}` : ''}`;
         station.append(avatar(actor.role), body); fragment.append(station);
       }
       replace(stations, fragment);
@@ -341,7 +363,8 @@
     office.classList.toggle('is-replay', model.replay != null);
     office.classList.toggle('is-disconnected', !model.connected);
     root.dataset.motion = reducedMotion() ? 'reduced' : 'full';
-    officeTime.textContent = model.replay != null ? `기록 재생 · ${timeLabel(model.events.find(event => Number(event.seq) === model.replay)?.at)}` : model.connected ? '연결됨' : model.data ? '이전 기록' : '연결 중';
+    officeSign.textContent = model.project ? '프로젝트 관제실' : '작업 공간';
+    officeTime.textContent = model.replay != null ? `기록 재생 · ${timeLabel(model.events.find(event => Number(event.seq) === model.replay)?.at)}` : model.connected ? `${model.officeActors.filter(actor => actor.active).length}명 실행 중 · 연결됨` : model.data ? '이전 기록' : '연결 중';
     updateRoom();
   }
 
@@ -352,7 +375,7 @@
     item.title = `${actorName(span.actor)} · ${span.label}\n${statusLabel(status)} · ${dateLabel(span.started_at)}`;
     item.setAttribute('aria-label', `${aggregate ? '역할' : `${index + 1}단계`} ${actorName(span.actor)}, ${span.label}, ${statusLabel(status)}, 상세 보기`);
     const top = el('span', null, 'obs-node-top'); top.append(el('span', aggregate ? `${span.count}회` : String(index + 1).padStart(2, '0'), 'obs-node-number'), el('span', statusLabel(status), 'obs-node-state'));
-    item.append(top, el('span', clip(aggregate ? actorName(span.actor) : span.label, 40), 'obs-node-label'), el('span', aggregate ? `정상 ${span.passed} · 확인 ${span.attention}` : actorName(span.actor), 'obs-node-actor'));
+    item.append(top, el('span', clip(aggregate ? roleLabels[roleKey(span.role)] : span.label, 40), 'obs-node-label'), el('span', aggregate ? `정상 ${span.passed} · 확인 ${span.attention}` : actorName(span.actor), 'obs-node-actor'));
     return item;
   }
   function renderGraph(spans) {
@@ -378,12 +401,12 @@
     let graphNodes, edges;
     if (model.mode === 'roles') {
       const groups = new Map();
-      for (const span of spans) { if (!groups.has(span.actor)) groups.set(span.actor, []); groups.get(span.actor).push(span); }
-      graphNodes = [...groups].map(([actor, items]) => ({ ...items.at(-1), actor, count: items.length,
+      for (const span of spans) { if (!groups.has(span.role)) groups.set(span.role, []); groups.get(span.role).push(span); }
+      graphNodes = [...groups].map(([role, items]) => ({ ...items.at(-1), role, count: items.length,
         passed: items.filter(span => ['succeeded', 'pass'].includes(displayStatus(span))).length,
         attention: items.filter(span => ['failed', 'blocked', 'changes_requested', 'unknown', 'interrupted'].includes(displayStatus(span))).length }));
-      const bySpan = new Map(spans.map(span => [span.id, span.actor]));
-      const byActor = new Map(graphNodes.map(span => [span.actor, span]));
+      const bySpan = new Map(spans.map(span => [span.id, span.role]));
+      const byActor = new Map(graphNodes.map(span => [span.role, span]));
       const grouped = new Map();
       for (const edge of model.data?.edges || []) {
         const source = bySpan.get(edge.source), target = bySpan.get(edge.target);
@@ -403,8 +426,8 @@
     graphNodes.forEach((span, index) => positions.set(span.id, compact
       ? { x: start, y: 28 + index * (nodeHeight + gap) }
       : { x: start + index * (nodeWidth + gap), y: model.mode === 'roles' ? 60 : 28 }));
-    const selectedActor = spans.find(span => span.id === model.selectedSpan)?.actor;
-    const selectedNodeId = model.mode === 'roles' ? graphNodes.find(span => span.actor === selectedActor)?.id : model.selectedSpan;
+    const selectedRole = spans.find(span => span.id === model.selectedSpan)?.role;
+    const selectedNodeId = model.mode === 'roles' ? graphNodes.find(span => span.role === selectedRole)?.id : model.selectedSpan;
     const height = compact ? Math.max(180, graphNodes.length * (nodeHeight + gap) + 28) : model.mode === 'roles' ? 182 : 140;
     canvas.style.width = `${width}px`; canvas.style.height = `${height}px`;
     const drawing = svgEl('svg', { viewBox: `0 0 ${width} ${height}`, width, height, 'aria-hidden': 'true', class: 'obs-edges' });
@@ -485,7 +508,7 @@
       const identity = el('div', null, `obs-agent-identity role-${roleKey(span.role)}`), name = el('div');
       name.append(el('strong', actorName(span.actor)), el('span', span.label));
       identity.append(avatar(roleKey(span.role)), name); fragment.append(identity);
-      if (span.input?.goal) fragment.append(inspectorBlock('현재 실행의 목표', span.input.goal));
+      if (span.input?.goal) { const goal = el('details', null, 'obs-goal-details'); goal.dataset.recordDetail = 'goal'; goal.append(el('summary', clip(span.input.goal, 110)), inspectorBlock('전체 목표', span.input.goal)); fragment.append(goal); }
       const summary = el('dl', null, 'obs-summary-facts');
       let elapsed = span.duration_ms;
       if (elapsed == null && span.status === 'running' && model.replay == null) {
@@ -525,6 +548,13 @@
       const details = el('details', null, 'obs-record-details'); details.dataset.recordDetail = 'evidence';
       const evidenceSummary = el('summary', '실행 근거와 사용량'); evidenceSummary.dataset.focus = 'obs-evidence'; details.append(evidenceSummary);
       const fields = el('dl', null, 'obs-fields');
+      const assignment = actorDefinition(span.actor);
+      addField(fields, '이름 출처', assignment?.name_source === 'assigned' ? '기록된 할당 이름' : assignment?.name_source === 'generated' ? '역할 기반 자동 표시 이름' : '기록 참조');
+      addField(fields, '인스턴스', assignment?.instance_id || span.actor);
+      addField(fields, '세션 ID', assignment?.native_session_id || '미기록');
+      addField(fields, '요청 모델', assignment?.model || span.model);
+      addField(fields, '관측 모델', assignment?.observed_model || '미기록');
+      addField(fields, '마지막 관측', assignment?.last_seen ? dateLabel(assignment.last_seen) : null);
       addField(fields, '실행 ID', span.run_id); addField(fields, '단계 ID', span.id);
       addField(fields, '시작', dateLabel(span.started_at)); addField(fields, '종료', span.ended_at ? dateLabel(span.ended_at) : model.replay != null ? '이 시점에는 종료 기록 없음' : '종료 기록 없음');
       if (span.process?.exit_code != null) addField(fields, '종료 코드', span.process.exit_code);
@@ -589,7 +619,24 @@
     eventCount.textContent = `${filtered.length}개 표시 · ${model.events.length}개 불러옴${model.pagination?.has_more ? ' · 이전 기록 있음' : ''}`;
   }
   function render() {
-    if (!model.taskId) { root.hidden = true; room?.setVisible(false); return; }
+    if (!model.taskId && !model.project) { root.hidden = true; room?.setVisible(false); return; }
+    const projectMode = Boolean(model.project);
+    toolbar.hidden = projectMode; explorer.hidden = projectMode; eventSection.hidden = projectMode; inspector.hidden = projectMode;
+    workspace.classList.toggle('is-project-view', projectMode);
+    if (projectMode) {
+      root.hidden = !model.visible;
+      headingText.querySelector('h2').textContent = '프로젝트 전체 에이전트';
+      taskLine.textContent = `${model.data?.counts?.tasks || 0}개 작업 · 실제 실행 기록 기준 · 최근 이력과 진행 중 배정`;
+      connection.textContent = model.connected ? `연결됨 · ${timeLabel(model.lastSync)}` : '연결 확인 필요 · 이전 기록';
+      connection.className = `obs-connection ${model.connected ? 'is-connected' : 'is-disconnected'}`;
+      root.classList.toggle('is-offline', !model.connected);
+      const warnings = [...(model.data?.warnings || [])];
+      if (Object.values(model.data?.truncated || {}).some(Boolean)) warnings.push('최근 기록 범위만 집계했습니다. 전체 이력은 작업을 선택해 확인하세요.');
+      cached('warnings', warnings, () => { const fragment = document.createDocumentFragment(); for (const warning of warnings) fragment.append(el('p', warning, 'obs-inline-warning')); replace(notices, fragment); });
+      renderOffice(visibleSpans()); return;
+    }
+    headingText.querySelector('h2').textContent = '선택한 작업의 실행 기록';
+    follow.setAttribute('aria-pressed', String(model.followLatest)); follow.textContent = model.followLatest ? '최신 단계 따라가기' : '선택 유지';
     root.hidden = !model.visible;
     const data = model.data, task = data?.task || model.task;
     taskLine.textContent = `${task?.id || model.taskId} · ${task?.goal || '선택한 작업'}`;
@@ -603,7 +650,7 @@
       for (const run of runOptions) { const option = el('option', `${dateLabel(run.started_at)} · ${run.action} · ${statusLabel(run.status)} · ${run.id.slice(0, 7)}`); option.value = run.id; fragment.append(option); }
       replace(runSelect, fragment); runSelect.value = model.requestedRun || ''; runSelect.disabled = !runOptions.length;
     });
-    exportLink.href = `/api/observability/export?task_id=${encodeURIComponent(model.taskId)}${data?.selected_run_id ? `&run_id=${encodeURIComponent(data.selected_run_id)}` : ''}`;
+    exportLink.href = ledgerURL(`/api/observability/export?task_id=${encodeURIComponent(model.taskId)}${data?.selected_run_id ? `&run_id=${encodeURIComponent(data.selected_run_id)}` : ''}`);
     exportLink.hidden = !data;
     const warnings = [...(data?.warnings || [])];
     if (model.error) warnings.unshift(`${model.error} 연결을 자동으로 다시 시도합니다. 마지막 기록은 보존하며 활동 표시를 멈춥니다.`);
@@ -626,7 +673,7 @@
   }
 
   async function fetchJSON(url, options = {}) {
-    const response = await fetch(url, { cache: 'no-store', ...options });
+    const response = await fetch(ledgerURL(url), { cache: 'no-store', ...options });
     let value;
     try { value = await response.json(); } catch (_) { throw new Error(`관측 응답을 읽지 못했습니다 (${response.status}).`); }
     if (!response.ok) throw new Error(value.error || value.message || `관측 기록 요청 실패 (${response.status}).`);
@@ -663,8 +710,8 @@
       const runChanged = model.data && model.data.selected_run_id !== data.selected_run_id;
       if (runChanged) { stopPlayback(); model.events = []; model.replay = null; model.selectedSpan = null; model.selectedEvent = null; model.pagination = null; model.logCache.clear(); model.logKind = null; }
       if (!model.pagination || !model.events.length) model.pagination = { ...data.pagination };
-      model.data = data; model.runOptions = data.runs || []; mergeEvents(data.events); model.connected = true; model.error = null; model.failures = 0; model.lastSync = data.generated_at || new Date().toISOString();
-      if (model.followLatest && model.replay == null && data.spans?.length) { model.selectedSpan = data.spans.at(-1).id; model.selectedEvent = null; }
+      model.data = data; model.runOptions = data.runs || []; observeMotion(data.events || [], runChanged); mergeEvents(data.events); model.connected = true; model.error = null; model.failures = 0; model.lastSync = data.generated_at || new Date().toISOString();
+      if ((model.followLatest || !model.selectedSpan && !model.selectedEvent) && model.replay == null && data.spans?.length) { model.selectedSpan = data.spans.at(-1).id; model.selectedEvent = null; }
       render();
     } catch (error) {
       if (generation !== model.generation || document.hidden || !model.visible) return;
@@ -691,14 +738,36 @@
     model.generation += 1; clearTimeout(model.timer); model.abort?.abort(); stopPlayback();
     model.data = null; model.events = []; model.pagination = null; model.runOptions = []; model.selectedSpan = null; model.selectedEvent = null;
     model.replay = null; model.connected = false; model.error = null; model.failures = 0; model.fetching = false; model.pageLoading = false;
-    model.logCache.clear(); model.logKind = null; model.followLatest = true; model.renderKeys = {}; model.query = ''; search.value = '';
+    model.logCache.clear(); model.logKind = null; model.followLatest = false; model.selectedActor = null; model.motionCursor = null; model.transfers = []; model.renderKeys = {}; model.query = ''; search.value = '';
   }
   function chooseRun(runId) { const options = model.runOptions; resetScope(); model.runOptions = options; model.requestedRun = runId; render(); fetchData(); }
+  function observeMotion(events, scopeChanged = false) {
+    const seq = event => Number(event.seq) || 0;
+    const last = Math.max(0, ...events.map(seq));
+    const previous = scopeChanged ? null : model.motionCursor;
+    model.motionCursor = Math.max(previous || 0, last);
+    model.transfers = previous == null || !model.visible || document.hidden || model.replay != null ? [] : events.filter(event =>
+      seq(event) > previous && event.actor && event.recipient && event.actor !== event.recipient &&
+      ['process_started', 'process_finished'].includes(event.kind) &&
+      timestamp(event.at) != null && Math.abs(Date.now() - timestamp(event.at)) < 15000
+    ).slice(-8).map(event => ({ id: String(event.seq), source: event.actor, target: event.recipient, kind: event.kind }));
+  }
   window.WorkflowObservatory = {
     update(context = {}) {
       const task = context.task || null, taskId = task?.id || null;
+      const project = !taskId && context.projectData ? (context.project || '__all__') : null;
+      const scopeChanged = model.ledger !== (context.ledger || null) || model.project !== project;
+      if (scopeChanged) resetScope();
+      model.ledger = context.ledger || null; model.project = project; model.onSelectTask = context.onSelectTask || null;
       model.task = task; model.detail = context.detail || null;
-      if (taskId !== model.taskId) {
+      if (project) {
+        model.taskId = null; model.requestedRun = null;
+        model.data = context.projectData || null; model.events = model.data?.events || [];
+        model.connected = Boolean(model.data) && context.connected !== false;
+        model.lastSync = model.data?.generated_at || new Date().toISOString();
+        observeMotion(model.events, scopeChanged); render(); return;
+      }
+      if (taskId !== model.taskId || scopeChanged) {
         resetScope(); model.taskId = taskId; model.requestedRun = null; render(); if (taskId) fetchData();
       }
     },
@@ -715,16 +784,16 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) { clearTimeout(model.timer); model.abort?.abort(); stopPlayback(); office.classList.add('is-paused'); }
     else { office.classList.remove('is-paused'); model.connected = false; fetchData(); }
-    if (model.taskId) render();
+    if (model.taskId || model.project) render();
   });
   window.addEventListener('workflow:preferences', event => {
     const preferences = event.detail || {};
     if (typeof preferences.threeD === 'boolean') { model.preferences.threeD = preferences.threeD; model.officeMode = preferences.threeD ? '3d' : 'list'; }
     if (['system', 'reduce'].includes(preferences.motion)) model.preferences.motion = preferences.motion;
-    if (model.taskId) renderOffice(visibleSpans());
+    if (model.taskId || model.project) renderOffice(visibleSpans());
   });
-  motionQuery.addEventListener('change', () => { if (model.taskId) renderOffice(visibleSpans()); });
-  new MutationObserver(() => { if (model.taskId) updateRoom(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  motionQuery.addEventListener('change', () => { if (model.taskId || model.project) renderOffice(visibleSpans()); });
+  new MutationObserver(() => { if (model.taskId || model.project) updateRoom(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   window.addEventListener('pagehide', event => {
     room?.setVisible(false);
     if (!event.persisted) { roomDisposed = true; room?.dispose(); }

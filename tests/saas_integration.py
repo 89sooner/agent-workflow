@@ -35,6 +35,9 @@ def prepare_saas(root, gated=True):
     store = Store(fixture["home"])
     checks = [[sys.executable, "-c", "import app; assert app.VALUE == 1"]]
     try:
+        live = store.get("OBS-LIVE")
+        live["agent_names"] = {"implement": "지우 · 실제 배정", "review": "민수 · 독립 리뷰"}
+        store.save(live, "agent_names_assigned", {"names": live["agent_names"]})
         for name, project in (("primary-demo", fixture["project"]), ("secondary-demo", str(other))):
             save_profile(store, name, {"version": 1, "project": project, "checks": checks})
         isolated = create_from_profile(store, "SAAS-WORKTREE", "primary-demo",
@@ -88,7 +91,10 @@ def main():
                     process.wait()
                     return process.returncode
                 result = subprocess.run(["node", "tests/saas_scenarios.mjs", str(manifest)], cwd=SOURCE, timeout=240)
-                return result.returncode
+                if result.returncode:
+                    return result.returncode
+                motion = subprocess.run(["node", "tests/observatory_motion.mjs", fixture["url"]], cwd=SOURCE, timeout=45)
+                return motion.returncode
             except KeyboardInterrupt:
                 return 0
             finally:

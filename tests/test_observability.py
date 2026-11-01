@@ -31,7 +31,9 @@ class ObservationTests(unittest.TestCase):
         self.assertEqual(result["runs"][0]["status"], "succeeded")
         spans = result["spans"]
         self.assertEqual([span["role"] for span in spans], ["implement", "check", "review"])
-        self.assertEqual([span["actor"] for span in spans], ["claude:implement", "checks", "codex:review"])
+        self.assertEqual([span["original_actor"] for span in spans], ["claude:implement", "checks", "codex:review"])
+        self.assertEqual(spans[0]["actor"], "agent:" + spans[0]["id"])
+        self.assertEqual(spans[2]["actor"], "agent:" + spans[2]["id"])
         self.assertEqual([span["status"] for span in spans], ["succeeded"] * 3)
         self.assertEqual(spans[2]["result"]["outcome"], "pass")
         self.assertEqual(spans[0]["result"]["outcome"], "ready")

@@ -136,6 +136,24 @@ def parser():
     commands = p.add_subparsers(dest="command", required=True)
     commands.add_parser("doctor", help="설치된 도구 확인; 모델 호출 없음")
     commands.add_parser("list", help="등록된 작업 목록")
+    c = commands.add_parser("connect", help="프로젝트 원장 자동 발견·연결; 기존 원장 변경·실행 없음")
+    c.add_argument("project", nargs="?", default=".")
+    c.add_argument("--ledger", action="append", default=[], help="관측할 기존 상태 경로; 여러 번 지정 가능")
+    c.add_argument("--profile", help="새 작업에 재사용할 저장된 프로필")
+    c.add_argument("--criterion", action="append", help="새 작업의 기본 완료 조건")
+    c.add_argument("--scope", help="새 작업의 기본 허용 범위")
+    c.add_argument("--registration-home", help="연결된 원장 중 새 작업을 등록할 경로")
+    c = commands.add_parser("start", help="연결한 프로젝트에 작업 자동 ID 등록; 실행은 별도")
+    c.add_argument("goal")
+    c.add_argument("--project", default=".")
+    c.add_argument("--criterion", action="append")
+    c.add_argument("--check", action="append", default=[])
+    c.add_argument("--owner", choices=["codex", "claude"])
+    c.add_argument("--reviewer", choices=["codex", "claude", "codex-session", "none"])
+    c.add_argument("--name", help="구현 에이전트에게 실제 할당한 이름")
+    c.add_argument("--reviewer-name", help="검토 에이전트에게 실제 할당한 이름")
+    c = commands.add_parser("watch", help="연결된 여러 원장을 조회만 하는 관제실; worker 시작 안 함")
+    c.add_argument("--port", type=int, default=8877)
     c = commands.add_parser("browser-check", help="격리 HTTP 화면의 Playwright 수용 검사")
     c.add_argument("--file", type=Path, required=True)
     c = commands.add_parser("create", help="기존 WP/문서를 참조하는 작업 등록")
@@ -260,6 +278,7 @@ def parser():
     c.add_argument("--backend", choices=["auto", "systemd", "shell"], default="auto")
     c = commands.add_parser("serve", help="루프백 대시보드와 큐 데몬 전경 실행")
     c.add_argument("--port", type=int, default=8765)
+    c.add_argument("--read-only", action="store_true", help="기존 DB 조회만 제공; 큐 worker·스키마 초기화·변경 API 비활성화")
     c = commands.add_parser("daemon", help="백그라운드 데몬 관리")
     c.add_argument("operation", choices=["start", "stop", "status"])
     c.add_argument("--port", type=int, default=8765)
@@ -278,6 +297,29 @@ def dispatch(args):
         return doctor()
     if args.command == "result-schema":
         return RESULT_SCHEMA
+    if args.command == "connect":
+        from .connections import connect
+        return connect(args.home, args.project, args.ledger, args.profile, args.criterion, args.scope,
+                       args.registration_home)
+    if args.command == "start":
+        from .connections import start_registered
+        return start_registered(args.home, args.goal, args.project, args.criterion,
+                                checks=[argv_from(x) for x in args.check], owner=args.owner,
+                                reviewer=args.reviewer, name=args.name, reviewer_name=args.reviewer_name)
+    if args.command == "watch":
+        from .connections import state_home
+        from .server import serve
+        if not 0 <= args.port <= 65535:
+            raise WorkflowError("포트 범위 오류")
+        serve(state_home(args.home), args.port, read_only=True, observer=True)
+        return {"stopped": True}
+    if args.command == "serve" and args.read_only:
+        from .server import serve
+        if not 0 <= args.port <= 65535:
+            raise WorkflowError("포트 범위 오류")
+        from .connections import state_home
+        serve(state_home(args.home), args.port, read_only=True)
+        return {"stopped": True}
     store = Store(args.home)
     try:
         if args.command == "batch":

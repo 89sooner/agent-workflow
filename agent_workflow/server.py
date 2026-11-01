@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import secrets
 import signal
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -70,7 +71,37 @@ def stop_background(home):
     raise WorkflowError("데몬 종료 처리 중입니다. 로그를 확인하세요.")
 
 
-def handler(home, token):
+def handler(home, token, *, read_only=False, observer=False):
+    # Discovery is read-only; only opaque IDs from this local allowlist are accepted.
+    discovery_lock = threading.Lock()
+    discovery_cache = {"at": 0, "value": None}
+
+    def connections():
+        from .connections import discover, load_registry
+        with discovery_lock:
+            if discovery_cache["value"] is None or time.monotonic() - discovery_cache["at"] > 15:
+                registry = load_registry(home)
+                homes = [home] + [item["home"] for project in registry["projects"] for item in project["ledgers"]]
+                result = discover(homes=homes, include_processes=observer, include_temporary=observer, include_default=observer)
+                result["observer"] = observer
+                discovery_cache.update(at=time.monotonic(), value=result)
+            return discovery_cache["value"]
+
+    def selected_home(query):
+        from .connections import ledger_id
+        requested = query.get("ledger", [None])[0]
+        if not requested and (Path(home) / "state.sqlite3").is_file():
+            return Path(home), ledger_id(home)
+        candidates = connections()["ledgers"]
+        if not requested:
+            candidate = next((item for item in candidates if item.get("task_count") and item.get("status") == "available"), None)
+            candidate = candidate or next((item for item in candidates if item.get("status") == "available"), None)
+        else:
+            candidate = next((item for item in candidates if item["id"] == requested), None)
+            if candidate is None:
+                raise WorkflowError("연결 목록에 없는 원장입니다. 원장 목록을 다시 확인하세요.")
+        return (Path(candidate["home"]), candidate["id"]) if candidate else (None, None)
+
     assets = Path(__file__).with_name("static")
 
     class Handler(BaseHTTPRequestHandler):
@@ -116,7 +147,24 @@ def handler(home, token):
                     if not p.exists():
                         return self.response({"error": "시범 배포가 아직 없습니다."}, 404)
                     return self.response(p.read_bytes(), content_type="text/html; charset=utf-8")
-                store = Store(home)
+                query = parse_qs(parsed.query)
+                if path == "/api/connections":
+                    return self.response(connections())
+                ledger_home, ledger = selected_home(query)
+                effective_read_only = read_only or observer or ledger_home != Path(home)
+                if ledger_home is None:
+                    if path == "/api/state":
+                        return self.response({"tasks": [], "jobs": [], "profiles": [], "notifications": [],
+                                              "daemon": status(home), "version": __version__, "csrf_token": token,
+                                              "read_only": True, "ledger": None, "state_home": None})
+                    if path == "/api/project-observability":
+                        return self.response({"tasks": [], "actors": [], "spans": [], "edges": [], "events": [],
+                                              "executions": [], "runs": [], "counts": {}, "truncated": False})
+                    raise WorkflowError("연결된 원장이 없습니다. connect로 프로젝트를 연결하세요.")
+                store = Store(ledger_home, read_only=effective_read_only)
+                if path == "/api/project-observability":
+                    from .observability import project_view
+                    return self.response(project_view(store, query.get("project", [None])[0]))
                 if path in {"/api/observability", "/api/observability/export"}:
                     from .observability import view
                     query = parse_qs(parsed.query)
@@ -138,11 +186,34 @@ def handler(home, token):
                         raise WorkflowError("실행 단계와 로그 종류가 필요합니다.")
                     return self.response(artifact(store, *parts))
                 if path == "/api/state":
+                    from .connections import task_project, project_key, task_key
+                    tasks, sources, keys = store.all(), {}, {}
+                    for task in tasks:
+                        source = task_project(task)
+                        if not source:
+                            task["task_key"] = task_key(ledger_home, task["id"])
+                            continue
+                        if source not in keys:
+                            keys[source] = project_key(source)
+                        key = keys[source]
+                        task["project_source"] = sources.setdefault(key, source)
+                        task["project_key"] = key
+                        task["task_key"] = task_key(ledger_home, task["id"])
+                    if query.get("compact") == ["1"]:
+                        tasks = [{key: task.get(key) for key in (
+                            "id", "goal", "project", "project_source", "project_key", "task_key", "status", "owner", "reviewer",
+                            "agent_names", "hold", "updated_at", "revision", "release", "blocker")} for task in tasks]
+                        for task in tasks:
+                            release = task.get("release")
+                            if release:
+                                task["release"] = {key: release.get(key) for key in ("stage", "error", "merge_commit", "integration_verification")}
+                                task["release"]["config"] = {"deploy": bool((release.get("config") or {}).get("deploy"))}
                     from .profiles import list_profiles
                     from .operations import notifications
-                    return self.response({"tasks": store.all(), "jobs": list_jobs(store),
+                    return self.response({"tasks": tasks, "jobs": list_jobs(store),
                                           "profiles": list_profiles(store), "notifications": notifications(store),
-                                          "daemon": status(home), "version": __version__, "csrf_token": token})
+                                          "daemon": status(ledger_home), "version": __version__, "csrf_token": token,
+                                          "read_only": effective_read_only, "ledger": ledger, "state_home": str(ledger_home)})
                 if path.startswith("/api/job-log/"):
                     job_id = path.removeprefix("/api/job-log/")
                     jobs = list_jobs(store)
@@ -177,7 +248,7 @@ def handler(home, token):
                 return self.response({"error": "경로 없음"}, 404)
             except WorkflowError as exc:
                 self.response({"error": str(exc)}, 400)
-            except (OSError, ValueError) as exc:
+            except (OSError, ValueError, sqlite3.Error) as exc:
                 self.response({"error": str(exc)}, 500)
             finally:
                 if store:
@@ -187,6 +258,8 @@ def handler(home, token):
             store = None
             try:
                 self.origin()
+                if read_only or observer or urlparse(self.path).query:
+                    return self.response({"error": "조회 전용 관제실에서는 작업을 변경하거나 실행할 수 없습니다."}, 403)
                 if not secrets.compare_digest(self.headers.get("X-Workflow-Token", ""), token):
                     return self.response({"error": "요청 토큰 오류"}, 403)
                 length = int(self.headers.get("Content-Length", "0"))
@@ -212,7 +285,7 @@ def handler(home, token):
                 if self.path == "/api/tasks":
                     from .workspaces import create_from_profile
                     from .profiles import identifier, strings
-                    task_id = identifier(data.get("id"))
+                    task_id = identifier(data.get("id") or ("AW-" + __import__("uuid").uuid4().hex[:16]))
                     profile = identifier(data.get("profile"))
                     goal = data.get("goal")
                     criteria = strings(data.get("criteria"), "criteria")
@@ -221,7 +294,16 @@ def handler(home, token):
                         raise WorkflowError("목표와 완료 조건이 필요합니다.")
                     if isolate is not None and type(isolate) is not bool:
                         raise WorkflowError("isolate는 boolean입니다.")
+                    names = data.get("agent_names", {})
+                    if not isinstance(names, dict) or set(names) - {"implement", "review"} or any(
+                            not isinstance(name, str) or len(name) > 120 or any(ord(c) < 32 for c in name) for name in names.values()):
+                        raise WorkflowError("담당 이름은 역할별 120자 이하의 문자열이어야 합니다.")
                     task = create_from_profile(store, task_id, profile, goal, criteria, isolate=isolate)
+                    names = {role: name.strip() for role, name in names.items() if name.strip()}
+                    if names:
+                        task["agent_names"] = names
+                        store.save(task, "agent_names_assigned", {"names": names})
+                        task = store.get(task_id)
                     return self.response({"task": task}, 201)
                 if self.path == "/api/queue":
                     task_id = data.get("task_id")
@@ -258,8 +340,11 @@ def handler(home, token):
     return Handler
 
 
-def serve(home, port=8765):
+def serve(home, port=8765, *, read_only=False, observer=False):
     home = Path(home).resolve()
+    read_only = read_only or observer
+    if read_only and not observer:
+        Store(home, read_only=True).close()
     home.mkdir(parents=True, exist_ok=True, mode=0o700)
     with (home / "server.lock").open("a+") as lock:
         try:
@@ -268,7 +353,7 @@ def serve(home, port=8765):
             raise WorkflowError("대시보드 서버가 이미 실행 중입니다.") from exc
         stop = threading.Event()
         token = secrets.token_urlsafe(32)
-        http = ThreadingHTTPServer(("127.0.0.1", port), handler(home, token))
+        http = ThreadingHTTPServer(("127.0.0.1", port), handler(home, token, read_only=read_only, observer=observer))
         http.daemon_threads = True
         http.timeout = 0.25
         worker_errors = []
@@ -278,10 +363,13 @@ def serve(home, port=8765):
             except BaseException as exc:
                 worker_errors.append(str(exc))
                 stop.set()
-        worker = threading.Thread(target=worker_main, name="workflow-queue")
-        worker.start()
+        worker = None
+        if not read_only:
+            worker = threading.Thread(target=worker_main, name="workflow-queue")
+            worker.start()
         meta = {"pid": os.getpid(), "process_identity": identity(os.getpid()),
-                "started_at": now(), "url": f"http://127.0.0.1:{http.server_port}"}
+                "started_at": now(), "url": f"http://127.0.0.1:{http.server_port}",
+                "read_only": read_only}
         atomic_write(home / "server.json", encode(meta))
         previous = {}
         for sig in (signal.SIGTERM, signal.SIGINT):
@@ -292,7 +380,8 @@ def serve(home, port=8765):
                 http.handle_request()
         finally:
             stop.set()
-            worker.join(timeout=10)
+            if worker is not None:
+                worker.join(timeout=10)
             http.server_close()
             (home / "server.json").unlink(missing_ok=True)
             for sig, callback in previous.items():

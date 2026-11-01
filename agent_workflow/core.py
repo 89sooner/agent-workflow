@@ -130,9 +130,18 @@ def references_current(task, evidence, current=None):
 
 
 class Store:
-    def __init__(self, home=None):
+    def __init__(self, home=None, *, read_only=False):
         self.home = Path(home or os.environ.get("AGENT_WORKFLOW_HOME") or
                          Path.home() / ".local/state/agent-workflow").expanduser().resolve()
+        self.read_only = read_only
+        if read_only:
+            database = self.home / "state.sqlite3"
+            if not database.is_file():
+                raise WorkflowError("조회할 상태 DB가 없습니다: " + str(database))
+            self.db = sqlite3.connect(database.as_uri() + "?mode=ro", uri=True, timeout=20)
+            self.db.row_factory = sqlite3.Row
+            self.db.execute("PRAGMA query_only=ON")
+            return
         self.home.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.db = sqlite3.connect(self.home / "state.sqlite3", timeout=20)
         self.db.row_factory = sqlite3.Row

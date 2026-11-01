@@ -35,6 +35,8 @@ let events = [{ at: '2026-10-08T00:00:00Z', kind: 'created', data: { summary: '�
 await page.route('**/api/**', async (route) => {
   const req = route.request(), path = new URL(req.url()).pathname;
   if (fail) return route.fulfill({ status: 503, json: { error: '테스트 연결 중단' } });
+  if (path === '/api/connections') return route.fulfill({ json: { ledgers: [{ id: 'fixture', home: '/fixture/state', task_count: tasks.length }], warnings: [] } });
+  if (path === '/api/project-observability') return route.fulfill({ json: { schema_version: 1, tasks, agents: [], events: [], executions: jobs } });
   if (path === '/api/state') return route.fulfill({ json: { tasks, jobs, profiles, notifications: [], daemon: { running: true }, version: 'fixture', csrf_token: 'fixture-token' } });
   if (path.startsWith('/api/job-log/')) return route.fulfill({ json: { text: '<script>window.unsafe=true</script>\nfixture log output', truncated: false } });
   if (path.startsWith('/api/tasks/')) {
@@ -77,7 +79,11 @@ const openNavigation = async () => {
   }
 };
 try {
-  await page.goto(origin); await waitLoaded();
+  await page.goto(origin);
+  await page.getByRole('heading', { name: '연결된 프로젝트 관제실', exact: true }).waitFor();
+  assert.equal(await page.locator('.task-item.selected').count(), 0);
+  await page.locator('.task-item').filter({ hasText: 'UI-READY' }).click();
+  await waitLoaded();
   assert.equal(await page.locator('#metric-blocked').textContent(), '1');
   assert.equal(await page.locator('#metric-deployed').textContent(), '0');
   await page.keyboard.press('/'); assert.equal(await page.evaluate(() => document.activeElement.id), 'search');
@@ -116,10 +122,15 @@ try {
   assert.equal(await page.locator('.detail-title').textContent(), stale.goal);
   await page.locator('#theme-toggle').click();
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
-  await page.reload(); await waitLoaded();
+  await page.reload();
+  await page.getByRole('heading', { name: '연결된 프로젝트 관제실', exact: true }).waitFor();
   assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
+  assert.equal(await page.locator('.task-item.selected').count(), 0);
+  await page.locator('#filter').selectOption('blocked');
+  await page.locator('.task-item').filter({ hasText: 'UI-STALE' }).click();
+  await waitLoaded();
   assert.equal(await page.locator('.detail-title').textContent(), stale.goal);
-  console.log('PASS selected task and theme persistence, event expansion through refresh');
+  console.log('PASS selection and event expansion through refresh, theme persistence, project overview on reload');
 
   for (const width of [375, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
