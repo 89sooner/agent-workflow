@@ -1,9 +1,10 @@
 'use strict';
 const $ = (id) => document.getElementById(id);
-const state = { tasks: [], jobs: [], profiles: [], notifications: [], selected: null, detail: null, token: null, busy: false, polling: false, listKey: '', detailKey: '', jobsKey: '', profileKey: '', holdTaskId: null,
-  project: '', view: 'observatory', projectKey: '', sidebarOpen: false, preferences: { threeD: true, motion: 'system' } };
+const state = { tasks: [], jobs: [], profiles: [], notifications: [], selected: null, detail: null, token: null, readOnly: false, busy: false, polling: false, listKey: '', detailKey: '', jobsKey: '', profileKey: '', holdTaskId: null,
+  project: '', ledger: '', connections: [], connected: false, projectData: null, generation: 0, view: 'observatory', projectKey: '', sidebarOpen: false, preferences: { threeD: true, motion: 'system' } };
 try {
-  state.selected = localStorage.getItem('agent-workflow-selected');
+  state.ledger = localStorage.getItem('agent-workflow-ledger') || '';
+  state.selected = null;
   state.project = localStorage.getItem('agent-workflow-project') || '';
   const view = localStorage.getItem('agent-workflow-view');
   if (['observatory', 'tasks', 'runs', 'settings'].includes(view)) state.view = view;
@@ -13,6 +14,7 @@ try {
 } catch (_) { /* storage is optional */ }
 const labels = { ready: '준비됨', running: '실행 중', implementing: '구현 중', checking: '검증 중', reviewing: '검토 중', needs_review: '검토 대기', ready_to_finish: '마감 대기', blocked: '확인 필요', completed: '로컬 완료', queued: '대기 중', succeeded: '완료', failed: '실패', cancelled: '취소됨', canceled: '취소됨', configured: '설정됨', merged: '병합 완료', deployed: '배포 완료', deploying: '배포 중', merging: '병합 중', pr_created: 'PR 생성됨', pushed: '푸시 완료', pending: '대기 중' };
 Object.assign(labels, { interrupted: '중단됨', committed: '커밋 완료', pull_request: 'PR 생성됨', preparing: '통합 준비 중', created: '작업 등록', checks_started: '필수 검사 시작', checks_finished: '필수 검사 종료', checks_interrupted: '검사 중단', check_added: '검사 명령 추가', agent_started: '에이전트 실행 시작', implementation_returned: '구현 결과 수신', review_finished: '독립 검토 종료', checkpoint: '체크포인트 저장', assigned: '담당자 변경', release_configured: '통합 · 배포 설정', release_preparing: '통합 준비 시작', release_committed: '검증한 변경 커밋', release_pushed: '원격 브랜치 푸시', release_pull_request: 'PR 생성', release_merged: '브랜치 병합 완료', release_deploying: '배포 시작', release_deployed: '배포 완료', release_updated: '통합 · 배포 기록 갱신' });
+Object.assign(labels, {unknown: '상태 미확인', assigned: '배정됨'});
 const label = (value) => labels[value] || (String(value || '').startsWith('release_') ? `통합 · 배포: ${labels[value.slice(8)] || value.slice(8)}` : value) || '미확인';
 const expandedEvents = new Set();
 const expandedLogs = new Set();
@@ -89,6 +91,8 @@ function releasePending(task) {
 }
 function needsAttention(task) { return task.status === 'blocked' || Boolean(task.hold || task.release?.error); }
 async function request(path, options = {}) {
+  if (state.readOnly && options.method && options.method !== 'GET') throw new Error('조회 전용 관제실입니다.');
+  if ((!options.method || options.method === 'GET') && state.ledger && path.startsWith('/api/') && path !== '/api/connections') path += `${path.includes('?') ? '&' : '?'}ledger=${encodeURIComponent(state.ledger)}`;
   const response = await fetch(path, { cache: 'no-store', ...options });
   let body;
   try { body = await response.json(); } catch (_) { throw new Error(`서버 응답을 읽지 못했습니다 (${response.status}).`); }
@@ -97,7 +101,7 @@ async function request(path, options = {}) {
 }
 function selectedTask() { return state.tasks.find((task) => task.id === state.selected); }
 function projectSource(task) {
-  return [task.workspace?.source, task.project_config?.project, task.project].find(value => typeof value === 'string' && value.length) || '';
+  return [task.project_source, task.workspace?.source, task.project_config?.project, task.project].find(value => typeof value === 'string' && value.length) || '';
 }
 function scopedTasks() { return state.tasks.filter(task => !state.project || projectSource(task) === state.project); }
 function scopedJobs() {
@@ -126,23 +130,40 @@ function renderProjects() {
 }
 function renderOverview() {
   const tasks = scopedTasks(), jobs = scopedJobs();
-  const running = jobs.filter(job => job.status === 'running').length;
-  const queued = jobs.filter(job => job.status === 'queued').length;
+  const running = state.projectData?.counts?.running ?? jobs.filter(job => job.status === 'running').length;
+  const queued = state.projectData?.counts?.queued ?? jobs.filter(job => job.status === 'queued').length;
   $('metric-running').textContent = String(running);
   $('metric-queued').textContent = String(queued);
-  $('metric-running').parentElement.title = '실행 중인 큐 작업 수입니다. 별도 CLI 호출의 활동은 관제실에서 확인합니다.';
+  $('metric-running').parentElement.title = '큐와 직접 실행을 연결해 중복 없이 집계합니다. 프로세스 생존이 확인되지 않으면 미확인으로 표시합니다.';
   $('metric-queued').parentElement.title = '대기 중인 큐 작업 수입니다. 보류 중인 작업도 포함합니다.';
+  $('agent-summary').textContent = `실행 중 에이전트 ${state.projectData?.counts?.agents_running || 0}명 · 상태 미확인 ${state.projectData?.counts?.unknown || 0}건`;
   $('metric-active').textContent = String(running + queued);
   $('metric-blocked').textContent = String(tasks.filter(needsAttention).length);
   $('metric-completed').textContent = String(tasks.filter(task => task.status === 'completed').length);
   $('metric-deployed').textContent = String(tasks.filter((task) => task.release?.stage === 'deployed').length);
   $('nav-running-count').textContent = String(running + queued);
   $('nav-running-count').hidden = running + queued === 0;
+  renderProjectActivity();
 }
+
+function renderProjectActivity() {
+  const panel = $('project-activity');
+  panel.hidden = state.view !== 'observatory' || Boolean(state.selected) || !state.projectData?.events?.length;
+  const events = (state.projectData?.events || []).slice(-6).reverse();
+  const key = JSON.stringify([state.ledger, events]); if (panel.dataset.key === key) return; panel.dataset.key = key;
+  const list = node('ol', null, 'project-event-list');
+  for (const event of events) {
+    const row = node('li'), open = node('button', `${event.task_id} · ${event.summary || label(event.kind)}`, 'button subtle');
+    open.type = 'button'; open.dataset.focus = `project-event-${event.seq}`; open.addEventListener('click', () => selectTask(event.task_id));
+    row.append(node('time', date(event.at)), open); list.append(row);
+  }
+  const content = document.createDocumentFragment(); content.append(node('h2', '최근 관측 이벤트'), list); replaceKeepingFocus(panel, content);
+}
+
 function renderList() {
   const query = $('search').value.trim().toLocaleLowerCase();
   const filter = $('filter').value;
-  const tasks = scopedTasks().filter((task) => [task.id, task.goal, task.project, projectSource(task)].join(' ').toLocaleLowerCase().includes(query))
+  const tasks = scopedTasks().slice().sort((a,b) => Number(a.status === 'completed') - Number(b.status === 'completed') || String(b.updated_at || '').localeCompare(String(a.updated_at || ''))).filter((task) => [task.id, task.goal, task.project, projectSource(task)].join(' ').toLocaleLowerCase().includes(query))
     .filter((task) => filter === 'all' || (filter === 'completed' ? task.status === 'completed'
       : filter === 'blocked' ? needsAttention(task)
         : !needsAttention(task) && (task.status !== 'completed' || releasePending(task))));
@@ -150,15 +171,21 @@ function renderList() {
   if (key === state.listKey) return;
   state.listKey = key;
   const fragment = document.createDocumentFragment();
+  const completed = node('details', null, 'completed-tasks');
+  const completedSummary = node('summary', `완료된 작업 ${tasks.filter(t => t.status === 'completed').length}개`); completed.append(completedSummary);
+  completed.open = filter === 'completed' || Boolean(query) || tasks.some(t => t.status === 'completed' && t.id === state.selected);
   for (const task of tasks) {
     const button = node('button', null, `task-item${task.id === state.selected ? ' selected' : ''}`);
     button.type = 'button'; button.setAttribute('aria-current', String(task.id === state.selected));
-    button.append(node('span', task.id, 'task-id'), node('span', task.goal, 'task-goal'));
+    button.title = task.goal;
+    button.append(node('span', task.id, 'task-id'), node('span', task.goal, 'task-goal'), node('span', task.agent_names?.implement || task.owner || '담당 미지정', 'task-owner'));
     const footer = node('div', null, 'task-item-footer');
     const project = node('span', projectName(projectSource(task)), 'task-project'); project.title = projectSource(task);
     footer.append(badge(task.hold ? 'held' : task.release?.stage === 'deployed' ? 'deployed' : task.status), project); button.append(footer);
-    button.addEventListener('click', () => selectTask(task.id)); fragment.append(button);
+    button.addEventListener('click', () => selectTask(task.id));
+    (task.status === 'completed' && filter === 'all' ? completed : fragment).append(button);
   }
+  if (filter === 'all' && completed.children.length > 1) fragment.append(completed);
   if (!tasks.length) fragment.append(node('p', state.tasks.length ? '조건에 맞는 작업이 없습니다.' : '아직 등록된 작업이 없습니다.', 'empty-inline'));
   replaceKeepingFocus($('task-list'), fragment);
 }
@@ -212,19 +239,24 @@ function agentMeta(name, role, isReviewer = false) {
 }
 function actionButton(title, glyph, key, disabled, callback, primary = false) {
   const button = node('button', null, `button${primary ? ' primary' : ''}`);
-  button.type = 'button'; button.dataset.focus = key; button.disabled = disabled;
+  button.type = 'button'; button.dataset.focus = key; button.disabled = disabled || (state.readOnly && key !== 'task-view');
   button.append(icon(glyph), node('span', title)); button.addEventListener('click', callback); return button;
 }
 function renderDetail() {
   const detail = state.detail, task = detail?.task || selectedTask();
-  syncObservatoryVisibility();
-  window.WorkflowObservatory?.update({ task, detail, jobs: state.jobs });
+  syncObservatoryVisibility(); renderProjectActivity();
+  window.WorkflowObservatory?.update({ task: task || null, detail, jobs: state.jobs, ledger: state.ledger, project: state.project, projectData: !task ? state.projectData : null, onSelectTask: selectTask, connected: state.connected });
+  $('project-room').hidden = !task;
   const pending = state.jobs.some((job) => job.task_id === state.selected && ['queued', 'running'].includes(job.status));
   const key = JSON.stringify([task, detail?.observed_git, detail?.freshness, detail?.events, state.busy, pending, Boolean(detail), state.view]);
   if (key === state.detailKey) return;
   state.detailKey = key;
   const fragment = document.createDocumentFragment(), contextFragment = document.createDocumentFragment();
   if (!task) {
+    if (state.tasks.length) {
+      contextFragment.append(node('h2', state.project ? `${projectName(state.project)} · 전체 관제실` : '연결된 프로젝트 관제실'), node('p', '에이전트를 선택하면 해당 작업의 실행 단계와 이력을 확인합니다.'));
+      replaceKeepingFocus($('task-context'), contextFragment); replaceKeepingFocus($('detail'), fragment); return;
+    }
     const empty = node('div', null, 'empty'); const mark = node('div', null, 'empty-symbol'); mark.append(icon('branch'));
     empty.append(mark, node('h2', '첫 워크플로를 시작해 보세요.'), node('p', 'Codex·Claude에서 agent-workflow 스킬로 작업을 등록하면, 실행과 검증 과정을 이곳에서 확인할 수 있습니다.'), node('code', 'agent-workflow create --help'));
     contextFragment.append(empty); replaceKeepingFocus($('task-context'), contextFragment); replaceKeepingFocus($('detail'), fragment); return;
@@ -236,9 +268,11 @@ function renderDetail() {
   if (held) eyebrow.append(badge('held'));
   if (release?.stage === 'deployed') eyebrow.append(badge('deployed'));
   const path = node('div', null, 'project-path'); path.append(icon('folder'), node('span', task.project));
-  head.append(eyebrow, node('h2', task.goal, 'detail-title'), path);
+  const headline = node('h2', task.goal.length > 160 ? `${task.goal.slice(0, 160)}…` : task.goal, 'detail-title');
+  head.append(eyebrow, headline, path);
+  if (task.goal.length > 160) { const full = node('details', null, 'goal-details'); full.append(node('summary', '전체 작업 목표'), node('p', task.goal)); head.append(full); }
   const meta = node('div', null, 'task-meta');
-  meta.append(agentMeta(task.owner, '구현'), agentMeta(task.reviewer, '리뷰', true));
+  meta.append(agentMeta(task.agent_names?.implement || task.owner, '구현'), agentMeta(task.agent_names?.review || task.reviewer, '리뷰', true));
   const stale = task.status === 'completed' && current === false;
   const evidenceText = observationError ? '현재 상태 관찰 불가' : stale ? '코드·입력 또는 보호 경로 변경 · 재검증 필요' : task.status === 'completed' && current === true ? '현재 코드의 완료 증거 확인됨' : task.status === 'completed' ? (detail ? '현재 완료 증거를 판정할 수 없습니다' : '완료 증거 확인 중') : '실제 검사 결과를 기준으로 진행';
   const evidence = node('span', null, `evidence-note${observationError ? ' unobservable' : stale ? ' stale' : current ? '' : ' neutral'}`); evidence.append(icon(observationError || stale ? 'alert' : current ? 'shield' : 'clock'), node('span', evidenceText)); meta.append(evidence);
@@ -311,14 +345,15 @@ function renderDetail() {
   grid.append(context, activity); fragment.append(grid); replaceKeepingFocus($('detail'), fragment);
 }
 function renderJobs() {
-  const jobs = [...scopedJobs()].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  const jobs = [...(state.projectData?.executions || scopedJobs())].map(entry => ({...state.jobs.find(j => j.id === entry.job_id), ...entry, id: entry.job_id || entry.id, created_at: entry.created_at || entry.started_at})).sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running') || String(b.created_at || '').localeCompare(String(a.created_at || '')));
   const key = JSON.stringify([jobs, state.busy, state.project, state.tasks.map(task => [task.id, task.hold])]); if (key === state.jobsKey) return; state.jobsKey = key;
-  $('queue-count').textContent = String(jobs.filter((job) => ['queued', 'running'].includes(job.status)).length);
+  $('queue-count').textContent = String(jobs.length);
   const fragment = document.createDocumentFragment();
   for (const job of jobs.slice(0, 25)) {
     const row = node('div', null, 'job'), glyph = node('div', null, 'job-icon'), start = node('div'); glyph.append(icon(job.action === 'release' ? 'rocket' : 'code'));
     start.append(node('div', `${job.task_id} · ${job.action === 'release' ? '통합 · 배포' : '구현 · 검증'}`, 'job-title'));
-    const meta = node('div', null, 'job-meta'); meta.append(node('span', date(job.created_at)), node('span', String(job.id).slice(0, 8))); start.append(meta);
+    const open = node('button', '작업 보기', 'button small'); open.type = 'button'; open.dataset.focus = `execution-${job.id}`; open.addEventListener('click', () => selectTask(job.task_id)); start.append(open);
+    const meta = node('div', null, 'job-meta'); meta.append(node('span', job.source === 'direct' ? '직접 실행' : '큐 실행'), node('span', date(job.created_at)), node('span', String(job.id).slice(0, 8))); start.append(meta);
     if (job.error) start.append(node('div', textValue(job.error), 'job-error'));
     if (job.log_path) {
       const log = node('details', null, 'event-raw'); log.open = expandedLogs.has(job.id);
@@ -338,21 +373,21 @@ function renderJobs() {
     const end = node('div', null, 'job-end'); end.append(badge(job.status));
     const held = Boolean(state.tasks.find(task => task.id === job.task_id)?.hold);
     if (held && job.status === 'queued') end.append(badge('held'));
-    if (job.status === 'queued') {
-      const button = node('button', '대기 취소', 'button small'); button.type = 'button'; button.dataset.focus = `cancel-${job.id}`; button.disabled = state.busy;
+    if (job.status === 'queued' && job.source !== 'direct') {
+      const button = node('button', '대기 취소', 'button small'); button.type = 'button'; button.dataset.focus = `cancel-${job.id}`; button.disabled = state.busy || state.readOnly;
       button.setAttribute('aria-label', `${job.task_id} 실행 대기 취소`); button.addEventListener('click', () => mutate('/api/cancel', { job_id: job.id }, '실행 대기를 취소했습니다.')); end.append(button);
     }
-    if (job.status === 'running') {
+    if (job.status === 'running' && job.source !== 'direct') {
       const button = node('button', job.cancel_requested ? '중단 요청됨' : '실행 중단', 'button small');
-      button.type = 'button'; button.dataset.focus = `stop-${job.id}`; button.disabled = state.busy || Boolean(job.cancel_requested);
+      button.type = 'button'; button.dataset.focus = `stop-${job.id}`; button.disabled = state.busy || state.readOnly || Boolean(job.cancel_requested);
       button.setAttribute('aria-label', `${job.task_id} 실행 중단`);
       button.addEventListener('click', () => mutate('/api/stop', { job_id: job.id }, '이 실행에 중단을 요청했습니다. 파일 변경은 보존합니다.'));
       end.append(button);
     }
-    if (['failed', 'interrupted', 'cancelled'].includes(job.status)) {
+    if (['failed', 'interrupted', 'cancelled'].includes(job.status) && job.source !== 'direct') {
       const active = state.jobs.some(other => other.task_id === job.task_id && ['queued', 'running'].includes(other.status));
       const button = node('button', '재개', 'button small'); button.type = 'button'; button.dataset.focus = `resume-${job.id}`;
-      button.disabled = state.busy || active || held; button.setAttribute('aria-label', `${job.task_id} 실행 재개`);
+      button.disabled = state.busy || state.readOnly || active || held; button.setAttribute('aria-label', `${job.task_id} 실행 재개`);
       button.addEventListener('click', () => mutate('/api/resume', { job_id: job.id }, '같은 작업을 이전 실행 설정으로 대기열에 등록했습니다.')); end.append(button);
     }
     row.append(glyph, start, end); fragment.append(row);
@@ -395,26 +430,39 @@ async function mutate(path, payload, success) {
 }
 async function loadDetail(id) {
   if (!id) return;
-  try { const result = await request(`/api/tasks/${encodeURIComponent(id)}`); if (id !== state.selected) return; state.detail = result; renderDetail(); }
-  catch (error) { if (id === state.selected) notice('error', `상세 기록: ${error.message}`); }
+  const generation = state.generation;
+  try { const result = await request(`/api/tasks/${encodeURIComponent(id)}`); if (id !== state.selected || generation !== state.generation) return; state.detail = result; renderDetail(); }
+  catch (error) { if (id === state.selected && generation === state.generation) notice('error', `상세 기록: ${error.message}`); }
 }
 async function refresh() {
   if (state.polling) return;
   state.polling = true; $('refresh').disabled = true;
+  const generation = state.generation;
   try {
-    const result = await request('/api/state');
+    const discovery = await request('/api/connections');
+    if (generation !== state.generation) return;
+    renderConnections(discovery);
+    const result = await request('/api/state?compact=1');
+    if (generation !== state.generation) return;
+    if (result.ledger) state.ledger = result.ledger;
+    $('ledger-hint').textContent = result.state_home || 'connect로 프로젝트를 연결하세요.';
+    state.projectData = await request(`/api/project-observability?project=${encodeURIComponent(state.project)}`);
+    if (generation !== state.generation) return;
+    state.connected = true;
+    state.readOnly = result.read_only === true;
+    $('new-task').disabled = state.readOnly;
     state.tasks = Array.isArray(result.tasks) ? result.tasks : []; state.jobs = Array.isArray(result.jobs) ? result.jobs : []; state.token = result.csrf_token;
     state.profiles = Array.isArray(result.profiles) ? result.profiles : [];
     state.notifications = Array.isArray(result.notifications) ? result.notifications : [];
     renderProfiles(); renderProjects(); renderNotifications(); renderSettings(result);
     $('version').textContent = result.version ? `v${result.version}` : '';
-    $('daemon').textContent = result.daemon?.running ? '실행 서비스 가동 중' : '실행 서비스 중지됨';
+    $('daemon').textContent = state.readOnly ? '조회 전용 · 작업 실행 꺼짐' : result.daemon?.running ? '실행 서비스 가동 중' : '실행 서비스 중지됨';
     $('connection-dot').className = 'dot online'; $('connection-label').textContent = '로컬 연결됨';
     $('last-updated').textContent = `최근 동기화 ${new Date().toLocaleTimeString('ko-KR', { hour12: false })}`; notice('error', '');
-    if (!scopedTasks().some((task) => task.id === state.selected)) { state.selected = scopedTasks()[0]?.id || null; state.detail = null; state.detailKey = ''; }
+    if (!scopedTasks().some((task) => task.id === state.selected)) { state.selected = null; state.detail = null; state.detailKey = ''; }
     renderOverview(); renderList(); renderDetail(); renderJobs(); await loadDetail(state.selected);
-  } catch (error) { $('connection-dot').className = 'dot offline'; $('connection-label').textContent = '연결 확인 필요'; $('settings-connection').textContent = '연결 확인 필요 · 마지막 기록 유지'; notice('error', `${error.message} 자동으로 다시 연결합니다.`); }
-  finally { state.polling = false; $('refresh').disabled = false; $('loading').hidden = true; }
+  } catch (error) { state.connected = false; renderDetail(); $('connection-dot').className = 'dot offline'; $('connection-label').textContent = '연결 확인 필요'; $('settings-connection').textContent = '연결 확인 필요 · 마지막 기록 유지'; notice('error', `${error.message} 자동으로 다시 연결합니다.`); }
+  finally { state.polling = false; $('refresh').disabled = false; $('loading').hidden = true; if (generation !== state.generation) refresh(); }
 }
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
@@ -457,7 +505,10 @@ function renderNotifications() {
   $('notifications').replaceChildren(fragment);
 }
 $('new-task').addEventListener('click', () => {
+  const related = state.profiles.find(item => item.config?.project === state.project);
+  if (related) $('create-profile').value = related.name;
   const profile = state.profiles.find(item => item.name === $('create-profile').value);
+  profileHint();
   $('create-isolate').checked = profile?.config?.workspace?.isolate !== false;
   closeSidebar(false); notice('create-error', ''); $('create-dialog').showModal();
 });
@@ -472,7 +523,7 @@ $('create-form').addEventListener('submit', async event => {
   state.busy = true; $('create-submit').disabled = true; notice('create-error', '');
   try {
     if (!state.token) throw new Error('서버 연결 후 다시 시도하세요.');
-    const payload = { id: $('create-id').value.trim(), profile: $('create-profile').value,
+    const payload = { id: $('create-id').value.trim(), agent_names: { implement: $('create-agent-name').value.trim(), review: $('create-reviewer-name').value.trim() }, profile: $('create-profile').value,
       goal: $('create-goal').value.trim(), criteria: $('create-criteria').value.split('\n').map(line => line.trim()).filter(Boolean), isolate: $('create-isolate').checked };
     const result = await request('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Workflow-Token': state.token }, body: JSON.stringify(payload) });
     state.selected = result.task.id; state.detail = null; state.detailKey = '';
@@ -550,7 +601,7 @@ function openTaskSearch() {
 }
 function renderSettings(result) {
   $('settings-connection').textContent = '로컬 컨트롤러 연결됨';
-  $('settings-daemon').textContent = result.daemon?.running ? '실행 서비스 가동 중' : '실행 서비스 중지됨';
+  $('settings-daemon').textContent = state.readOnly ? '조회 전용 · 작업 실행 꺼짐' : result.daemon?.running ? '실행 서비스 가동 중' : '실행 서비스 중지됨';
   $('settings-version').textContent = result.version ? `v${result.version}` : '버전 미기록';
   const fragment = document.createDocumentFragment();
   for (const profile of state.profiles) {
@@ -570,11 +621,12 @@ function applyPreferences() {
 }
 $('workspace-project').addEventListener('change', () => {
   state.project = $('workspace-project').value;
+  state.generation++; state.projectData = null;
   try { localStorage.setItem('agent-workflow-project', state.project); } catch (_) { /* optional persistence */ }
   if (!scopedTasks().some(task => task.id === state.selected)) {
-    state.selected = scopedTasks()[0]?.id || null; state.detail = null; state.detailKey = '';
+    state.selected = null; state.detail = null; state.detailKey = '';
   }
-  renderProjects(); renderOverview(); renderList(); renderDetail(); renderJobs(); renderNotifications(); loadDetail(state.selected);
+  renderProjects(); renderOverview(); renderList(); renderDetail(); renderJobs(); renderNotifications(); loadDetail(state.selected); refresh();
 });
 document.querySelectorAll('.workspace-navigation [data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
 $('command-search').addEventListener('click', openTaskSearch);
@@ -601,6 +653,33 @@ document.addEventListener('keydown', (event) => {
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
   }
 });
+
+function renderConnections(result) {
+  state.connections = result.ledgers || [];
+  const key = JSON.stringify(state.connections.map(item => [item.id,item.home,item.task_count]));
+  const select = $('workspace-ledger');
+  if (select.dataset.key !== key) {
+    select.dataset.key = key;
+    const options = state.connections.map(item => {
+      const option = node('option', `${projectName(item.home)} · ${item.task_count}개 작업`); option.value = item.id; return option;
+    });
+    if (!options.length) { const empty = node('option', '발견한 원장 없음'); empty.value = ''; options.push(empty); }
+    select.replaceChildren(...options);
+  }
+  if (state.ledger && !state.connections.some(item => item.id === state.ledger)) state.ledger = '';
+  if (!state.ledger) state.ledger = state.connections.find(item => item.task_count)?.id || state.connections[0]?.id || '';
+  select.value = state.ledger;
+  select.title = (result.warnings || []).map(w => typeof w === 'string' ? w : JSON.stringify(w)).join('\n');
+  try { localStorage.setItem('agent-workflow-ledger', state.ledger); } catch (_) {}
+}
+$('workspace-ledger').addEventListener('change', () => {
+  state.ledger = $('workspace-ledger').value; state.generation++; state.tasks = []; state.jobs = []; state.profiles = []; state.readOnly = true; state.selected = null; state.detail = null; state.project = ''; state.projectData = null;
+  state.listKey = ''; state.detailKey = ''; state.jobsKey = '';
+  try { localStorage.setItem('agent-workflow-ledger', state.ledger); } catch (_) {}
+  renderDetail(); refresh();
+});
+$('project-room').addEventListener('click', () => { state.selected = null; state.detail = null; state.detailKey = ''; renderList(); renderDetail(); });
+
 setSidebar(false); applyPreferences(); showView(state.view, false);
 refresh(); setInterval(() => { if (!document.hidden) refresh(); }, 4000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });

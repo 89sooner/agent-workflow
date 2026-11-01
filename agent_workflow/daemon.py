@@ -95,7 +95,11 @@ def enqueue(store, task_id, action="pipeline", timeout=None, repairs=None, recov
 
 def list_jobs(store):
     """Return job dicts newest first, including historical terminal jobs."""
-    init_queue(store)
+    if getattr(store, "read_only", False):
+        if not store.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", ("jobs",)).fetchone():
+            return []
+    else:
+        init_queue(store)
     return [dict(row) for row in store.db.execute("SELECT * FROM jobs ORDER BY rowid DESC")]
 
 

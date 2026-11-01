@@ -34,16 +34,21 @@ async function until(check, timeout = 15000) {
   throw new Error('Expected browser/API state was not observed before deadline');
 }
 async function pickTask(id) {
+  const opener = page.locator('#navigation-toggle');
+  if (await opener.isVisible() && await opener.getAttribute('aria-expanded') !== 'true') await opener.click();
+  await page.locator('#search').fill(id);
   await page.locator('.task-item').filter({ hasText: id }).click();
   await until(async () => await page.locator('.detail-header .task-id').textContent() === id);
+  await page.locator('#search').fill('');
   await until(async () => (await page.locator('.obs-task-line').textContent()).includes(id));
 }
 try {
   await page.goto(fixture.url);
   await page.locator('#loading').waitFor({ state: 'hidden' });
+  await pickTask('OBS-TRACE');
   await until(async () => await page.locator('#observatory-graph .obs-node').count() === 6);
-  assert.equal(await page.locator('.obs-station[data-actor="claude:implement"]').count(), 1);
-  assert.equal(await page.locator('.obs-station[data-actor="codex:review"]').count(), 1);
+  assert.equal(await page.locator('.obs-station.role-implement').count(), 2);
+  assert.equal(await page.locator('.obs-station.role-review').count(), 2);
   assert.match(await page.locator('#observatory-graph').textContent(), /수정 요청/);
   assert.equal(logs.length, 0);
   await page.locator('#observatory-graph .obs-node').nth(2).click();
@@ -106,7 +111,7 @@ try {
 
   await pickTask('OBS-LIVE');
   await page.getByRole('button', { name: '워크플로 실행', exact: true }).click();
-  await page.locator('.obs-station[data-actor="claude:implement"].is-active').waitFor({ timeout: 15000 });
+  await page.locator('.obs-station.role-implement.is-active').waitFor({ timeout: 15000 });
   await page.getByRole('button', { name: '작업 보류', exact: true }).click();
   await page.locator('#hold-reason').fill('브라우저 검증: 다음 단계 전에 사람 확인');
   await page.locator('#hold-submit').click();

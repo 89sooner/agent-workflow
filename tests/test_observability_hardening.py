@@ -79,9 +79,11 @@ class ObservationHardeningTests(unittest.TestCase):
         set_hold(self.store, task["id"], "current hold, after old run")
         observed = view(self.store, task["id"], run_id)
         actors = {actor["id"]: actor for actor in observed["actors"]}
-        self.assertIn("claude:implement", actors)
-        self.assertEqual(actors["claude:implement"]["status"], "succeeded")
-        self.assertEqual(observed["spans"][0]["actor"], "claude:implement")
+        actor_id = "agent:" + observed["spans"][0]["id"]
+        self.assertIn(actor_id, actors)
+        self.assertEqual(actors[actor_id]["status"], "succeeded")
+        self.assertEqual(actors[actor_id]["provider"], "claude")
+        self.assertEqual(observed["spans"][0]["original_actor"], "claude:implement")
 
     def test_setup_role_is_explicit_when_task_id_matches_checks_directory(self):
         save(self.store, "setup-role", {"project": str(self.project), "workspace": {"isolate": False},

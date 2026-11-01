@@ -54,10 +54,11 @@ async function nav(view, target = page) {
 async function selectTask(id, target = page) {
   const opener = target.locator('#navigation-toggle');
   if (await opener.isVisible() && await opener.getAttribute('aria-expanded') !== 'true') await opener.click();
-  await target.locator('#search').fill('');
+  await target.locator('#search').fill(id);
   await target.locator('#filter').selectOption('all');
   await target.locator('.task-item').filter({ hasText: id }).click();
   await until(async () => await target.locator('.detail-header .task-id').textContent() === id, `${id} selected`);
+  await target.locator('#search').fill('');
   await nav('observatory', target);
   await until(async () => (await target.locator('.obs-task-line').textContent()).includes(id), `${id} observed`);
 }
@@ -141,8 +142,8 @@ try {
   await assertNoContinuousFrames('completed run');
 
   const trace = await (await page.request.get(`${fixture.url}/api/observability?task_id=OBS-TRACE`)).json();
-  const implementation = trace.spans.filter(span => span.actor === 'claude:implement').at(-1);
-  const marker = page.locator('.scene3d-label[data-scene-actor="claude:implement"]');
+  const implementation = trace.spans.filter(span => span.role === 'implement').at(-1);
+  const marker = page.locator(`.scene3d-label[data-scene-actor="${implementation.actor}"]`);
   await until(async () => Number(await marker.getAttribute('data-anchor-x')) > 0, 'projected actor anchor');
   const host = await page.locator('#observatory-scene').boundingBox();
   const x = Number(await marker.getAttribute('data-anchor-x')), y = Number(await marker.getAttribute('data-anchor-y'));
@@ -153,7 +154,7 @@ try {
   await until(async () => Number(await page.locator('#observatory-scene').getAttribute('data-scene-zoom')) > 1, 'camera zoom');
   await page.locator('#observatory-reset-camera').click();
   await until(async () => Number(await page.locator('#observatory-scene').getAttribute('data-scene-zoom')) === 1, 'camera reset');
-  await page.locator('.obs-station[data-actor="codex:review"]').click();
+  await page.locator('.obs-station.role-review').last().click();
   assert.match(await page.locator('#observatory-inspector').textContent(), /독립 리뷰/);
   console.log(`PASS actual Three.js pixels (${palette} colors), raycast selection, graph/inspector synchronization, zoom/reset, idle render loop`);
 
@@ -187,7 +188,7 @@ try {
   await page.locator('#preferences-three-d').uncheck();
   await nav('observatory');
   await until(async () => await page.locator('#observatory-view-list').getAttribute('aria-pressed') === 'true', '3D preference off');
-  await page.locator('.obs-station[data-actor="claude:implement"]').click();
+  await page.locator('.obs-station.role-implement').last().click();
   assert.equal(await page.locator('#observatory-graph .obs-node.is-selected').getAttribute('data-span-id'), implementation.id);
   await assertNoContinuousFrames('list view');
   await page.getByRole('button', { name: '작업 보류', exact: true }).click();
@@ -276,8 +277,9 @@ try {
 
   await selectTask('OBS-LIVE');
   await page.getByRole('button', { name: '워크플로 실행', exact: true }).click();
-  await page.locator('.obs-station[data-actor="claude:implement"].is-active').waitFor({ timeout: 20000 });
+  await page.locator('.obs-station.role-implement.is-active').waitFor({ timeout: 20000 });
   await until(async () => await page.locator('#metric-running').textContent() === '1', 'real running job metric');
+  assert.match(await page.locator('.obs-station.role-implement.is-active').textContent(), /지우 · 실제 배정/);
   await assertAnimating('live managed process animates');
   await snapshot('saas-live');
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -326,7 +328,7 @@ try {
   await selectTask('OBS-LIVE', unsupported);
   await until(async () => await unsupported.locator('#observatory-scene').getAttribute('data-scene-status') === 'unavailable', 'unsupported WebGL fallback');
   assert.equal(await unsupported.locator('#observatory-scene-fallback').isVisible(), true);
-  await unsupported.locator('.obs-station[data-actor="claude:implement"]').click();
+  await unsupported.locator('.obs-station.role-implement').last().click();
   assert.match(await unsupported.locator('#observatory-inspector').textContent(), /구현/);
   await unsupported.getByRole('button', { name: '보류 해제', exact: true }).click();
   await unsupported.getByRole('button', { name: '워크플로 실행', exact: true }).waitFor();
@@ -349,7 +351,7 @@ try {
   assert.equal(lossSupported, true);
   await until(async () => await page.locator('#observatory-scene').getAttribute('data-scene-status') === 'unavailable', 'lost context fallback');
   assert.equal(await page.locator('#observatory-scene-fallback').isVisible(), true);
-  assert.equal(await page.locator('.obs-station[data-actor="claude:implement"]').isEnabled(), true);
+  assert.equal(await page.locator('.obs-station.role-implement').last().isEnabled(), true);
   assert.deepEqual(external, []);
   assert.deepEqual(cspErrors, []);
   assert.deepEqual(errors, []);

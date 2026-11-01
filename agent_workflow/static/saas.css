@@ -212,3 +212,27 @@ html[data-motion="reduce"] *, html[data-motion="reduce"] *::before, html[data-mo
   .main-footer { align-items: flex-start; gap: 8px; flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) { .sidebar, .setting-row input[role="switch"]::after { transition: none; } }
+
+/* Connections and project overview keep identities visible without expanding goals. */
+.ledger-switch { margin-bottom: 12px; }
+.ledger-switch small { display: block; color: #9facc0; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; margin-top: 6px; }
+.project-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+#agent-summary { color: var(--muted); font-size: 12px; }
+.task-goal { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.task-owner { color: #b7cec8; font-size: 10px; margin-top: 5px; }
+.completed-tasks > summary { color: #bdc9d9; font-size: 11px; padding: 12px 4px; cursor: pointer; }
+.completed-tasks { width: 100%; }
+.completed-tasks .task-item { width: 100%; margin-top: 4px; }
+.task-context .detail-title { max-width: 85ch; }
+.agent-name-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.project-toolbar .button { transition: background 160ms cubic-bezier(.23,1,.32,1); }
+@media (max-width: 680px) { .agent-name-fields { grid-template-columns: 1fr; } }
+
+.goal-details { color: var(--muted); font-size: 11px; margin-top: 8px; }
+.goal-details p { white-space: pre-wrap; max-height: 240px; overflow: auto; }
+.project-activity { border: 1px solid var(--line); background: var(--panel); border-radius: 11px; padding: 16px; margin: 12px 0; }
+.project-activity h2 { font-size: 13px; margin: 0 0 10px; }
+.project-event-list { list-style: none; padding: 0; margin: 0; }
+.project-event-list li { display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--line); padding: 4px 0; }
+.project-event-list time { color: var(--muted); flex: 0 0 auto; font-size: 10px; }
+.project-event-list button { text-align: left; overflow-wrap: anywhere; font-size: 11px; }

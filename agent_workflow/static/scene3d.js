@@ -25,9 +25,10 @@ export function createOffice(container, { onSelectActor = () => {}, onAvailabili
   let renderer, controls, frame = null, disposed = false, unavailable = false;
   let intersecting = true, announced = false, drawCount = 0, lastAnimation = 0;
   let width = 0, height = 0, actorKey = '', edgeKey = '', pointerStart = null;
-  const state = { actors: [], edges: [], selectedActor: null, connected: false, replaying: false, visible: true, reducedMotion: false, theme: 'light' };
+  const state = { actors: [], edges: [], transfers: [], scope: null, selectedActor: null, connected: false, replaying: false, visible: true, reducedMotion: false, theme: 'light' };
   const geometries = new Map(), materials = new Map(), resources = new Set();
-  const stations = new Map(), targets = [], edgesGroup = new Group();
+  const stations = new Map(), targets = [], edgesGroup = new Group(), transfers = new Map(), seenTransfers = new Set();
+  let currentScope = null, stationGeneration = 0;
   const scene = new Scene();
   const camera = new OrthographicCamera(-10, 10, 6, -6, .1, 100);
   const raycaster = new Raycaster(), pointer = new Vector2();
@@ -248,11 +249,13 @@ export function createOffice(container, { onSelectActor = () => {}, onAvailabili
     group.traverse(object => { if (object.isMesh) { object.userData.actorId = actor.id; targets.push(object); } });
     const label = document.createElement('div'); label.className = 'scene3d-label'; label.dataset.sceneActor = actor.id;
     label.style.setProperty('--scene-agent-color', accent);
-    const labelText = document.createElement('span'); labelText.className = 'scene3d-label-name'; label.append(labelText); labels.append(label);
-    return { actor, group, robot, head, hands, ringMat, eyeMat, screenMat, label, labelText, anchor: new Vector3(0, 1.80, -.48), baseHeadY: head.position.y, accent, collar };
+    const labelText = document.createElement('span'); labelText.className = 'scene3d-label-name';
+    const labelStatus = document.createElement('span'); labelStatus.className = 'scene3d-label-status';
+    label.append(labelText, labelStatus); labels.append(label); label.dataset.stationGeneration = String(++stationGeneration);
+    return { actor, group, robot, head, hands, ringMat, eyeMat, screenMat, label, labelText, labelStatus, transition: null, arrivedAt: null, completedAt: null, anchor: new Vector3(0, 1.80, -.48), baseHeadY: head.position.y, accent, collar };
   }
   function layoutActors(actors) {
-    const ordered = [...actors].sort((a, b) => ROLE_ORDER.indexOf(roleOf(a.role)) - ROLE_ORDER.indexOf(roleOf(b.role)));
+    const ordered = [...actors].sort((a, b) => ROLE_ORDER.indexOf(roleOf(a.role)) - ROLE_ORDER.indexOf(roleOf(b.role)) || a.id.localeCompare(b.id));
     if (ordered.length <= 5) {
       const spots = {
         controller: { x: -4.30, z: -1.75, rotation: .08 },
@@ -264,26 +267,50 @@ export function createOffice(container, { onSelectActor = () => {}, onAvailabili
       const occupied = new Set();
       if (ordered.every(actor => { const role = roleOf(actor.role); if (occupied.has(role)) return false; occupied.add(role); return true; })) return ordered.map(actor => [actor, spots[roleOf(actor.role)]]);
     }
-    const columns = Math.min(4, Math.max(1, Math.ceil(ordered.length / 2)));
-    return ordered.map((actor, index) => [actor, { x: (index % columns - (columns - 1) / 2) * 3.3, z: index < columns ? -1.9 : 1.9, rotation: 0 }]);
+    const columns = Math.min(4, Math.max(1, Math.ceil(ordered.length / 2))), rows = Math.ceil(ordered.length / columns);
+    const scale = rows > 2 ? .72 : .88;
+    return ordered.map((actor, index) => [actor, { x: (index % columns - (columns - 1) / 2) * 3.25, z: (Math.floor(index / columns) - (rows - 1) / 2) * (rows > 2 ? 2.6 : 3.8), rotation: 0, scale }]);
+  }
+  function removeStation(station) {
+    scene.remove(station.group); station.label.remove();
+    for (const mat of [station.ringMat, station.eyeMat, station.screenMat]) { mat.dispose(); resources.delete(mat); }
   }
   function removeStations() {
-    for (const station of stations.values()) {
-      scene.remove(station.group); station.label.remove();
-      for (const mat of [station.ringMat, station.eyeMat, station.screenMat]) { mat.dispose(); resources.delete(mat); }
-    }
+    for (const station of stations.values()) removeStation(station);
     stations.clear(); targets.length = 0;
+  }
+  function motionAllowed() { return canDraw() && !state.reducedMotion && state.connected && !state.replaying; }
+  function restPose(station) {
+    station.head.rotation.set(0, 0, 0); station.head.position.y = station.baseHeadY;
+    station.robot.position.z = -.66;
+    for (const hand of station.hands) hand.position.y = 1.48;
   }
   function updateActors() {
     const nextKey = JSON.stringify(state.actors.map(actor => [actor.id, actor.role]));
-    if (nextKey !== actorKey) {
-      removeStations();
-      for (const [actor, position] of layoutActors(state.actors)) stations.set(actor.id, makeStation(actor, position));
+    const layoutChanged = nextKey !== actorKey, hadStations = stations.size > 0;
+    if (layoutChanged) {
+      const ids = new Set(state.actors.map(actor => actor.id));
+      for (const [id, station] of stations) if (!ids.has(id)) { removeStation(station); stations.delete(id); }
+      for (const [actor, position] of layoutActors(state.actors)) {
+        let station = stations.get(actor.id);
+        if (!station) {
+          station = makeStation(actor, position); stations.set(actor.id, station);
+          if (hadStations && actor.active && motionAllowed()) station.arrivedAt = performance.now();
+        }
+        const target = new Vector3(position.x, 0, position.z);
+        if (!station.group.position.equals(target) && motionAllowed()) {
+          station.transition = { from: station.group.position.clone(), to: target, started: performance.now() };
+        } else { station.group.position.copy(target); station.transition = null; }
+        station.group.scale.setScalar(position.scale || 1); station.group.rotation.y = position.rotation || 0;
+      }
+      targets.length = 0;
+      for (const station of stations.values()) station.group.traverse(object => { if (object.isMesh) targets.push(object); });
       renderer.shadowMap.needsUpdate = true;
       actorKey = nextKey; edgeKey = '';
     }
     for (const actor of state.actors) {
       const station = stations.get(actor.id); if (!station) continue;
+      if (station.actor.status === 'running' && ['succeeded', 'pass', 'ready'].includes(actor.status) && motionAllowed()) station.completedAt = performance.now();
       station.actor = actor;
       const selected = actor.id === state.selectedActor || actor.selected === true;
       const active = actor.active === true && actor.status === 'running' && state.connected && !state.replaying;
@@ -294,11 +321,36 @@ export function createOffice(container, { onSelectActor = () => {}, onAvailabili
       station.eyeMat.color.set(color); station.eyeMat.emissive.set(color); station.eyeMat.emissiveIntensity = active ? .8 : .25;
       station.screenMat.emissiveIntensity = active ? .5 : .12;
       station.labelText.textContent = actor.label || actor.id;
+      station.labelStatus.textContent = !state.connected ? '이전 기록' : state.replaying && actor.status === 'running' ? '당시 실행 중' : actor.statusLabel || actor.status;
+      station.label.title = [actor.label, actor.goal, actor.taskId].filter(Boolean).join(' · ');
       station.label.classList.toggle('is-selected', selected); station.label.classList.toggle('is-active', active);
-      station.label.classList.toggle('is-unavailable', !state.connected);
-      station.head.rotation.set(0, 0, 0); station.head.position.y = station.baseHeadY;
-      for (const hand of station.hands) hand.position.y = 1.48;
+      station.label.classList.toggle('is-unavailable', !state.connected || actor.status === 'unknown');
+      if (!motionAllowed()) {
+        if (station.transition) station.group.position.copy(station.transition.to);
+        station.transition = null; station.arrivedAt = null; station.completedAt = null;
+      }
+      if (!active || !motionAllowed()) restPose(station);
     }
+  }
+  function clearTransfers() {
+    for (const transfer of transfers.values()) scene.remove(transfer.mesh);
+    transfers.clear();
+  }
+  function updateTransfers() {
+    for (const event of state.transfers || []) {
+      if (!event?.id || seenTransfers.has(event.id)) continue;
+      seenTransfers.add(event.id);
+      if (seenTransfers.size > 512) seenTransfers.delete(seenTransfers.values().next().value);
+      const source = stations.get(event.source), target = stations.get(event.target);
+      if (!source || !target || source === target || !motionAllowed()) continue;
+      const from = source.group.position.clone().setY(1.1), to = target.group.position.clone().setY(1.1);
+      const curve = new CubicBezierCurve3(from, from.clone().setY(2.8), to.clone().setY(2.8), to);
+      const mesh = box(scene, .24, .16, .08, event.kind === 'process_started' ? '#a8d5ff' : '#91efbb', from.x, from.y, from.z, .025, { emissive: '#4e8b77', emissiveIntensity: .6 });
+      transfers.set(event.id, { mesh, curve, started: performance.now() });
+      if (event.kind === 'process_started') target.arrivedAt = performance.now();
+      container.dataset.transferCount = String(Number(container.dataset.transferCount || 0) + 1);
+    }
+    if (!motionAllowed()) clearTransfers();
   }
   function updateEdges() {
     const edges = state.edges.filter(edge => stations.has(edge.source) && stations.has(edge.target) && edge.source !== edge.target);
@@ -343,16 +395,30 @@ export function createOffice(container, { onSelectActor = () => {}, onAvailabili
     camera.updateProjectionMatrix(); container.dataset.sceneZoom = camera.zoom.toFixed(3); return true;
   }
   function projectLabels() {
-    for (const station of stations.values()) {
+    const placed = [];
+    const projected = [...stations.values()].map(station => {
       projection.copy(station.anchor); station.group.localToWorld(projection); projection.project(camera);
-      const x = (projection.x + 1) * width / 2, y = (1 - projection.y) * height / 2;
+      return { station, x: (projection.x + 1) * width / 2, y: (1 - projection.y) * height / 2, z: projection.z };
+    }).sort((a,b) => a.y - b.y || a.x - b.x);
+    for (const {station,x,y,z} of projected) {
       station.label.dataset.anchorX = x.toFixed(1); station.label.dataset.anchorY = y.toFixed(1);
-      station.label.style.left = `${x}px`; station.label.style.top = `${y - 18}px`;
-      station.label.hidden = projection.z < -1 || projection.z > 1 || x < 0 || x > width || y < 0 || y > height;
+      station.label.hidden = z < -1 || z > 1 || x < 0 || x > width || y < 0 || y > height;
+      if (station.label.hidden) continue;
+      const w = station.label.offsetWidth, h = station.label.offsetHeight;
+      const left = clamp(x - w / 2, 4, Math.max(4, width - w - 4));
+      let top = clamp(y - 18 - h, 4, Math.max(4, height - h - 4));
+      for (let attempt = 0; attempt < 24; attempt++) {
+        const overlap = placed.some(rect => left < rect.right + 4 && left + w > rect.left - 4 && top < rect.bottom + 4 && top + h > rect.top - 4);
+        if (!overlap) break;
+        const offset = (Math.floor(attempt / 2) + 1) * (h + 5) * (attempt % 2 ? 1 : -1);
+        top = clamp(y - 18 - h + offset, 4, Math.max(4, height - h - 4));
+      }
+      placed.push({left,right:left+w,top,bottom:top+h});
+      station.label.style.left = `${left + w / 2}px`; station.label.style.top = `${top + h}px`;
     }
   }
   function canDraw() { return !disposed && !unavailable && state.visible && intersecting && !document.hidden; }
-  function animated() { return canDraw() && !state.reducedMotion && state.connected && !state.replaying && state.actors.some(actor => actor.active === true && actor.status === 'running'); }
+  function animated() { return motionAllowed() && (transfers.size > 0 || [...stations.values()].some(station => station.transition || station.arrivedAt != null || station.completedAt != null || station.actor.active && station.actor.status === 'running')); }
   function draw(time = 0) {
     frame = null;
     if (!canDraw() || !fitCamera()) return;
@@ -360,15 +426,40 @@ export function createOffice(container, { onSelectActor = () => {}, onAvailabili
     if (animate && time - lastAnimation < 32) { frame = requestAnimationFrame(draw); return; }
     lastAnimation = time;
     if (animate) {
-      let index = 0;
+      let index = 0, layoutMoving = false;
       for (const station of stations.values()) {
+        if (station.transition) {
+          const progress = clamp((time - station.transition.started) / 600, 0, 1), eased = progress * progress * (3 - 2 * progress);
+          station.group.position.lerpVectors(station.transition.from, station.transition.to, eased);
+          layoutMoving = true;
+          if (progress >= 1) station.transition = null;
+        }
+        if (station.arrivedAt != null) {
+          const progress = clamp((time - station.arrivedAt) / 650, 0, 1);
+          station.robot.position.z = -.66 - Math.pow(1 - progress, 3) * .75;
+          if (progress >= 1) station.arrivedAt = null;
+        }
+        if (station.completedAt != null) {
+          const progress = clamp((time - station.completedAt) / 700, 0, 1);
+          station.ringMat.opacity = .15 + Math.sin(progress * Math.PI) * .7;
+          if (progress >= 1) { station.completedAt = null; station.ringMat.opacity = station.actor.selected ? .95 : .08; }
+        }
         if (!station.actor.active || station.actor.status !== 'running') continue;
         const t = time * .003 + index++;
-        station.head.rotation.z = Math.sin(t) * .018;
-        station.head.position.y = station.baseHeadY + Math.sin(t * .7) * .008;
-        station.hands.forEach((hand, i) => { hand.position.y = 1.48 + Math.sin(t * 3 + i * Math.PI) * .018; });
+        station.head.rotation.z = Math.sin(t) * .04;
+        station.head.rotation.y = Math.sin(t * .6) * .10;
+        station.head.position.y = station.baseHeadY + Math.sin(t * .7) * .018;
+        station.hands.forEach((hand, i) => { hand.position.y = 1.48 + Math.sin(t * 3 + i * Math.PI) * .045; });
         station.eyeMat.emissiveIntensity = .7 + Math.sin(t * .8) * .12;
+        station.screenMat.emissiveIntensity = .4 + Math.sin(t * 1.2) * .15;
       }
+      for (const [id, transfer] of transfers) {
+        const progress = clamp((time - transfer.started) / 750, 0, 1);
+        transfer.mesh.position.copy(transfer.curve.getPoint(progress)); transfer.mesh.rotation.y = progress * Math.PI;
+        if (progress >= 1) { scene.remove(transfer.mesh); transfers.delete(id); }
+      }
+      if (layoutMoving) { edgeKey = ''; updateEdges(); renderer.shadowMap.needsUpdate = true; }
+
     }
     try {
       renderer.render(scene, camera); projectLabels(); container.dataset.renderCount = String(++drawCount);
@@ -419,13 +510,14 @@ export function createOffice(container, { onSelectActor = () => {}, onAvailabili
     update(next = {}) {
       if (disposed || unavailable) return;
       Object.assign(state, next);
+      if (currentScope !== state.scope) { currentScope = state.scope; removeStations(); clearTransfers(); seenTransfers.clear(); actorKey = ''; edgeKey = ''; }
       state.actors = Array.isArray(state.actors) ? state.actors.filter(actor => actor && typeof actor.id === 'string') : [];
       state.edges = Array.isArray(state.edges) ? state.edges.filter(edge => edge && typeof edge.source === 'string' && typeof edge.target === 'string') : [];
       renderer.setClearColor(state.theme === 'dark' ? '#17232e' : '#25333f', 1);
-      updateActors(); updateEdges();
+      updateActors(); updateEdges(); updateTransfers();
       if (!canDraw()) stop(); else invalidate();
     },
-    setVisible(visible) { state.visible = Boolean(visible); if (canDraw()) invalidate(); else stop(); },
+    setVisible(visible) { state.visible = Boolean(visible); if (canDraw()) invalidate(); else { stop(); clearTransfers(); } },
     reset,
     zoom(delta) {
       if (disposed || unavailable || !Number.isFinite(Number(delta))) return;
@@ -440,7 +532,7 @@ export function createOffice(container, { onSelectActor = () => {}, onAvailabili
       renderer.domElement.removeEventListener('pointercancel', onCancel); renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
       document.removeEventListener('visibilitychange', onVisibility); coarsePointer?.removeEventListener?.('change', onPointerMode);
       window.removeEventListener('resize', invalidate);
-      removeStations();
+      removeStations(); clearTransfers();
       for (const value of geometries.values()) value.dispose();
       for (const value of materials.values()) value.dispose();
       for (const value of resources) value.dispose?.();

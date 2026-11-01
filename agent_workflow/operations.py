@@ -19,7 +19,11 @@ def init_notifications(store):
 
 
 def notifications(store):
-    init_notifications(store)
+    if getattr(store, "read_only", False):
+        if not store.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", ("notifications",)).fetchone():
+            return []
+    else:
+        init_notifications(store)
     return [json.loads(row[0]) for row in store.db.execute("SELECT data FROM notifications ORDER BY rowid DESC LIMIT 100")]
 
 

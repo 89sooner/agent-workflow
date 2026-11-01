@@ -1,5 +1,5 @@
 /* The 3D room, graph and native controls share one replay-safe view model. */
-.observatory { --obs-purple:#b4a1e5; --obs-purple-bg:#30283f; --obs-stage-height:clamp(280px,23vw,350px); min-width:0; margin-bottom:18px; color:var(--text); }
+.observatory { --obs-purple:#b4a1e5; --obs-purple-bg:#30283f; --obs-stage-height:clamp(330px,32vw,460px); min-width:0; margin-bottom:18px; color:var(--text); }
 [data-theme="light"] .observatory { --obs-purple:#7c5aac; --obs-purple-bg:#f0eafa; }
 .obs-heading { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
 .obs-task-line { margin:0; height:0; overflow:hidden; }
@@ -235,3 +235,15 @@
 @media (prefers-reduced-motion:reduce) {
   .observatory *, .observatory *::before, .observatory *::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
 }
+
+/* Every card represents a recorded instance; the scene keeps the same keys. */
+.obs-workspace.is-project-view { grid-template-columns:minmax(0,1fr); }
+.obs-stations { grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); max-height:270px; overflow-y:auto; }
+.obs-station { transition:background 180ms cubic-bezier(.23,1,.32,1),border-color 180ms cubic-bezier(.23,1,.32,1),transform 140ms cubic-bezier(.23,1,.32,1); }
+.obs-station:active:not(:disabled) { transform:scale(.98); }
+.obs-goal-details { border:1px solid var(--line); border-radius:8px; padding:10px 12px; color:var(--secondary); font-size:11px; line-height:1.7; }
+.obs-goal-details summary { cursor:pointer; overflow-wrap:anywhere; }
+.obs-goal-details .obs-inspector-block { margin-bottom:0; }
+#observatory-follow[aria-pressed="true"] { color:var(--accent); border-color:var(--accent); background:var(--accent-soft); }
+@media (max-width:720px) { .obs-stations { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (prefers-reduced-motion:reduce) { .obs-station { transition:none; } }
