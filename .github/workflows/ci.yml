@@ -35,7 +35,7 @@ jobs:
         run: |
           python -m pip install . --no-deps
           cd "$RUNNER_TEMP"
-          python -c "from importlib.resources import files; root = files('agent_workflow'); assert all(root.joinpath('static', name).is_file() for name in ('index.html', 'app.js', 'styles.css', 'observatory.js', 'observatory.css', 'saas.css', 'scene3d.js', 'scene3d.css', 'three-vendor.js', 'THREE_LICENSE.txt'))"
+          python -c "from importlib.resources import files; root = files('agent_workflow'); assert all(root.joinpath('static', name).is_file() for name in ('index.html', 'app.js', 'styles.css', 'observatory.js', 'observatory.css', 'saas.css', 'scene3d.js', 'scene3d.css', 'three-vendor.js', 'THREE_LICENSE.txt', 'mission.html', 'mission.js', 'mission.css', 'mission-icon.svg', 'MISSION_LICENSES.txt'))"
 
   browser:
     name: Browser / actual local workflows
@@ -53,6 +53,9 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npm run check:vendor
+          npm run typecheck
+          npm run test:mission
+          npm run check:mission
       - name: Install browser test tools
         run: |
           npm install --prefix "$RUNNER_TEMP/workflow-browser" --no-audit --no-fund playwright@1.51.1
@@ -67,6 +70,7 @@ jobs:
           python tests/ui_integration.py
           python tests/observability_integration.py
           python tests/saas_integration.py
+          python tests/mission_integration.py
       - name: Keep browser evidence
         if: always()
         uses: actions/upload-artifact@v4

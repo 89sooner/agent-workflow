@@ -24,7 +24,7 @@ if (process.argv.includes('--watch')) {
   console.log('Watching the local Three.js vendor entry. Run the Python server separately.');
 } else if (process.argv.includes('--check')) {
   const result = await build({ ...options, write: false });
-  const committed = await readFile(output, 'utf8');
+  const committed = (await readFile(output, 'utf8')).replaceAll('\r\n', '\n');
   if (committed !== result.outputFiles[0].text) {
     console.error('The committed vendor bundle differs from npm run build.');
     process.exitCode = 1;

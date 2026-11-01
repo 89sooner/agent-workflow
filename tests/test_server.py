@@ -55,6 +55,23 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(self.request("/static/app.js")[0], 200)
         self.assertIn("frame-ancestors 'none'", headers["Content-Security-Policy"])
 
+    def test_react_mission_assets_are_local_and_allowlisted(self):
+        for path, mime in (("/mission", "text/html"), ("/mission/", "text/html"),
+                           ("/static/mission.js", "text/javascript"),
+                           ("/static/mission.css", "text/css"),
+                           ("/static/mission-icon.svg", "image/svg+xml"),
+                           ("/static/MISSION_LICENSES.txt", "text/plain")):
+            code, body, headers = self.request(path)
+            self.assertEqual(code, 200)
+            self.assertTrue(body)
+            self.assertTrue(headers["Content-Type"].startswith(mime))
+            self.assertIn("script-src 'self'", headers["Content-Security-Policy"])
+        html = self.request("/mission")[1].decode()
+        self.assertIn('/static/mission.js', html)
+        self.assertNotIn('https://', html)
+        self.assertEqual(self.request('/static/../server.py')[0], 404)
+        self.assertEqual(json.loads(self.request('/api/state')[1])['jobs'], [])
+
     def test_missing_csrf_cannot_queue(self):
         code, _, _ = self.request("/api/queue", {"task_id": "WEB-1"})
         self.assertEqual(code, 403)

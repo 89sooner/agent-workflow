@@ -3,12 +3,25 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/build-frontend.mjs",
+    "build": "node scripts/build-frontend.mjs && node scripts/build-mission.mjs",
     "dev": "node scripts/build-frontend.mjs --watch",
-    "check:vendor": "node scripts/build-frontend.mjs --check"
+    "check:vendor": "node scripts/build-frontend.mjs --check",
+    "build:mission": "node scripts/build-mission.mjs",
+    "dev:mission": "node scripts/build-mission.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "check:mission": "node scripts/build-mission.mjs --check",
+    "test:mission": "node scripts/test-mission.mjs"
   },
   "devDependencies": {
+    "@react-three/fiber": "9.8.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/three": "0.187.0",
     "esbuild": "0.28.2",
-    "three": "0.187.0"
+    "prettier": "3.6.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "three": "0.187.0",
+    "typescript": "7.0.2"
   }
 }
