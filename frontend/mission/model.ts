@@ -110,7 +110,11 @@ export function atEvent(trace: Trace, seq: number | null): Trace {
         (e) => e.span_id === s.id && e.kind === "process_started",
       );
       if (hasStart && !started) return null;
-      const ended = s.ended_at && Date.parse(s.ended_at) <= timestamp;
+      const hasFinish = trace.events.some(
+        (e) => e.span_id === s.id && e.kind === "process_finished",
+      );
+      // Timestamps have second precision. A known later exit must win over a tie.
+      const ended = s.ended_at && Date.parse(s.ended_at) < timestamp;
       // Process exit precedes the structured verdict. Never reveal a later result.
       const resultEvent = events.findLast(
         (e) =>
@@ -126,7 +130,7 @@ export function atEvent(trace: Trace, seq: number | null): Trace {
         ...s,
         status:
           finished?.status ||
-          (hasStart ? "running" : ended ? s.status : "running"),
+          (hasStart || hasFinish ? "running" : ended ? s.status : "running"),
         result: resultEvent?.data,
         error:
           resultEvent?.kind === "agent_failed"

@@ -137,6 +137,27 @@ assert.equal(
   undefined,
   "truncated history cannot infer a verdict",
 );
+// A page can omit the start while retaining a later exit in the same second.
+const truncatedStart = {
+  ...trace,
+  events: [
+    {
+      seq: 1,
+      at: span.ended_at,
+      kind: "checkpoint",
+      actor: "controller",
+      summary: "before exit",
+    },
+    events[1],
+    events[2],
+  ],
+};
+assert.equal(
+  atEvent(truncatedStart, 1).spans[0].status,
+  "running",
+  "same-second future exit cannot leak through timestamp fallback",
+);
+assert.equal(atEvent(truncatedStart, 1).spans[0].ended_at, null);
 console.log(
   "Mission model: replay chronology, identity, actual transfers and bounded selection passed.",
 );
