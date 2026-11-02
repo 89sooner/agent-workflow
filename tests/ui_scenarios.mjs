@@ -29,6 +29,7 @@ const stale = {
   release: { stage: 'configured', error: 'CI 결과를 확인하세요.', config: { base: 'main', branch: 'workflow/test', deploy: ['deploy'] } }
 };
 let tasks = [task, stale], jobs = [], fail = false;
+let projectExecutions = null, readOnly = false;
 let profiles = [{ name: 'fixture-project', config: { project: '/fixture/project', owner: 'claude', reviewer: 'codex' } }];
 const requests = [];
 let events = [{ at: '2026-10-08T00:00:00Z', kind: 'created', data: { summary: '작업 등록됨', source: 'fixture' } }];
@@ -36,8 +37,8 @@ await page.route('**/api/**', async (route) => {
   const req = route.request(), path = new URL(req.url()).pathname;
   if (fail) return route.fulfill({ status: 503, json: { error: '테스트 연결 중단' } });
   if (path === '/api/connections') return route.fulfill({ json: { ledgers: [{ id: 'fixture', home: '/fixture/state', task_count: tasks.length }], warnings: [] } });
-  if (path === '/api/project-observability') return route.fulfill({ json: { schema_version: 1, tasks, agents: [], events: [], executions: jobs } });
-  if (path === '/api/state') return route.fulfill({ json: { tasks, jobs, profiles, notifications: [], daemon: { running: true }, version: 'fixture', csrf_token: 'fixture-token' } });
+  if (path === '/api/project-observability') return route.fulfill({ json: { schema_version: 1, tasks, agents: [], events: [], executions: projectExecutions ?? jobs } });
+  if (path === '/api/state') return route.fulfill({ json: { tasks, jobs, profiles, notifications: [], daemon: { running: true }, version: 'fixture', csrf_token: 'fixture-token', read_only: readOnly } });
   if (path.startsWith('/api/job-log/')) return route.fulfill({ json: { text: '<script>window.unsafe=true</script>\nfixture log output', truncated: false } });
   if (path.startsWith('/api/tasks/')) {
     const selected = tasks.find((t) => t.id === decodeURIComponent(path.split('/').pop()));
@@ -82,6 +83,23 @@ try {
   await page.goto(origin);
   await page.getByRole('heading', { name: '연결된 프로젝트 관제실', exact: true }).waitFor();
   assert.equal(await page.locator('.task-item.selected').count(), 0);
+  // The two APIs can observe different moments. Once jobs catches up, controls must update.
+  const cancelled = { id: 'cache-job', task_id: 'UI-READY', action: 'pipeline', status: 'cancelled' };
+  jobs = [{ ...cancelled, status: 'running' }]; projectExecutions = [cancelled];
+  const refreshSettled = async () => {
+    await page.locator('#refresh').click();
+    await page.waitForFunction(() => !document.getElementById('refresh').disabled);
+  };
+  await refreshSettled(); await page.locator('#nav-runs').click();
+  const cachedResume = page.getByRole('button', { name: 'UI-READY 실행 재개', exact: true });
+  assert.equal(await cachedResume.isDisabled(), true, 'active queue still prevents duplicate resume');
+  jobs = [cancelled]; await refreshSettled();
+  assert.equal(await cachedResume.isDisabled(), false, 'resume must update when only queue activity changes');
+  readOnly = true; await refreshSettled(); assert.equal(await cachedResume.isDisabled(), true);
+  readOnly = false; await refreshSettled(); assert.equal(await cachedResume.isDisabled(), false);
+  jobs = []; projectExecutions = null; await refreshSettled();
+  await page.locator('#nav-observatory').click();
+  console.log('PASS mixed API snapshots refresh resume and read-only controls');
   await page.locator('.task-item').filter({ hasText: 'UI-READY' }).click();
   await waitLoaded();
   assert.equal(await page.locator('#metric-blocked').textContent(), '1');

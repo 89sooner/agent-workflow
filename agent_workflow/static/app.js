@@ -346,7 +346,7 @@ function renderDetail() {
 }
 function renderJobs() {
   const jobs = [...(state.projectData?.executions || scopedJobs())].map(entry => ({...state.jobs.find(j => j.id === entry.job_id), ...entry, id: entry.job_id || entry.id, created_at: entry.created_at || entry.started_at})).sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running') || String(b.created_at || '').localeCompare(String(a.created_at || '')));
-  const key = JSON.stringify([jobs, state.busy, state.project, state.tasks.map(task => [task.id, task.hold])]); if (key === state.jobsKey) return; state.jobsKey = key;
+  const key = JSON.stringify([jobs, state.jobs.map(job => [job.task_id, job.status]), state.busy, state.readOnly, state.project, state.tasks.map(task => [task.id, task.hold])]); if (key === state.jobsKey) return; state.jobsKey = key;
   $('queue-count').textContent = String(jobs.length);
   const fragment = document.createDocumentFragment();
   for (const job of jobs.slice(0, 25)) {
