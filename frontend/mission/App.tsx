@@ -294,6 +294,8 @@ export default function App() {
     !replay &&
     !query.error &&
     !discovery.error &&
+    query.fresh &&
+    discovery.fresh &&
     !!live;
   useEffect(() => {
     if (!live) return;

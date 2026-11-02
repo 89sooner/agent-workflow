@@ -1,6 +1,8 @@
 # Agent Workflow
 
-v0.4.0: [3D 관제실과 SaaS형 화면](docs/SAAS_OBSERVATORY.ko.md) · [관측·업그레이드 안내](docs/OBSERVABILITY.ko.md) · [제품·연구 조사](docs/OBSERVABILITY_RESEARCH.ko.md)
+현재 관제실: [React·TypeScript·R3F 사용 안내](docs/REACT_MISSION_CONTROL.ko.md) · [문서 목록](docs/README.md) · [운영 반영](docs/OPERATIONS.ko.md)
+
+기존 v0.4.0 화면: [3D 관제실과 SaaS형 화면](docs/SAAS_OBSERVATORY.ko.md) · [관측·업그레이드 안내](docs/OBSERVABILITY.ko.md) · [제품·연구 조사](docs/OBSERVABILITY_RESEARCH.ko.md)
 
 프로젝트 설정·복구·연속 실행: [v0.3 자동화 안내](docs/AUTOMATION_V0.3.ko.md)
 
@@ -20,33 +22,30 @@ v0.3은 프로젝트 설정·별도 worktree 준비·파일 범위 예약·시�
 
 ## 에이전트 관제실
 
+새 `/mission` 화면에서 원장·프로젝트·작업·run을 선택하고 실제 실행 그래프, R3F 작업 공간,
+담당자 이름, 결과·로그·이벤트 재생을 함께 확인한다. `/`의 기존 관리 화면은 유지된다.
+실제 실행과 기록 재생을 구분하며, 연결 오류·숨김·reduced-motion에서는 실시간 활동을 멈춘다.
+
+이 WSL 환경의 H 관제실은 `http://127.0.0.1:8777/mission`, 기본 원장 관제실은
+`http://127.0.0.1:8776/mission`이다. 8777은 읽기 전용, 8776은 기존 worker가 있는 관리 서버다.
+**8765는 Katakuri 운영 제어 서버이므로 관제실을 위해 종료하거나 재사용하지 않는다.**
+
+기존 원장을 별도 포트에서 관측만 하려면 다음처럼 실행한다.
+
 ```bash
-agent-workflow serve --port 8765
+agent-workflow --home /path/to/observer watch --port 8878
 ```
 
-`http://127.0.0.1:8765`에서 작업을 선택하면 Three.js 3D 작업실, 실행 순서/역할 개요 그래프,
-시간순 인계 기록과 선택 상세를 볼 수 있습니다. 구현·검사·독립 리뷰·수정·통합·배포의 실제
-호출을 기록하며, 같은 상태 경로에서 실행한 CLI 작업도 반영됩니다. 관제실은 정상 연결 시
-약 2초마다 갱신하고 연결이 끊기면 마지막 기록을 유지하면서 활동 표시를 멈춥니다.
+`watch`는 제한된 원장 후보를 자동 발견하고 worker를 시작하지 않는다. 특정 원장은
+`connect PROJECT --ledger STATE_HOME`으로 연결을 저장한다. 일반 `serve`는 큐 worker를
+시작하므로 관측 전용 시작과 구분한다. 상세 절차는 [프로젝트 연결](docs/PROJECT_OBSERVATORY.ko.md)에 있다.
 
-기록 재생은 조회 시점만 바꿉니다. 작업 재실행이나 모델 호출·배포를 일으키지 않습니다.
-stdout/stderr는 선택한 단계에서 버튼을 누를 때 최대 64 KiB를 읽습니다. CLI 내부 tool call,
-subagent 전체와 기록되지 않은 대화는 추정하지 않습니다. 현재 코드의 검사·리뷰 증거는
-과거 실행 성공과 별도로 표시합니다. Three.js는 고정 버전의 로컬 번들로 제공하며, 사용자에게
-Node 서버·npm 설치·외부 CDN 접속을 요구하지 않습니다. Python runtime 의존성도 추가하지 않습니다.
+프런트는 TypeScript·React·Three.js·React Three Fiber이며 Python 표준 라이브러리 서버와 SQLite를
+유지한다. 빌드된 로컬 자산을 패키지에 포함하므로 이용자에게 Node 서버·npm 설치·CDN을 요구하지 않는다.
+도구 내부 사고·미기록 subagent·에이전트 간 대화는 추정하지 않는다.
 
-![실제 실행 기록으로 검증한 3D 관제실 데모](docs/images/saas-desktop.png)
-
-화면 예시는 임시 Git 프로젝트와 검증용 CLI 프로세스로 만든 데모입니다. 실제 모델 서비스의 실행 성과를 나타내지 않습니다.
-
-프로젝트 선택, 관제실·작업·실행 기록·설정 탐색, 모바일 메뉴와 `Ctrl/⌘ + K` 검색을 제공합니다.
-3D가 지원되지 않거나 화면 설정에서 끄더라도 역할 목록과 실행 그래프를 사용할 수 있습니다.
-화면 설정은 브라우저에 저장되며 실제 작업의 실행 계약을 변경하지 않습니다.
-
-업그레이드 전에는 이전 데몬·전경 실행을 종료하고 상태 디렉터리를 백업하세요. SQLite의
-revision·제어·관측 테이블은 자동으로 추가됩니다. 참조 문서가 있는 이전 진행 작업은 검사와
-리뷰를 갱신해야 하며, 완료한 작업의 증거가 맞지 않거나 금지 경로의 등록 기준 hash가 없으면
-새 작업으로 등록합니다. 자세한 범위·제어·이전 기록 처리는 [관제실 사용 안내](docs/OBSERVABILITY.ko.md)에 있습니다.
+[화면 사용법](docs/REACT_MISSION_CONTROL.ko.md) · [상태·증거·API](docs/OBSERVABILITY.ko.md) ·
+[백업·재시작·배포 확인](docs/OPERATIONS.ko.md)
 
 ## 기존 WSL 설치 기록
 

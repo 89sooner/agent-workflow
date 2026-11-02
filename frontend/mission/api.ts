@@ -36,8 +36,17 @@ export function usePoll<T>(
     error: string;
     at: number;
     loading: boolean;
-  }>({ url: null, data: null, error: "", at: 0, loading: true });
+    fresh: boolean;
+  }>({ url: null, data: null, error: "", at: 0, loading: true, fresh: false });
   useEffect(() => {
+    setResult((old) => ({
+      url,
+      data: old.url === url ? old.data : null,
+      error: "",
+      at: old.url === url ? old.at : 0,
+      loading: !!url,
+      fresh: false,
+    }));
     if (!url) return;
     let disposed = false,
       timer: ReturnType<typeof setTimeout>,
@@ -55,7 +64,7 @@ export function usePoll<T>(
         const data = await get<T>(url!, request.signal, validate);
         if (!disposed && ticket === generation) {
           failures = 0;
-          setResult({ url, data, error: "", at: Date.now(), loading: false });
+          setResult({ url, data, error: "", at: Date.now(), loading: false, fresh: true });
         }
       } catch (e) {
         if (!disposed && ticket === generation) {
@@ -70,6 +79,7 @@ export function usePoll<T>(
                 : "연결 오류",
             at: old.url === url ? old.at : 0,
             loading: false,
+            fresh: false,
           }));
         }
       } finally {
@@ -86,6 +96,8 @@ export function usePoll<T>(
       if (document.hidden) {
         ++generation;
         controller?.abort();
+        // Retain the records, but revalidate activity after returning to the tab.
+        setResult((old) => ({ ...old, fresh: false }));
       } else void poll();
     };
     if (!document.hidden) void poll();
@@ -100,7 +112,7 @@ export function usePoll<T>(
   }, [url, interval, refresh, validate]);
   return result.url === url
     ? result
-    : { url, data: null, error: "", at: 0, loading: !!url };
+    : { url, data: null, error: "", at: 0, loading: !!url, fresh: false };
 }
 export function useVisible() {
   const [visible, set] = useState(!document.hidden);

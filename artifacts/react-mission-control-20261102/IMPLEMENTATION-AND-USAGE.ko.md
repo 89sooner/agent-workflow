@@ -1,5 +1,10 @@
 # React 실행 관제실 구현 및 사용 안내
 
+> 2026-11-02 후속 갱신: 최신 사용 안내는 [docs/REACT_MISSION_CONTROL.ko.md](../../docs/REACT_MISSION_CONTROL.ko.md),
+> 운영 반영 절차는 [docs/OPERATIONS.ko.md](../../docs/OPERATIONS.ko.md)를 기준으로 한다.
+> 아래는 별도 브랜치 구현·8880 미리보기 당시 기록이다. 이후 사용자가 origin/main 병합과 운영 반영을 명시적으로 요청했으며,
+> 아래의 “병합 제외”는 당시 범위를 설명한다. 실제 최종 반영 결과는 해당 배포 receipt와 운영 SHA로 확인한다.
+
 ## 적용 범위
 
 이번 변경은 `/mission`에 TypeScript + React + Three.js + React Three Fiber 관제실을 추가한다.

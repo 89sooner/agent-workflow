@@ -68,6 +68,9 @@ const snapshot = async (name) => {
 };
 try {
   await page.goto(f.url + "/mission");
+  await page.locator(`#ledger option[value="${f.ledger}"]`).waitFor({ state: "attached" });
+  // Discovery sorts by ledger update time; select this fixture's execution ledger explicitly.
+  await page.locator("#ledger").selectOption(f.ledger);
   await page.waitForSelector(".graph-node");
   assert.equal(await page.title(), "Agent Workflow · Mission Control");
   assert.equal(await page.locator(".room-canvas canvas").count(), 1);
@@ -152,17 +155,72 @@ try {
       (await page.locator(".room-canvas").getAttribute("data-active")) ===
       "false",
   );
+  let releaseResume;
+  const resumeGate = new Promise((resolve) => { releaseResume = resolve; });
+  let resumeRequests = 0;
+  const resumeRoute = "**/api/observability?**";
+  await page.route(resumeRoute, async (route) => {
+    resumeRequests++;
+    await resumeGate;
+    await route.continue();
+  });
   await page.evaluate(() => {
     delete document.hidden;
     document.dispatchEvent(new Event("visibilitychange"));
   });
+  await until(async () => resumeRequests > 0);
+  await page.waitForTimeout(350);
+  assert.equal(
+    await page.locator(".room-canvas").getAttribute("data-active"),
+    "false",
+    "cached running records must stay still while the resumed request is pending",
+  );
+  releaseResume();
   await until(
     async () =>
       (await page.locator(".room-canvas").getAttribute("data-active")) ===
       "true",
   );
+  await page.unroute(resumeRoute);
+  // Leaving a task disables its poll. Returning must not revive its cached activity.
+  await page.locator(".overview-button").click();
+  await until(async () => (await page.locator(".page-heading code").count()) === 0);
+  let releaseReselect;
+  const reselectGate = new Promise((resolve) => { releaseReselect = resolve; });
+  let reselectRequests = 0;
+  await page.route(resumeRoute, async (route) => {
+    reselectRequests++;
+    await reselectGate;
+    await route.continue();
+  });
+  await page.locator(".task-item").filter({ hasText: "OBS-LIVE" }).click();
+  await until(async () => reselectRequests > 0);
+  await page.waitForTimeout(350);
+  assert.equal(
+    await page.locator(".room-canvas").getAttribute("data-active"),
+    "false",
+    "returning to the same task must wait for its new response",
+  );
+  releaseReselect();
+  await until(async () =>
+    (await page.locator(".room-canvas").getAttribute("data-active")) === "true",
+  );
+  await page.unroute(resumeRoute);
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => true,
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await until(async () =>
+    (await page.locator(".room-canvas").getAttribute("data-active")) === "false",
+  );
   await context.setOffline(true);
-  await page.getByRole("button", { name: "기록 새로고침" }).click();
+  await page.evaluate(() => {
+    delete document.hidden;
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
   await page.getByRole("alert").waitFor();
   assert.equal(
     await page.locator(".room-canvas").getAttribute("data-active"),
@@ -312,6 +370,8 @@ try {
         "3D canvas",
         "reduced motion",
         "hidden tab",
+        "resumed tab waits for fresh response",
+        "reselected task waits for fresh response",
         "disconnect/recovery",
         "logs",
         "replay",

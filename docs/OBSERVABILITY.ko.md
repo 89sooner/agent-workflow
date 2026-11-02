@@ -1,23 +1,25 @@
 # v0.4.0 에이전트 관제실 사용 안내
 
+갱신: 2026-11-02. 새 `/mission`의 사용법은 [React 관제실](REACT_MISSION_CONTROL.ko.md), 현재 운영 절차는 [운영 안내](OPERATIONS.ko.md)에 있다. 아래 관측 API·증거 계약은 새 화면에서도 유지한다. 기존 화면에만 있는 제어는 `/`에서 사용한다.
+
 관제실은 agent-workflow가 실제로 호출한 구현 담당, 검사 실행기, 독립 리뷰, 통합·배포의 작업과 인계를 보여준다. Three.js 3D 작업실, 역할 목록, 실행 그래프, 시간순 이벤트, 선택한 단계의 결과와 로그가 같은 기록을 사용한다. 화면 구성·조작·프로젝트 탐색은 [3D 관제실 안내](SAAS_OBSERVATORY.ko.md)를 참고한다.
 
 Python 3.11 이상과 Git을 사용하는 기존 실행 환경을 유지한다. Three.js는 고정 버전의 로컬 번들로 제공하므로 대시보드 실행에 새 Python 패키지, Node 서버, npm 설치, 외부 관측 서비스 또는 CDN은 필요하지 않다. 화면 설계의 조사 근거는 [제품·연구 비교](OBSERVABILITY_RESEARCH.ko.md), 프로젝트 설정과 기본 자동화는 [v0.3 안내](AUTOMATION_V0.3.ko.md)를 참고한다.
 
 ## 1. 실행하고 작업을 선택하기
 
-기존 설치에서 전경으로 대시보드와 큐 worker를 실행한다.
+아래 일반 `serve` 예시는 큐 worker를 함께 시작한다. 관측만 하려면 `watch` 또는 `serve --read-only`를 사용한다. 포트 8878은 예시이며 비어 있는지 확인한다. 이 WSL의 8765는 Katakuri 운영 제어 서버로 유지한다.
 
 ```bash
-agent-workflow serve --port 8765
+agent-workflow serve --port 8878
 ```
 
-브라우저에서 `http://127.0.0.1:8765`를 연다. 왼쪽 목록에서 작업을 선택하면 해당 작업의 관제실이 표시된다. 별도 터미널에서 `run`, `check`, `release`를 실행한 경우에도 같은 상태 저장 경로를 사용하면 새 기록이 보인다.
+브라우저에서 `http://127.0.0.1:8878`를 연다. 왼쪽 목록에서 작업을 선택하면 해당 작업의 관제실이 표시된다. 별도 터미널에서 `run`, `check`, `release`를 실행한 경우에도 같은 상태 저장 경로를 사용하면 새 기록이 보인다.
 
 백그라운드 실행은 다음과 같다.
 
 ```bash
-agent-workflow daemon start --port 8765
+agent-workflow daemon start --port 8878
 agent-workflow daemon status
 agent-workflow queue WP-074
 agent-workflow jobs
@@ -26,7 +28,7 @@ agent-workflow jobs
 상태 저장 경로를 분리해서 사용한다면 모든 명령에 같은 `--home`을 지정한다.
 
 ```bash
-agent-workflow --home /path/to/workflow-state daemon start --port 8765
+agent-workflow --home /path/to/workflow-state daemon start --port 8878
 agent-workflow --home /path/to/workflow-state queue WP-074
 ```
 
@@ -212,7 +214,7 @@ GitHub 병합 뒤 통합 검사에서 실패하면 이미 일어난 `merged` 사
 agent-workflow daemon stop
 # 상태 디렉터리와 작업 폴더를 확인·백업한 뒤 새 소스로 갱신한다.
 agent-workflow doctor
-agent-workflow daemon start --port 8765
+agent-workflow daemon start --port 8878
 ```
 
 별도 `--home`을 사용했다면 중지·시작에도 같은 경로를 지정한다. WSL·Windows 자체 부팅과 로그인 예약을 설정하는 변경은 포함하지 않는다.
@@ -250,4 +252,4 @@ python3 tests/observability_integration.py
 
 실제 CLI 계정·모델 연결은 기존 `tests/live_smoke.py`, 외부 운영 릴리스는 사용자가 지정한 대상과 권한에서 별도로 검증한다. 이 문서는 실제 사용자 환경의 WSL 재부팅, 장기간 상주 운용, 운영 GitHub merge·배포가 검증되었다고 주장하지 않는다.
 
-현재 화면은 한 작업과 선택한 실행을 자세히 보는 데 맞춰져 있다. CLI 내부 subagent 관측, 전역 task DAG 편집, OTLP export, 다중 사용자 접근 제어, 무제한 로그·trace 저장 관리, 사용자 생산성 개선의 정량 평가가 필요하면 각각의 별도 계약과 검증을 추가해야 한다.
+기존 상세 화면은 한 작업·실행을 중심으로 하며, 새 `/mission`은 프로젝트 전체와 개별 실행을 함께 탐색한다. CLI 내부 subagent 관측, 전역 task DAG 편집, OTLP export, 다중 사용자 접근 제어, 무제한 로그·trace 저장 관리, 사용자 생산성 개선의 정량 평가가 필요하면 각각의 별도 계약과 검증을 추가해야 한다.

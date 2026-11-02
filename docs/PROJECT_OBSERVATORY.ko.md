@@ -1,18 +1,15 @@
 # 프로젝트 연결과 실제 에이전트 관제실
 
-이 기능은 `feat/project-observatory-ux` 브랜치에만 구현한다. 운영 checkout,
-기존 서버, 원장을 교체하거나 origin/main에 병합하는 절차는 포함하지 않는다.
-`completed`와 프로세스 정상 종료, 실제 배포는 서로 다른 증거다.
+갱신: 2026-11-02. connect/start/watch와 프로젝트 관측은 main에 통합된 기능이다.
+새 React `/mission` 화면의 조작은 [React 관제실](REACT_MISSION_CONTROL.ko.md),
+운영 적용은 [운영 절차](OPERATIONS.ko.md)를 참고한다. 완료·프로세스 종료·배포는 별도 증거다.
 
 ## 먼저 관측하기
 
-새 브랜치 소스에서 다음처럼 실행한다. 설치된 운영 `agent-workflow` 명령은
-이번 브랜치의 새 명령을 제공하지 않을 수 있다.
+설치한 소스나 현재 main checkout에서 별도 observer home과 빈 포트를 선택한다.
 
 ```bash
-cd /tmp/agent-workflow-project-observatory-20261101
-/home/roqkf/.pyenv/versions/3.12.3/bin/python3 -m agent_workflow \
-  --home /tmp/my-workflow-observer watch --port 8878
+python3 -m agent_workflow --home /path/to/observer watch --port 8878
 ```
 
 `watch`는 조회 전용 서버만 시작한다. 큐 worker, 모델 호출, 작업 재개,
@@ -139,9 +136,13 @@ worker를 함께 시작하므로 관측만 하려면 `watch` 또는 `serve --rea
 검증된 이벤트 인터페이스와 실제 session ID 연동은 별도 단계다. 현재는 기존
 agent-workflow가 기록한 실행과 명시적 연결을 자동 발견한다.
 
-## 개발 격리 검증
+## 개발 격리 검증 이력
 
-운영 checkout의 미커밋 변경은 새 worktree로 복사해 보존했다. 회귀 검사는
+2026-11-01 프로젝트 관제실 검증에서는 운영 checkout의 미커밋 변경을 새 worktree로 복사해 보존했다. 회귀 검사는
 임시 Git 저장소·DB·합성 모델 fixture에서 실행한다. 최근 H 조회 검증은 원장의
 SQLite backup 복사본을 사용한다. 미리보기는 스냅샷이며 실시간 운영 원장과
 다를 수 있다. 운영 코드, 모델 작업, 원격 main은 이 검증으로 변경하지 않는다.
+
+2026-11-02 React 관제실은 실제 H 원장을 읽기 전용으로 연결해 최근 task/run을 확인했다.
+이전 8877 복제 원장 미리보기와 현재 8777 실제 H 원장을 혼동하지 않는다. 새 UI 검사는
+`tests/mission_integration.py`, 기존 UI 회귀 검사는 `tests/saas_integration.py`에서 수행한다.
