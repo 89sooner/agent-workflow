@@ -88,7 +88,7 @@ try {
   jobs = [{ ...cancelled, status: 'running' }]; projectExecutions = [cancelled];
   const refreshSettled = async () => {
     await page.locator('#refresh').click();
-    await page.waitForFunction(() => !document.getElementById('refresh').disabled);
+    await page.locator('#refresh:enabled').waitFor();
   };
   await refreshSettled(); await page.locator('#nav-runs').click();
   const cachedResume = page.getByRole('button', { name: 'UI-READY 실행 재개', exact: true });
