@@ -1,5 +1,7 @@
 # Agent Workflow 사용 안내서
 
+> 현재 시작점은 [문서 목록](README.md), [React 관제실](REACT_MISSION_CONTROL.ko.md), [프로젝트 연결](PROJECT_OBSERVATORY.ko.md)이다. 아래 v0.2 내용은 당시 기록이며 현재 명령 지원 범위로 오해하지 않는다.
+
 > 작성일: 2026-10-08 · 대상: v0.2.0 당시 구현과 파일럿 기록
 >
 > **이 도구는 AI에게 맡긴 작은 개발 작업의 진행 순서와 기록을 관리한다.**
