@@ -76,6 +76,7 @@ export interface Execution extends Run {
   job_id?: string;
 }
 export interface Trace {
+  source?: string;
   schema_version: number;
   generated_at: string;
   actors: Actor[];
@@ -97,6 +98,9 @@ export interface Project extends Trace {
   truncated?: Record<string, boolean>;
 }
 export interface Ledger {
+  kind?: string;
+  label?: string;
+  error?: string;
   id: string;
   home: string;
   status: string;

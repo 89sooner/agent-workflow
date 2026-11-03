@@ -11,7 +11,15 @@ import {
   newTransfers,
   pathName,
 } from "./model";
-import type { Discovery, Event, Node, Project, Trace, Transfer } from "./types";
+import type {
+  Discovery,
+  Event,
+  Execution,
+  Node,
+  Project,
+  Trace,
+  Transfer,
+} from "./types";
 import { ExecutionGraph } from "./Graph";
 import { Room } from "./Room";
 const empty: Trace = {
@@ -121,9 +129,11 @@ function Inspector({
           <p className="source-note">
             {node.actor?.name_source === "assigned"
               ? "실제로 할당한 이름"
-              : node.actor?.name_source === "system"
-                ? "시스템 실행기"
-                : "기록 기반 자동 이름"}
+              : node.actor?.name_source === "native"
+                ? "OpenCode API에 기록된 이름"
+                : node.actor?.name_source === "system"
+                  ? "시스템 실행기"
+                  : "기록 기반 자동 이름"}
           </p>
           <dl className="facts">
             <dt>작업</dt>
@@ -131,7 +141,12 @@ function Inspector({
             <dt>목표</dt>
             <dd>{taskGoal || "목표 미기록"}</dd>
             <dt>실행 호출</dt>
-            <dd>{node.span?.id || "아직 실행 전 배정"}</dd>
+            <dd>
+              {node.span?.id ||
+                (node.actor?.provider === "opencode"
+                  ? "응답 기록 없음"
+                  : "아직 실행 전 배정")}
+            </dd>
             <dt>요청 모델</dt>
             <dd>{node.actor?.model || node.span?.model || "미기록"}</dd>
             <dt>관측 모델</dt>
@@ -185,7 +200,9 @@ function Inspector({
           <p className="source-note">
             {replay
               ? "재생 시점까지의 실행 상태와 결과입니다."
-              : "컨트롤러가 기록한 실행입니다. 모델 내부 사고나 도구 호출을 추정하지 않습니다."}
+              : node.actor?.provider === "opencode"
+                ? "OpenCode API의 세션·응답·도구 상태입니다. 응답 종료와 작업 검증 완료는 다릅니다."
+                : "컨트롤러가 기록한 실행입니다. 모델 내부 사고나 도구 호출을 추정하지 않습니다."}
           </p>
         </>
       )}
@@ -386,6 +403,15 @@ export default function App() {
     setFilter("all");
   };
   const counts = overview.data?.counts || {};
+  const openCode = currentLedger?.kind === "opencode";
+  const executions: Execution[] =
+    openCode && taskId
+      ? (trace.data?.runs || []).map((r) => ({
+          ...r,
+          source: "opencode",
+          run_id: r.id,
+        }))
+      : overview.data?.executions || [];
   const filtered = tasks
     .filter(
       (t) =>
@@ -402,7 +428,7 @@ export default function App() {
               t.status,
             )) ||
           (filter === "attention" &&
-            (["blocked"].includes(t.status) || !!t.hold)) ||
+            (["blocked", "retrying"].includes(t.status) || !!t.hold)) ||
           (filter === "completed" && t.status === "completed")),
     )
     .sort(
@@ -494,7 +520,7 @@ export default function App() {
           </span>
         </a>
         <div className="sidebar-section">
-          <label htmlFor="ledger">작업 원장</label>
+          <label htmlFor="ledger">작업 원장 / 연결</label>
           <select
             id="ledger"
             value={ledger}
@@ -505,9 +531,10 @@ export default function App() {
               <option
                 key={l.id}
                 value={l.id}
-                disabled={l.status !== "available"}
+                disabled={l.status !== "available" && l.kind !== "opencode"}
               >
-                {pathName(l.home)} · {l.task_count}
+                {l.label || pathName(l.home)} · {l.task_count}
+                {l.status !== "available" ? " · 연결 확인 필요" : ""}
               </option>
             ))}
           </select>
@@ -586,7 +613,11 @@ export default function App() {
           )}
         </div>
         <div className="sidebar-bottom">
-          <a href="/">작업 등록·실행 관리 ↗</a>
+          {currentLedger?.kind === "opencode" ? (
+            <p>OpenCode에서 평소처럼 작업하세요. 새 세션은 자동 표시됩니다.</p>
+          ) : (
+            <a href="/">작업 등록·실행 관리 ↗</a>
+          )}
           <p>관측 화면 · 실행 변경 없음</p>
         </div>
       </aside>
@@ -659,7 +690,9 @@ export default function App() {
               [
                 "확인된 실행",
                 counts.running || 0,
-                "진행 중인 controller 프로세스",
+                currentLedger?.kind === "opencode"
+                  ? "OpenCode가 busy로 보고한 세션"
+                  : "진행 중인 controller 프로세스",
               ],
               ["실행 대기", counts.queued || 0, "큐에 등록된 작업"],
               [
@@ -676,6 +709,13 @@ export default function App() {
               </div>
             ))}
           </div>
+          {currentLedger?.kind === "opencode" && (
+            <p className="notice">
+              OpenCode 읽기 전용 관측 · 새 세션 자동 표시 · 대기는 응답 대기이며
+              작업 검증 완료가 아닙니다. 세션을 선택하면 기록된 에이전트
+              이름·모델·최근 응답과 도구 상태를 확인할 수 있습니다.
+            </p>
+          )}
           {truncated && (
             <p className="notice">
               프로젝트 집계는 최근 기록 범위입니다. 잘린 항목의 전체 이력은
@@ -803,9 +843,11 @@ export default function App() {
                             {label(a.role)} ·{" "}
                             {a.name_source === "assigned"
                               ? "할당 이름"
-                              : a.name_source === "system"
-                                ? "시스템"
-                                : "자동 이름"}
+                              : a.name_source === "native"
+                                ? "OpenCode 기록 이름"
+                                : a.name_source === "system"
+                                  ? "시스템"
+                                  : "자동 이름"}
                           </small>
                         </span>
                         <Status value={a.status} />
@@ -980,11 +1022,11 @@ export default function App() {
                 <div className="panel-heading">
                   <div>
                     <span className="eyebrow">RUN HISTORY</span>
-                    <h2>실행 이력</h2>
+                    <h2>{openCode ? "OpenCode 응답 이력" : "실행 이력"}</h2>
                   </div>
                 </div>
                 <div className="run-list">
-                  {(overview.data?.executions || [])
+                  {executions
                     .filter((r) => !taskId || r.task_id === taskId)
                     .slice(0, 30)
                     .map((r) => (
@@ -997,8 +1039,12 @@ export default function App() {
                         <span>
                           <strong>{r.task_id}</strong>
                           <small>
-                            {r.source === "direct" ? "직접 실행" : "큐 실행"} ·{" "}
-                            {when(r.started_at)} · {r.action}
+                            {r.source === "opencode"
+                              ? "OpenCode 응답"
+                              : r.source === "direct"
+                                ? "직접 실행"
+                                : "큐 실행"}{" "}
+                            · {when(r.started_at)} · {label(r.action)}
                           </small>
                         </span>
                         <Status value={r.status} />
@@ -1006,7 +1052,11 @@ export default function App() {
                     ))}
                 </div>
                 <p className="panel-caption">
-                  최근 30개 표시 · 큐와 연결된 실행은 중복 집계하지 않습니다.
+                  {openCode
+                    ? taskId
+                      ? "최근 응답 30개 표시 · 응답 종료는 작업 검증 완료와 다릅니다."
+                      : "세션을 선택하면 최근 응답 이력을 확인할 수 있습니다."
+                    : "최근 30개 표시 · 큐와 연결된 실행은 중복 집계하지 않습니다."}
                 </p>
               </section>
             </div>
@@ -1027,8 +1077,9 @@ export default function App() {
             </p>
           ))}
           <footer className="workspace-footer">
-            실행 중은 컨트롤러 프로세스의 생존 확인을 뜻합니다. 모델 내부 활동은
-            기록된 범위만 표시합니다.
+            {openCode
+              ? "실행 중은 OpenCode 상태 API의 busy입니다. 세션 대기와 응답 종료, 작업 검증 완료는 서로 다릅니다."
+              : "실행 중은 컨트롤러 프로세스의 생존 확인을 뜻합니다. 모델 내부 활동은 기록된 범위만 표시합니다."}
             <span>React · TypeScript · React Three Fiber</span>
           </footer>
         </div>

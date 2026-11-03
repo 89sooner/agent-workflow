@@ -1,0 +1,1083 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Agent Workflow 서비스 사용성 개선 계획 · OpenCode</title><style>
+    /* Design Tokens & Variables */
+    :root {
+      /* Light Theme Colors (Slate & Indigo Palette) */
+      --bg-primary: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-hover: #f1f5f9;
+      --bg-surface-muted: #e2e8f0;
+      --border-color: #cbd5e1;
+      
+      --text-primary: #0f172a;
+      --text-secondary: #334155;
+      --text-muted: #64748b;
+      --text-subtle: #94a3b8;
+      
+      --color-primary: #6366f1;
+      --color-primary-hover: #4f46e5;
+      --color-primary-subtle: #eeeffe;
+      --color-primary-rgb: 99, 102, 241;
+      
+      --color-accent: #0ea5e9;
+      --color-accent-subtle: #e0f2fe;
+      
+      --color-success: #10b981;
+      --color-success-subtle: #ecfdf5;
+      --color-success-text: #047857;
+      
+      --color-warning: #f59e0b;
+      --color-warning-subtle: #fffbeb;
+      --color-warning-text: #b45309;
+      
+      --color-danger: #ef4444;
+      --color-danger-subtle: #fef2f2;
+      --color-danger-text: #b91c1c;
+
+      --code-bg: #0f172a;
+      --code-text: #e2e8f0;
+      --code-border: #1e293b;
+      
+      /* Layout & Spacing */
+      --sidebar-width: 280px;
+      --sidebar-collapsed-width: 72px;
+      --header-height: 70px;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      
+      /* Shadows & Transitions */
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+      --transition-fast: 0.15s ease;
+      --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    /* Dark Theme Override */
+    .dark {
+      --bg-primary: #0b0f19;
+      --bg-surface: #111827;
+      --bg-surface-hover: #1f2937;
+      --bg-surface-muted: #374151;
+      --border-color: #374151;
+      
+      --text-primary: #f9fafb;
+      --text-secondary: #d1d5db;
+      --text-muted: #9ca3af;
+      --text-subtle: #4b5563;
+      
+      --color-primary: #818cf8;
+      --color-primary-hover: #6366f1;
+      --color-primary-subtle: #1e1b4b;
+      --color-primary-rgb: 129, 140, 248;
+      
+      --color-accent: #38bdf8;
+      --color-accent-subtle: #0c4a6e;
+      
+      --color-success: #34d399;
+      --color-success-subtle: #064e3b;
+      --color-success-text: #a7f3d0;
+      
+      --color-warning: #fbbf24;
+      --color-warning-subtle: #78350f;
+      --color-warning-text: #fde68a;
+      
+      --color-danger: #f87171;
+      --color-danger-subtle: #7f1d1d;
+      --color-danger-text: #fca5a5;
+
+      --code-bg: #030712;
+      --code-text: #f3f4f6;
+      --code-border: #111827;
+      
+      --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Reset & Base Styles */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      color-scheme: light dark;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      transition: background-color var(--transition-normal), color var(--transition-normal);
+      overflow-x: hidden;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+      color: var(--text-primary);
+      font-weight: 700;
+      line-height: 1.25;
+    }
+
+    a {
+      color: var(--color-primary);
+      text-decoration: none;
+      transition: color var(--transition-fast);
+    }
+
+    a:hover {
+      color: var(--color-primary-hover);
+    }
+
+    /* Utilities */
+    .text-success { color: var(--color-success) !important; }
+    .text-warning { color: var(--color-warning) !important; }
+    .text-danger { color: var(--color-danger) !important; }
+    .text-primary { color: var(--color-primary) !important; }
+
+    /* Scroll Progress Bar */
+    .scroll-progress {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(to right, var(--color-primary), var(--color-accent));
+      width: 0%;
+      z-index: 1000;
+      transition: width 0.1s ease-out;
+    }
+
+    /* Screen Reader Only Utility */
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* Layout Skeleton */
+    .app-container {
+      display: flex;
+      min-height: 100vh;
+      width: 100%;
+    }
+
+    /* Sidebar Navigation */
+    .sidebar {
+      position: fixed;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: var(--sidebar-width);
+      background-color: var(--bg-surface);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+      transition: width var(--transition-normal), background-color var(--transition-normal), border-color var(--transition-normal);
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .sidebar-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 800;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .sidebar-title {
+      font-size: 1rem;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: opacity var(--transition-fast);
+    }
+
+    /* Sidebar Metadata Block */
+    .sidebar-meta {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 0.85rem;
+      transition: opacity var(--transition-fast);
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .meta-key {
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .meta-val {
+      color: var(--text-primary);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    /* Sidebar Navigation Links */
+    .sidebar-nav {
+      flex: 1;
+      padding: 20px 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      color: var(--text-secondary);
+      font-weight: 500;
+      font-size: 0.9rem;
+      transition: background-color var(--transition-fast), color var(--transition-fast);
+      cursor: pointer;
+    }
+
+    .nav-item:hover {
+      background-color: var(--bg-surface-hover);
+      color: var(--text-primary);
+    }
+
+    .nav-item.active {
+      background-color: var(--color-primary-subtle);
+      color: var(--color-primary);
+      font-weight: 600;
+    }
+
+    .nav-item svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+
+    /* Sidebar Footer Toggle Controls */
+    .sidebar-footer {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      background-color: var(--bg-surface);
+    }
+
+    .sidebar-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-surface);
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+    }
+
+    .sidebar-btn:hover {
+      background-color: var(--bg-surface-hover);
+      color: var(--text-primary);
+      border-color: var(--text-muted);
+    }
+
+    .sidebar-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* Main Workspace Layout */
+    .main-wrapper {
+      flex: 1;
+      margin-left: var(--sidebar-width);
+      padding: 40px 52px 64px;
+      max-width: 1440px;
+      transition: margin-left var(--transition-normal);
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    /* Header Container */
+    .content-header {
+      padding-bottom: 24px;
+      border-bottom: 2px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .eyebrow-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .eyebrow {
+      color: var(--color-primary);
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .artifact-title {
+      font-size: clamp(2rem, 3.5vw, 2.75rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .lede {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      max-width: 800px;
+      line-height: 1.6;
+    }
+
+    /* Standardized Card Grid (Stats Dashboard) */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+
+    .stat-card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+      overflow: hidden;
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--color-primary);
+      opacity: 0;
+      transition: opacity var(--transition-fast);
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .stat-card:hover::before {
+      opacity: 1;
+    }
+
+    .stat-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .stat-value {
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--text-primary);
+      line-height: 1.1;
+    }
+
+    .stat-desc {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    /* Content Sections styling */
+    .section-card {
+      background-color: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 32px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: relative;
+    }
+
+    .section-title::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      left: 0;
+      width: 40px;
+      height: 3px;
+      background-color: var(--color-primary);
+      border-radius: 9999px;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      line-height: 1;
+    }
+
+    .badge-primary {
+      background-color: var(--color-primary-subtle);
+      color: var(--color-primary);
+    }
+
+    .badge-success {
+      background-color: var(--color-success-subtle);
+      color: var(--color-success-text);
+    }
+
+    .badge-warning {
+      background-color: var(--color-warning-subtle);
+      color: var(--color-warning-text);
+    }
+
+    .badge-danger {
+      background-color: var(--color-danger-subtle);
+      color: var(--color-danger-text);
+    }
+
+    /* Callouts & Alerts */
+    .callout {
+      display: flex;
+      gap: 16px;
+      padding: 18px 20px;
+      border-radius: var(--radius-md);
+      border-left: 4px solid var(--border-color);
+      background-color: var(--bg-surface-hover);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .callout-icon {
+      flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .callout-icon svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .callout-body {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .callout-body strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .callout-info {
+      border-left-color: var(--color-accent);
+      background-color: var(--color-accent-subtle);
+      color: var(--text-secondary);
+    }
+
+    .callout-info .callout-icon {
+      color: var(--color-accent);
+    }
+
+    .callout-success {
+      border-left-color: var(--color-success);
+      background-color: var(--color-success-subtle);
+      color: var(--color-success-text);
+    }
+
+    .callout-success .callout-icon {
+      color: var(--color-success);
+    }
+
+    .callout-warning {
+      border-left-color: var(--color-warning);
+      background-color: var(--color-warning-subtle);
+      color: var(--color-warning-text);
+    }
+
+    .callout-warning .callout-icon {
+      color: var(--color-warning);
+    }
+
+    .callout-danger {
+      border-left-color: var(--color-danger);
+      background-color: var(--color-danger-subtle);
+      color: var(--color-danger-text);
+    }
+
+    .callout-danger .callout-icon {
+      color: var(--color-danger);
+    }
+
+    /* Interactive Tabs Component */
+    .tabs-container {
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background-color: var(--bg-surface);
+    }
+
+    .tabs-header {
+      display: flex;
+      background-color: var(--bg-surface-hover);
+      border-bottom: 1px solid var(--border-color);
+      padding: 8px 8px 0;
+      gap: 4px;
+    }
+
+    .tab-btn {
+      padding: 10px 18px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: none;
+      border: 1px solid transparent;
+      border-bottom: none;
+      border-top-left-radius: var(--radius-sm);
+      border-top-right-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background-color var(--transition-fast), color var(--transition-fast);
+      outline: none;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-primary);
+      background-color: var(--bg-surface-muted);
+    }
+
+    .tab-btn.active {
+      color: var(--color-primary);
+      background-color: var(--bg-surface);
+      border-color: var(--border-color);
+      border-bottom-color: var(--bg-surface);
+      margin-bottom: -1px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .tabs-body {
+      padding: 24px;
+    }
+
+    .tab-panel {
+      display: none;
+      animation: fadeIn var(--transition-normal) forwards;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Content Typography Details */
+    .section-card p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    /* Data Tables */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-sm);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    th {
+      background-color: var(--bg-surface-hover);
+      color: var(--text-primary);
+      font-weight: 600;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      vertical-align: middle;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background-color: var(--bg-surface-hover);
+    }
+
+    /* Accordions / Details Container */
+    .accordion {
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .accordion-item {
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .accordion-item:last-child {
+      border-bottom: none;
+    }
+
+    .accordion-summary {
+      padding: 16px 20px;
+      background-color: var(--bg-surface);
+      color: var(--text-primary);
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      list-style: none;
+      transition: background-color var(--transition-fast);
+    }
+
+    .accordion-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .accordion-summary:hover {
+      background-color: var(--bg-surface-hover);
+    }
+
+    .accordion-icon {
+      width: 20px;
+      height: 20px;
+      transition: transform var(--transition-normal);
+      color: var(--text-muted);
+    }
+
+    details[open] .accordion-summary {
+      background-color: var(--bg-surface-hover);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    details[open] .accordion-icon {
+      transform: rotate(180deg);
+    }
+
+    .accordion-content {
+      padding: 20px;
+      background-color: var(--bg-surface);
+      color: var(--text-secondary);
+    }
+
+    /* Code Blocks */
+    .code-block-wrapper {
+      border: 1px solid var(--code-border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .code-block-header {
+      background-color: #1e293b;
+      padding: 10px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #0f172a;
+    }
+
+    .code-block-filename {
+      color: #cbd5e1;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+
+    .code-copy-btn {
+      background: none;
+      border: 1px solid #475569;
+      border-radius: var(--radius-sm);
+      color: #94a3b8;
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+    }
+
+    .code-copy-btn:hover {
+      background-color: #334155;
+      color: #f8fafc;
+      border-color: #cbd5e1;
+    }
+
+    .code-copy-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    pre {
+      margin: 0;
+      padding: 16px 20px;
+      background-color: var(--code-bg);
+      color: var(--code-text);
+      overflow-x: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.88rem;
+    }
+
+    code {
+      font-family: inherit;
+    }
+
+    /* Basic Syntax Classes for templates */
+    .token-keyword { color: #f43f5e; font-weight: 600; }
+    .token-string { color: #10b981; }
+    .token-comment { color: #64748b; font-style: italic; }
+    .token-function { color: #60a5fa; }
+    .token-number { color: #fb923c; }
+
+    /* SVG Flowchart styling */
+    .svg-container {
+      width: 100%;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      background-color: var(--bg-surface-hover);
+      padding: 24px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow-x: auto;
+    }
+
+    .flow-svg {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .flow-node {
+      fill: var(--bg-surface);
+      stroke: var(--border-color);
+      stroke-width: 1.5px;
+      transition: stroke var(--transition-fast), filter var(--transition-fast);
+    }
+
+    .flow-node:hover {
+      stroke: var(--color-primary);
+      filter: drop-shadow(0 4px 6px rgba(var(--color-primary-rgb), 0.15));
+    }
+
+    .flow-node-primary {
+      fill: var(--color-primary-subtle);
+      stroke: var(--color-primary);
+    }
+
+    .flow-text {
+      font-size: 12px;
+      font-weight: 600;
+      fill: var(--text-primary);
+      pointer-events: none;
+      text-anchor: middle;
+    }
+
+    .flow-text-sub {
+      font-size: 10px;
+      font-weight: 400;
+      fill: var(--text-muted);
+    }
+
+    .flow-arrow {
+      stroke: var(--text-subtle);
+      stroke-width: 2px;
+      fill: none;
+      marker-end: url(#arrowhead);
+    }
+
+    /* Next Actions container with interactive console controls */
+    .console-actions-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding: 16px;
+      background-color: var(--bg-surface-hover);
+      border-radius: var(--radius-md) var(--radius-md) 0 0;
+      border: 1px solid var(--border-color);
+      border-bottom: none;
+    }
+
+    .actions-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .console-copy-btn {
+      background-color: var(--color-primary);
+      color: white;
+      border: 1px solid var(--color-primary);
+      border-radius: var(--radius-sm);
+      padding: 8px 16px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+    }
+
+    .console-copy-btn:hover {
+      background-color: var(--color-primary-hover);
+      border-color: var(--color-primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .console-copy-btn:active {
+      transform: translateY(0);
+    }
+
+    .toast-status {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--color-success-text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .toast-status.show {
+      opacity: 1;
+    }
+
+    /* Collapsed Sidebar CSS Adjustments */
+    .app-layout.sidebar-collapsed .sidebar {
+      width: var(--sidebar-collapsed-width);
+    }
+
+    .app-layout.sidebar-collapsed .sidebar-title,
+    .app-layout.sidebar-collapsed .sidebar-meta,
+    .app-layout.sidebar-collapsed .nav-text {
+      opacity: 0;
+      pointer-events: none;
+      width: 0;
+      display: none;
+    }
+
+    .app-layout.sidebar-collapsed .main-wrapper {
+      margin-left: var(--sidebar-collapsed-width);
+    }
+
+    .app-layout.sidebar-collapsed .nav-item {
+      justify-content: center;
+      padding: 10px;
+    }
+
+    /* Mobile Adaptations */
+    @media (max-width: 768px) {
+      .sidebar {
+        transform: translateX(-100%);
+        width: var(--sidebar-width) !important;
+      }
+
+      .app-layout.sidebar-mobile-open .sidebar {
+        transform: translateX(0);
+      }
+
+      .main-wrapper {
+        margin-left: 0 !important;
+        padding: 24px 20px 48px;
+      }
+
+      /* Mobile Sticky Header Bar */
+      .mobile-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 20px;
+        background-color: var(--bg-surface);
+        border-bottom: 1px solid var(--border-color);
+        position: sticky;
+        top: 0;
+        z-index: 90;
+      }
+
+      .mobile-menu-btn {
+        background: none;
+        border: none;
+        color: var(--text-primary);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .mobile-menu-btn svg {
+        width: 24px;
+        height: 24px;
+      }
+    }
+
+    @media (min-width: 769px) {
+      .mobile-header {
+        display: none;
+      }
+    }
+  
+:root {color-scheme:light; font-family:system-ui,sans-serif;color:#18352d;background:#f4f6f3} body{margin:0;line-height:1.7;color:#18352d;background:#f4f6f3} header,main,footer{max-width:1160px;margin:auto;padding:32px} header{padding-top:55px} h1{font-size:clamp(28px,4vw,48px);line-height:1.3;letter-spacing:-.035em;margin:12px 0 24px} h2{font-size:25px;margin:0 0 24px;line-height:1.4} h3{font-size:18px;margin:0 0 12px} p,li{font-size:15px} .lead{max-width:850px;font-size:18px} .eyebrow{letter-spacing:.09em;font-size:12px;color:#397568} nav{position:sticky;top:0;background:#e7eee9;z-index:3;display:flex;flex-wrap:wrap;gap:6px;padding:12px max(16px,calc((100vw - 1096px)/2));border-block:1px solid #bed3c8} nav a{padding:4px 10px;color:#214e41;font-size:14px;text-decoration:none;white-space:nowrap} a{color:#006e5a;text-decoration:underline} section{padding:32px 0;border-bottom:1px solid #ccd8d0;scroll-margin-top:120px} .stats,.phases{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:28px}.stats>div,article,.wire{background:white;border:1px solid #cbd9d0;border-radius:12px;padding:22px}.stats b{display:block;font-size:21px}.stats span{display:block;font-size:12px;color:#526b60;margin-top:8px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:22px 0}.note{padding:18px;border-left:4px solid #18816b;background:#e3f0e9} ul,ol{padding-left:23px} li{margin:9px 0}.table-wrap{overflow:auto;margin:22px 0}table{width:100%;border-collapse:collapse;min-width:680px;font-size:14px}th,td{padding:14px;border-bottom:1px solid #cedbd3;text-align:left;vertical-align:top}th{background:#e1ebe4}td:first-child{font-weight:650;min-width:115px}.wire{border:2px solid #699d88}.wire-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}svg{width:100%;height:auto;min-height:100px}select{padding:8px;border:1px solid #709c88;border-radius:6px;font:inherit;color:inherit;background:white}code{font-size:13px;word-break:break-word;background:#e4ebe5;padding:2px 4px}footer{font-size:12px;color:#526b60} [hidden]{display:none!important}@media(max-width:700px){header,main,footer{padding:20px}.grid,.stats,.phases{grid-template-columns:1fr}nav{position:static;padding:10px}h2{font-size:22px}section{scroll-margin-top:10px}.table-wrap{max-width:100%}svg{min-width:660px}#journey{overflow:auto}}@media print{nav,select,label[for=priority]{display:none}section{break-inside:avoid}.stats,.phases{grid-template-columns:repeat(2,1fr)}body{background:white}}
+</style></head><body>
+<header><p class="eyebrow">AGENT WORKFLOW · 서비스 사용성 진단 · 2026-11-03</p>
+<h1>작업을 관측하기 위해<br>사용자가 도구를 운영해야 하는 부담을 줄인다.</h1>
+<p class="lead">현재는 실행 기록을 살펴보는 능력이 좋아졌다. 그러나 원장·포트·작업 ID를 이해해야 하는 시작 과정은 남아 있다. 다음 개선의 기준은 <strong>“한 번 연결하고, 평소처럼 일하면 보인다”</strong>다.</p>
+<div class="stats"><div><b>98개 작업</b><span>8777 실제 화면에서 확인한 표본</span></div><div><b>26개 프로젝트 후보</b><span>경로 기반 표시 · 전체 옵션 제외</span></div><div><b>OpenCode 관측 구현</b><span>격리 브랜치 · 운영 미반영</span></div><div><b>목표: 5분 안에 첫 관측</b><span>제품 수용 목표 · 아직 사용자 측정 전</span></div></div></header>
+<nav aria-label="계획서 목차"><a href="#verdict">진단</a><a href="#journey">사용 흐름</a><a href="#priorities">우선순위</a><a href="#opencode">OpenCode</a><a href="#architecture">구조</a><a href="#delivery">구현 순서</a><a href="#acceptance">출시 기준</a><a href="#evidence">근거·한계</a></nav>
+<main>
+<section id="verdict"><h2>01 · 사용성 개선은 일부 이루어졌지만, 서비스 수준의 시작 경험은 부족하다</h2>
+<div class="grid"><article><h3>확인한 개선</h3><ul><li>실행 그래프와 3D 선택, 담당자 상세가 연결된다.</li><li>과거 실행·로그·이벤트 재생을 한 화면에서 탐색한다.</li><li>접속 오류·숨긴 탭·움직임 줄이기를 처리한다.</li><li>관측 화면은 GET만 사용하며 실제 기록과 추정을 구분한다.</li></ul></article>
+<article><h3>남아 있는 핵심 부담</h3><ul><li>사용자가 state home과 watch/serve 차이를 알아야 한다.</li><li>작업을 원장에 남기는 책임이 사용자 또는 에이전트 프롬프트에 있다.</li><li>다른 원장에 기록하면 같은 프로젝트여도 다른 화면 범위에 머문다.</li><li>“왜 안 보이는가”를 UI 대신 문서와 CLI로 진단한다.</li></ul></article></div>
+<p class="note"><strong>판단 근거:</strong> 소스와 실제 8777 화면의 동선 점검이다. 실제 신규 사용자 인터뷰나 사용성 실험 결과는 아니다. “사용자가 모두 실패한다”거나 전환율이 나쁘다는 수치는 아직 없다.</p>
+<div class="table-wrap"><table><thead><tr><th>문제</th><th>실제 관찰</th><th>사용자에게 생기는 비용</th></tr></thead><tbody>
+<tr><td>첫 연결이 기술 설정</td><td>원장 경로, 서버 모드, 포트를 문서에서 선택</td><td>일을 시작하기 전에 도구 운영을 배워야 함</td></tr>
+<tr><td>관측과 실행의 동선 단절</td><td>/mission → “작업 등록·실행 관리” → 8777 /에서 새 작업 버튼 비활성</td><td>연결은 됐는데 다음 행동을 할 수 없는 이유를 찾아야 함</td></tr>
+<tr><td>프로젝트 식별이 어려움</td><td>프로젝트 선택기에 경로 말단 이름 26개; 오래된 worktree도 포함</td><td>실제 제품 이름과 현재 작업을 매번 대응시켜야 함</td></tr>
+<tr><td>긴 ID·목표가 정보 위계를 차지</td><td>작업 목록에서 긴 영어 목표와 ID가 줄바꿈됨</td><td>누가 막혔는지, 지금 내가 할 일은 무엇인지 늦게 파악</td></tr>
+<tr><td>3D 정보 가독성</td><td>1280×800 화면에서 넓은 3D 영역 대비 작은 이름표; 그래프·이력은 아래쪽</td><td>보기 좋은 공간과 빠른 판단 사이의 균형 부족</td></tr>
+<tr><td>미발견과 빈 상태 혼동</td><td>소스에 “원장을 찾는 중”, “표시할 작업이 없습니다” 중심 안내</td><td>원장 없음·필터 결과 없음·연결 실패를 구별하기 어려움</td></tr></tbody></table></div>
+<p><strong>대안 가설 검토:</strong> HTTP 자산 제공 실패가 주원인은 아니다(실제 200, 정상 렌더링, 실패 요청 0). 기능 자체가 없는 것도 아니다(그래프·선택·이력은 존재). 남은 주요 가설은 연결·정보 구조의 인지 부담이다. 신규 사용자 실험에서 대부분 안내 없이 빠르게 연결·진단한다면 이 우선순위를 낮춘다.</p></section>
+<section id="journey"><h2>02 · 목표 사용자 경험</h2>
+<div class="grid"><article><h3>개인 개발자</h3><p>한 프로젝트에서 Codex·Claude·OpenCode를 쓰며, 수동 작업 등록 없이 진행·중단 이유를 확인하고 싶다.</p></article><article><h3>여러 작업을 맡긴 관리자</h3><p>서로 다른 worktree·도구에서 진행 중인 일과 확인 요청을 한 곳에서 보고, 증거를 확인한 뒤 다음 행동을 정한다.</p></article></div>
+<svg viewBox="0 0 960 160" role="img" aria-label="프로젝트 선택, 연결 확인, 평소 도구 사용, 자동 관측, 필요한 확인 처리의 다섯 단계"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8" fill="#087f70"/></marker></defs>
+<g fill="#e6f4ef" stroke="#91c5b7"><rect x="8" y="30" width="170" height="85" rx="12"/><rect x="200" y="30" width="170" height="85" rx="12"/><rect x="392" y="30" width="170" height="85" rx="12"/><rect x="584" y="30" width="170" height="85" rx="12"/><rect x="776" y="30" width="176" height="85" rx="12"/></g>
+<g fill="#15392e" text-anchor="middle" font-size="17"><text x="93" y="66">프로젝트 선택</text><text x="285" y="66">연결 상태 확인</text><text x="477" y="66">평소 도구 사용</text><text x="669" y="66">자동으로 관측</text><text x="864" y="66">확인 요청 처리</text></g>
+<g fill="#31554c" text-anchor="middle" font-size="12"><text x="93" y="92">이름·폴더 한 번 선택</text><text x="285" y="92">도구별 지원 범위 표시</text><text x="477" y="92">기존 세션 그대로</text><text x="669" y="92">세션·담당자·도구 상태</text><text x="864" y="92">근거와 다음 행동</text></g>
+<g stroke="#087f70" stroke-width="2" marker-end="url(#arrow)"><path d="M178 73H197"/><path d="M370 73H389"/><path d="M562 73H581"/><path d="M754 73H773"/></g></svg>
+<ol><li><strong>첫 실행:</strong> 프로젝트 폴더를 선택하면 알려진 연결 후보를 제시한다. 서버가 로컬 브라우저의 임의 파일 경로를 읽을 수 있다고 가정하지 않는다. 로컬 helper/명시적 폴더 경로 연결 중 지원 방식을 안내한다.</li>
+<li><strong>연결 확인:</strong> “OpenCode 연결됨 · 새 세션 자동 표시”, “Claude는 workflow 실행만 관측”처럼 도구별 능력을 보여 준다. 연결을 감지했다는 사실과 관측 동의를 분리한다.</li>
+<li><strong>작업 시작:</strong> 기존 도구를 그대로 사용하는 ‘관측’과 agent-workflow에 실행을 맡기는 ‘관리 작업’을 구분한다. 관측 세션에 목표·검사 조건을 억지로 요구하지 않는다.</li>
+<li><strong>재방문:</strong> 최근 프로젝트·필터·선택을 복원하고, 종료된 세션은 접는다. 원장 경로는 연결 상세로 옮긴다.</li>
+<li><strong>문제 해결:</strong> 연결 끊김 / 미지원 도구 / 권한 필요 / 해당 프로젝트 아님 / 기록 없음 각각에 원인·마지막 성공 시각·다음 행동을 표시한다.</li></ol>
+<div class="wire"><p class="eyebrow">제안 화면의 정보 순서 · 현재 화면이 아닌 설계안</p><div class="wire-head"><strong>프로젝트 이름</strong><span>연결 상태 · 마지막 동기화</span></div><div class="grid"><div><h3>확인이 필요한 일</h3><p>승인 대기, 실패, 오래된 관측을 원인과 함께 표시. 각 항목에서 상세 근거로 이동.</p></div><div><h3>지금 일하는 담당자</h3><p>이름 · 도구 · 역할 · 현재 단계 · 마지막 활동. 표시 이름과 네이티브 ID를 분리.</p></div></div><div class="grid"><div><h3>실행 흐름 / 타임라인</h3><p>전체 관계를 먼저, 상세 로그는 선택 후.</p></div><div><h3>3D 작업 공간 · 선택 보기</h3><p>실행 상태와 선택을 공유. 멈춤·대기·완료의 차이를 설명.</p></div></div></div></section>
+<section id="priorities"><h2>03 · 우선순위와 수용 기준</h2><label for="priority">우선순위 보기</label> <select id="priority"><option value="all">전체</option><option value="P0">P0 · 첫 사용</option><option value="P1">P1 · 일상 관리</option><option value="P2">P2 · 확장</option></select>
+<div class="table-wrap"><table id="backlog"><thead><tr><th>우선순위 / ID</th><th>개선</th><th>수용 기준</th><th>변경 지점</th></tr></thead><tbody>
+<tr data-priority="P0"><td>P0 / UX-01</td><td>연결 안내 UI와 도구별 지원 범위</td><td>처음 쓰는 사람이 원장·포트 개념 없이 프로젝트와 도구를 선택하고 첫 세션 확인. 미지원 도구는 이유 표시.</td><td>연결 registry, 조회 전용 설정 API, React onboarding</td></tr>
+<tr data-priority="P0"><td>P0 / UX-02</td><td>빈 화면·연결 실패 진단</td><td>원장 없음, 세션 없음, 검색 결과 없음, 인증 실패, 서버 중단을 다른 화면 상태로 제공. 재연결에서 작업 재실행 0건.</td><td>App.tsx, api.ts, server.py</td></tr>
+<tr data-priority="P0"><td>P0 / UX-03</td><td>읽기 전용과 관리 기능의 명확한 진입</td><td>8777에서 사용할 수 없는 등록 동선을 제공하지 않음. 실행 가능 대상은 명시적 연결과 권한이 있을 때만 노출.</td><td>서버 capability 응답, React navigation</td></tr>
+<tr data-priority="P0"><td>P0 / OC-01</td><td>OpenCode 세션 관측</td><td>한 번 연결 후 새 세션에 create/start 불필요. 실제 1.3.17 새 세션 발견; 읽기 전용·오류 회귀 검사.</td><td>이번 브랜치 구현 범위</td></tr>
+<tr data-priority="P1"><td>P1 / UX-04</td><td>프로젝트 중심 통합 보기</td><td>서로 다른 원장·worktree·OpenCode 연결을 하나의 프로젝트 표시 이름으로 모음. 같은 task ID 충돌 없음; 별개 clone은 확인 없이 합치지 않음.</td><td>project_key, source identity, 집계 API</td></tr>
+<tr data-priority="P1"><td>P1 / UX-05</td><td>확인 요청함과 상태 사유</td><td>사용자가 ‘멈춤 / 응답 대기 / 재시도 / 관측 단절 / 검증 완료’를 구별. 한 항목에서 근거와 복구 방법까지 이동.</td><td>상태 contract, 알림·관측 API</td></tr>
+<tr data-priority="P1"><td>P1 / UX-06</td><td>명확한 담당자와 읽기 쉬운 3D</td><td>이름·도구·역할을 2D 목록에서 항상 읽을 수 있음. 3D 선택·그래프 선택 일치. 카메라 변경·갱신에도 이름 가독성 유지.</td><td>Room.tsx, Graph.tsx, 이름 표시</td></tr>
+<tr data-priority="P1"><td>P1 / UX-07</td><td>검색·재방문·범위 유지</td><td>프로젝트/담당자/오류로 찾기, URL deep link와 뒤로 가기, 최근 선택 복원. 수집 범위와 잘린 이력을 숨기지 않음.</td><td>App.tsx, URL 상태, 조회 pagination</td></tr>
+<tr data-priority="P2"><td>P2 / OC-02</td><td>이벤트 구독·영구 이력</td><td>SSE 재연결·중복·순서 뒤바뀜·누락을 처리. 이벤트 도착과 화면 표시 지연 p95 목표 2초. snapshot 복구와 수집 중단 설명 제공.</td><td>OpenCode adapter, 별도 관측 저장소</td></tr>
+<tr data-priority="P2"><td>P2 / SVC-01</td><td>팀/외부 서비스 제공</td><td>인증, tenant/project 권한, 로컬 collector 연결, 데이터 보관·삭제·감사·비용 정책을 통과한 뒤 외부 공개.</td><td>별도 서비스 경계 설계</td></tr></tbody></table></div></section>
+<section id="opencode"><h2>04 · OpenCode: 이번 구현과 다음 단계</h2>
+<div class="grid"><article><h3>이번 브랜치에서 제공</h3><ul><li>로컬 서버 URL + 프로젝트 디렉터리 한 번 연결.</li><li>새 세션 자동 발견, 선택한 응답의 실제 agent·모델·도구 상태.</li><li>네이티브 세션 ID와 응답별 이력, 부모 세션 관계.</li><li>프로젝트 분리, 연결 해제, 인증 환경변수, 조회 실패 안내.</li><li>기존 workflow DB에 task/job 생성 없이 GET으로 관측.</li></ul></article><article><h3>현재 한계와 다음 작업</h3><ul><li>설정은 CLI다. UI 연결 안내는 UX-01에서 구현.</li><li>polling snapshot이며 SSE 수집·영구 이력·재생은 아직 없다.</li><li>상세 이름·도구는 세션을 선택한 뒤 조회한다.</li><li>OpenCode 1.3.17 실제 검증. 다른 1.x 버전은 응답 계약 확인 필요; 2.x 별도 어댑터 필요.</li><li>프롬프트 발송·승인 응답·세션 중단 등 제어 기능은 포함하지 않는다.</li></ul></article></div>
+<p>공식 HTTP API의 <code>/global/health</code>, <code>/session</code>, <code>/session/status</code>, 세션 메시지 조회를 이용한다. SDK를 쓸 경우 기존 서버용 클라이언트와 새 서버를 만드는 생성자를 구분해야 한다. 플러그인과 SSE는 이벤트 수집 대안이지만 이번 구현은 연결된 서버를 조회한다. <a href="https://opencode.ai/docs/server/">서버 API</a> · <a href="https://opencode.ai/docs/sdk/">SDK</a> · <a href="https://opencode.ai/docs/plugins/">플러그인</a></p>
+<div class="table-wrap"><table><thead><tr><th>연동 대안</th><th>장점</th><th>비용 / 선택</th></tr></thead><tbody><tr><td>HTTP snapshot</td><td>기존 세션에 붙고, 원래 실행을 바꾸지 않음</td><td>이번 선택. 짧은 중간 상태를 놓칠 수 있음을 표시</td></tr><tr><td>SSE + snapshot 복구</td><td>활동·승인·도구 상태 변화와 더 빠른 갱신</td><td>후속. 재연결·중복·과거 누락 처리 필요</td></tr><tr><td>OpenCode plugin</td><td>도구별 lifecycle을 직접 수집할 여지</td><td>설치·버전·훅 실패가 사용자 실행에 주는 영향 관리 필요</td></tr><tr><td>내부 DB/대화 파일 직접 파싱</td><td>서버가 없어도 파일을 찾을 수 있음</td><td>초기 지원에서 제외. 비공개 형식·잠금·개인정보·버전 호환 비용</td></tr></tbody></table></div>
+<p class="note">busy → 실행 중, idle → 응답 대기, retry → 재시도 대기. HTTP 단절 → 연결 확인 필요. 응답 완료는 작업의 테스트 통과·리뷰 승인·배포 완료를 뜻하지 않는다. native agent 이름과 세션 제목, 공급자 모델 이름도 서로 다른 필드로 취급한다.</p></section>
+<section id="architecture"><h2>05 · 도구별 관측과 관리 작업을 분리한다</h2>
+<div class="grid"><article><h3>관측 영역</h3><p>Source → Project → Native Session → Response / Tool. 명시적으로 연결한 출처에서 확인한 사실만 기록한다. 키는 source ID + native ID. 마지막 수집 시각·관측 가능 범위를 보존한다.</p></article><article><h3>관리 영역</h3><p>Task → Run → Check → Review → Release. 목표·완료 조건·검사·실행 권한이 필요한 관리 계약이다. 관측 세션을 관리 작업으로 전환하거나 연결하는 행동은 별도 명시적 동작으로 둔다.</p></article></div>
+<p><strong>초기 서비스 형태:</strong> 로컬 개인용 제품을 먼저 완성한다. Python·SQLite와 React·TypeScript·R3F는 유지한다. 현재 불편의 주요 원인은 언어가 아니라 연결·상태·정보 구조다. 프레임워크 교체를 먼저 하면 검증 범위만 커진다.</p>
+<p><strong>공유 서비스 단계:</strong> 사용자의 localhost를 클라우드 웹 서버가 직접 읽을 수 없다. 사용자 PC의 collector가 선택한 metadata만 인증된 외부 API로 보내도록 별도 경계를 만든다. 계정·프로젝트별 격리, 읽기/실행 권한, 보관 기간, 삭제·내보내기, 세션·도구 출력의 수집 범위를 제품 설정으로 제공한다. 기존 loopback 서버를 그대로 외부 공개하는 것은 이 계획의 배포 방식이 아니다.</p>
+<p><strong>관측 비용:</strong> 연결당 갱신 한도·backoff·보이는 탭 우선, 전체 이력은 pagination, 3D는 선택·실행 중 대상만 렌더링. 200개 세션 이상은 잘림을 명시하고 후속 cursor 조회를 제공한다. 무제한 디스크 검색이나 사용자가 모르는 서버 자동 실행은 도입하지 않는다.</p></section>
+<section id="delivery"><h2>06 · 구현 순서와 완료 증거</h2>
+<div class="phases"><article><b>0 · 이번 범위</b><h3>관측 기반 확장</h3><p>OC-01 + 이 계획서. 별도 브랜치의 실제 서버·합성 실행·브라우저 검증. 운영 main 미반영.</p></article><article><b>1 · 첫 사용</b><h3>연결·진단·동선</h3><p>UX-01~03. 비어 있는 설치부터 첫 세션까지 실험. 문서 없이 수행 가능한지 측정.</p></article><article><b>2 · 일상 관리</b><h3>프로젝트·확인 요청·가독성</h3><p>UX-04~07. 2개 이상 원장과 worktree에서 검색·교차 관측. 3D는 필수 정보 접근을 가리지 않음.</p></article><article><b>3 · 서비스 확장</b><h3>수집 신뢰성과 팀 경계</h3><p>OC-02 이후 SVC-01. 재연결·중복·삭제·권한 분리 실험을 통과한 범위부터 제공.</p></article></div>
+<p>기간은 아직 확정하지 않는다. 각 단계는 연결 방식과 사용자 실험 결과에 따라 규모가 달라진다. 다음 작업 패키지는 <strong>UX-01 + UX-02</strong>로 묶고, “새로 설치한 사용자가 자신의 프로젝트의 세션을 볼 수 있는가”를 완료 조건으로 삼는다.</p></section>
+<section id="acceptance"><h2>07 · 출시를 판단할 측정 기준</h2>
+<p>다음 값은 <strong>제안 목표</strong>이며 현재 측정 성과가 아니다. 신규 사용자 5~8명으로 방향을 확인하고, 이후 실제 사용 집계로 보완한다. 작은 표본을 서비스 전체 통계로 일반화하지 않는다.</p>
+<div class="table-wrap"><table><thead><tr><th>과업</th><th>목표</th><th>측정 방법</th></tr></thead><tbody>
+<tr><td>처음 연결하고 첫 세션 확인</td><td>5분 이내, 문서/CLI 안내 없이 성공률 80% 이상</td><td>설치 완료 상태에서 시작, 사람의 도움 개입·실패 원인 기록</td></tr>
+<tr><td>일상 사용</td><td>기본 관측에서 수동 task 등록 0회</td><td>연결된 지원 도구에서 새 세션 3개를 만드는 과업</td></tr>
+<tr><td>문제 진단</td><td>60초 내 원인과 다음 행동 식별</td><td>인증 실패·서버 종료·다른 프로젝트·빈 원장 시나리오</td></tr>
+<tr><td>상태 이해</td><td>대기·완료·관측 단절 오인 0건을 목표</td><td>5가지 상태 카드에서 설명과 행동 선택</td></tr>
+<tr><td>접근성·성능</td><td>390px 가로 넘침 0, 키보드 핵심 과업 성공, WebGL 없이 작업 확인</td><td>모바일/키보드/줄인 움직임/저사양 환경 검사</td></tr>
+<tr><td>관측 신뢰성</td><td>관측 중 원격 실행 요청 0; 출처·마지막 성공 시각 항상 확인 가능</td><td>네트워크 method 검증, 단절·재연결·ID 충돌·중복 이벤트 테스트</td></tr></tbody></table></div>
+<p>3D 체류 시간이나 애니메이션 수를 핵심 지표로 삼지 않는다. 첫 관측 성공, 확인 요청 해결, 재방문 시 작업 찾기 성공을 우선한다. 동의 없는 외부 분석 이벤트 수집은 추가하지 않는다.</p></section>
+<section id="evidence"><h2>08 · 근거, 변경 범위, 미확인 사항</h2>
+<ul><li><strong>확인:</strong> 2026-11-03 09:44 KST, 8777 /mission HTTP 200. 98개 작업, 프로젝트 후보 26개. 관리 화면 새 작업 버튼 disabled. 페이지 오류 0, 실패 요청 0. 실행·등록 요청 없이 조회했다.</li><li><strong>확인:</strong> 조사 기준 SHA <code>049fb7029e9a8e1a21ab1eeca3dcb953da8eca59</code>. 운영 서버에 새 기능을 반영하지 않았다.</li><li><strong>확인:</strong> 연결 발견은 <code>agent_workflow/connections.py</code>, 읽기 전용 경계는 <code>server.py</code>, 실행 공급자 제한은 <code>cli.py / core.py / runner.py</code>에서 확인했다.</li><li><strong>확인:</strong> 사용자 동선·표시는 <code>frontend/mission/App.tsx</code>, polling은 <code>api.ts</code>, 그래프·이름은 <code>model.ts / Room.tsx / Graph.tsx</code>.</li><li><strong>외부 근거:</strong> OpenCode 공식 서버·SDK·플러그인 문서, <a href="https://raw.githubusercontent.com/anomalyco/opencode/v1.3.17/packages/opencode/src/session/status.ts">1.3.17 상태 구현</a>. 로컬 1.3.17 HTTP를 직접 검사했다.</li><li><strong>미확인:</strong> 신규 사용자 과업 시간·성공률, 다양한 OS/호스팅 환경, OpenCode 다른 버전·실제 모델 실행의 provider별 차이, 장시간 SSE 누락·복구, 팀 서비스 수요와 보관 정책.</li></ul>
+<p>소스 기반 진단과 실제 사용자 조사, 이번 구현과 후속 제안, 합성 실행 검증과 실제 OpenCode 조회 검증을 구분한다. 이 문서 자체는 제품 UI 변경을 배포하지 않는다.</p></section>
+</main><footer>Agent Workflow · 계획서는 검토용 독립 HTML입니다. 원격 자산·분석 스크립트 없음.</footer>
+<script>document.getElementById('priority').addEventListener('change',function(){document.querySelectorAll('#backlog tbody tr').forEach(row=>{row.hidden=this.value!=='all'&&row.dataset.priority!==this.value;});});</script></body></html>
