@@ -35,6 +35,8 @@ def main():
                 fixture.fail = True
             if command == 'recover':
                 fixture.fail = False
+            if command == 'history-limit':
+                fixture.messages = [{'info': {'role': 'user'}, 'parts': []} for _ in range(99)] + fixture.messages[-1:]
             control.unlink()
 
     thread = threading.Thread(target=controls, daemon=True)

@@ -745,6 +745,16 @@ export default function App() {
                       </option>
                     ))}
                   </select>
+                  {trace.data?.runs_truncated && (
+                    <span
+                      className="muted"
+                      role="status"
+                      data-testid="history-limit"
+                    >
+                      최근 조회 한도에 도달했습니다. 이 목록은 전체 이력이 아닐
+                      수 있습니다.
+                    </span>
+                  )}
                 </label>
               ) : (
                 <span className="muted">

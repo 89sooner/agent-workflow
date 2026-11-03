@@ -37,6 +37,8 @@ try{
   assert.equal(await page.locator('.sidebar-bottom a').count(),0);
   assert.equal(await page.getByRole('button',{name:'▶ 기록 재생',exact:true}).isDisabled(),true);
   assert.ok(!(await page.locator('body').innerText()).includes('SECRET_'));
+  await fs.writeFile(f.control,'history-limit');
+  await until(async()=>await page.getByTestId('history-limit').count()===1);
   await screenshot('opencode-fixture-desktop');
   await fs.writeFile(f.control,'fail');
   await until(async()=>!!await page.locator('.notice.error').count());
@@ -65,5 +67,6 @@ try{
   }
   assert.deepEqual(errors,[]);
   assert.deepEqual(mutations,[]);
-  console.log('OpenCode browser: native discovery, identity/model, tool graph, failure/recovery, mobile, GET-only passed.');
+  console.log('OpenCode fixture browser: identity/model, tool graph, history limit, failure/recovery, mobile, GET-only passed.');
+  console.log('OpenCode native discovery: '+(f.native?'passed (session ID above)':'not run; OPENCODE_TEST_URL not supplied.'));
 }finally{await browser.close();}
