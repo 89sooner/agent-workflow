@@ -4,7 +4,7 @@
 
 OpenCode는 로컬 서버와 프로젝트를 한 번 연결하면 이후 새 세션을 별도 작업 등록 없이
 `/mission`에서 관측할 수 있습니다. `opencode connect` 사용법과 지원 범위는 위 안내를
-참고하세요. 이 기능 브랜치의 구현이며 기존 운영 서버에는 별도 반영이 필요합니다.
+참고하세요. 현재 소스에 포함된 기능이며 기존 운영 서버에는 별도 반영이 필요합니다.
 
 현재 관제실: [React·TypeScript·R3F 사용 안내](docs/REACT_MISSION_CONTROL.ko.md) · [문서 목록](docs/README.md) · [운영 반영](docs/OPERATIONS.ko.md)
 
