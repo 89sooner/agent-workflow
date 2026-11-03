@@ -1,5 +1,11 @@
 # Agent Workflow
 
+[OpenCode 세션 자동 관측](docs/OPENCODE_OBSERVATION.ko.md) · [서비스 사용성 개선 계획](docs/USABILITY_SERVICE_PLAN.ko.html)
+
+OpenCode는 로컬 서버와 프로젝트를 한 번 연결하면 이후 새 세션을 별도 작업 등록 없이
+`/mission`에서 관측할 수 있습니다. `opencode connect` 사용법과 지원 범위는 위 안내를
+참고하세요. 현재 소스에 포함된 기능이며 기존 운영 서버에는 별도 반영이 필요합니다.
+
 현재 관제실: [React·TypeScript·R3F 사용 안내](docs/REACT_MISSION_CONTROL.ko.md) · [문서 목록](docs/README.md) · [운영 반영](docs/OPERATIONS.ko.md)
 
 기존 v0.4.0 화면: [3D 관제실과 SaaS형 화면](docs/SAAS_OBSERVATORY.ko.md) · [관측·업그레이드 안내](docs/OBSERVABILITY.ko.md) · [제품·연구 조사](docs/OBSERVABILITY_RESEARCH.ko.md)
@@ -56,6 +62,10 @@ agent-workflow --home /path/to/observer watch --port 8878
 **관제실에 에이전트를 하나씩 추가할 필요는 없습니다. 다만 작업과 실행이 agent-workflow
 원장에 기록되어야 합니다.** Codex/Claude 세션을 열거나 저장소에서 작업하는 것만으로는
 관측되지 않습니다. 자동화된 것은 기존 원장의 발견과 기록 갱신이며, 임의 세션의 수집은 아닙니다.
+
+위 설명은 기존 workflow 원장 관측에 해당합니다. **OpenCode는 연결된 서버의 세션 API를
+별도로 읽으므로 세션마다 workflow 작업을 등록하지 않아도 됩니다.** 아직 연결하지 않은
+임의 OpenCode 세션을 모두 찾아내는 기능은 아닙니다.
 
 | 상황 | 관제실에서 보이는 조건 / 필요한 조치 |
 |---|---|

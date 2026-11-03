@@ -72,6 +72,8 @@ def stop_background(home):
 
 
 def handler(home, token, *, read_only=False, observer=False):
+    from .opencode import Observer
+    opencode = Observer(home)
     # Discovery is read-only; only opaque IDs from this local allowlist are accepted.
     discovery_lock = threading.Lock()
     discovery_cache = {"at": 0, "value": None}
@@ -83,6 +85,7 @@ def handler(home, token, *, read_only=False, observer=False):
                 registry = load_registry(home)
                 homes = [home] + [item["home"] for project in registry["projects"] for item in project["ledgers"]]
                 result = discover(homes=homes, include_processes=observer, include_temporary=observer, include_default=observer)
+                result["ledgers"].extend(opencode.ledgers())
                 result["observer"] = observer
                 discovery_cache.update(at=time.monotonic(), value=result)
             return discovery_cache["value"]
@@ -92,7 +95,7 @@ def handler(home, token, *, read_only=False, observer=False):
         requested = query.get("ledger", [None])[0]
         if not requested and (Path(home) / "state.sqlite3").is_file():
             return Path(home), ledger_id(home)
-        candidates = connections()["ledgers"]
+        candidates = [item for item in connections()["ledgers"] if item.get("kind") != "opencode"]
         if not requested:
             candidate = next((item for item in candidates if item.get("task_count") and item.get("status") == "available"), None)
             candidate = candidate or next((item for item in candidates if item.get("status") == "available"), None)
@@ -154,6 +157,17 @@ def handler(home, token, *, read_only=False, observer=False):
                 query = parse_qs(parsed.query)
                 if path == "/api/connections":
                     return self.response(connections())
+                source_id = query.get("ledger", [""])[0]
+                if source_id.startswith("opencode-"):
+                    if path == "/api/project-observability":
+                        return self.response(opencode.view(source_id, project=query.get("project", [None])[0]))
+                    if path in {"/api/observability", "/api/observability/export"}:
+                        task_id = query.get("task_id", [None])[0]
+                        if not task_id:
+                            raise WorkflowError("OpenCode 세션 ID가 필요합니다.")
+                        data = opencode.view(source_id, task_id, query.get("run_id", [None])[0])
+                        return self.response(data, attachment="opencode-observation.json" if path.endswith("/export") else None)
+                    raise WorkflowError("OpenCode는 /mission의 읽기 전용 세션 관측만 지원합니다.")
                 ledger_home, ledger = selected_home(query)
                 effective_read_only = read_only or observer or ledger_home != Path(home)
                 if ledger_home is None:

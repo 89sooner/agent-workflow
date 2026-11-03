@@ -136,6 +136,17 @@ def parser():
     commands = p.add_subparsers(dest="command", required=True)
     commands.add_parser("doctor", help="설치된 도구 확인; 모델 호출 없음")
     commands.add_parser("list", help="등록된 작업 목록")
+    c = commands.add_parser("opencode", help="OpenCode 서버 읽기 전용 관측 연결; 모델 실행 없음")
+    oc = c.add_subparsers(dest="opencode_command", required=True)
+    o = oc.add_parser("connect", help="로컬 OpenCode 서버를 한 번 연결하면 새 세션 자동 관측")
+    o.add_argument("url")
+    o.add_argument("--project", required=True, help="관측할 OpenCode 작업 디렉터리")
+    o.add_argument("--name", default="OpenCode")
+    o.add_argument("--password-env", help="OpenCode 서버 비밀번호를 담은 환경변수 이름")
+    o.add_argument("--username", default="opencode")
+    oc.add_parser("list", help="저장된 OpenCode 연결 조회")
+    o = oc.add_parser("disconnect", help="관측 연결만 해제; OpenCode 세션·서버 보존")
+    o.add_argument("id")
     c = commands.add_parser("connect", help="프로젝트 원장 자동 발견·연결; 기존 원장 변경·실행 없음")
     c.add_argument("project", nargs="?", default=".")
     c.add_argument("--ledger", action="append", default=[], help="관측할 기존 상태 경로; 여러 번 지정 가능")
@@ -297,6 +308,13 @@ def dispatch(args):
         return doctor()
     if args.command == "result-schema":
         return RESULT_SCHEMA
+    if args.command == "opencode":
+        from . import opencode
+        if args.opencode_command == "connect":
+            return opencode.connect(args.home, args.url, args.project, args.name, args.password_env, args.username)
+        if args.opencode_command == "disconnect":
+            return opencode.disconnect(args.home, args.id)
+        return opencode.sources(args.home)
     if args.command == "connect":
         from .connections import connect
         return connect(args.home, args.project, args.ledger, args.profile, args.criterion, args.scope,

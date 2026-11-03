@@ -1,5 +1,9 @@
 import type { Task, Trace, Span, Graph, Node, Event } from "./types";
 export const labels: Record<string, string> = {
+  native_session: "OpenCode 세션",
+  opencode_message: "OpenCode 응답",
+  tool: "도구",
+  retrying: "재시도 대기",
   running: "실행 중",
   unknown: "상태 미확인",
   succeeded: "완료",
