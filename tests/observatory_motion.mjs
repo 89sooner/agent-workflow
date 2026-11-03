@@ -14,6 +14,23 @@ const errors = [], writes = [];
 page.on('pageerror', error => errors.push(error.message));
 page.on('request', request => { if (request.method() !== 'GET') writes.push(request.method() + ' ' + request.url()); });
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function renderedUpdate(next) {
+  // A paused scene still repaints once to show its new state. Capture the
+  // counter and update atomically, then wait for that repaint before measuring
+  // inactivity; software rendering may take longer than a fixed sleep.
+  const before = await page.evaluate(value => {
+    const count = Number(document.querySelector('#motion-test').dataset.renderCount);
+    window.motionRoom.update(value);
+    return count;
+  }, next);
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    const count = Number(await page.locator('#motion-test').getAttribute('data-render-count'));
+    if (count > before) return count;
+    await sleep(20);
+  }
+  throw new Error('Scene did not repaint the requested state within 10 seconds');
+}
 try {
   // Only load the isolated static module; app polling must not affect frame counts.
   await page.goto(new URL('/static/THREE_LICENSE.txt', url).href);
@@ -43,20 +60,22 @@ try {
   assert.equal(await page.locator('#motion-test').getAttribute('data-transfer-count'), '1');
   await page.evaluate(() => window.motionRoom.update({transfers:[{id:'1',source:'controller',target:'agent:b',kind:'process_started'}]}));
   assert.equal(await page.locator('#motion-test').getAttribute('data-transfer-count'), '1', 'repeated polling does not replay transfer');
-  await page.evaluate(() => window.motionRoom.update({reducedMotion:true}));
-  await sleep(200);
-  const reducedFrames = Number(await page.locator('#motion-test').getAttribute('data-render-count'));
+  const reducedFrames = await renderedUpdate({reducedMotion:true});
   await sleep(400);
   assert.equal(Number(await page.locator('#motion-test').getAttribute('data-render-count')), reducedFrames, 'reduced motion stops continuous rendering');
-  await page.evaluate(() => window.motionRoom.update({reducedMotion:false,replaying:true}));
-  await sleep(200);
-  const replayFrames = Number(await page.locator('#motion-test').getAttribute('data-render-count'));
+  const replayFrames = await renderedUpdate({reducedMotion:false,replaying:true});
   await sleep(400);
   assert.equal(Number(await page.locator('#motion-test').getAttribute('data-render-count')), replayFrames, 'historical state does not imply live execution');
   assert.match(await page.locator('[data-scene-actor="agent:a"]').textContent(), /당시 실행 중/);
-  await page.evaluate(() => window.motionRoom.update({replaying:false,connected:false}));
-  await sleep(200);
-  const offlineFrames = Number(await page.locator('#motion-test').getAttribute('data-render-count'));
+  // Delay the final disconnected repaint beyond the old fixed 200 ms wait.
+  await page.evaluate(() => {
+    const request = window.requestAnimationFrame;
+    window.requestAnimationFrame = callback => {
+      window.requestAnimationFrame = request;
+      return request(() => setTimeout(() => callback(performance.now()), 350));
+    };
+  });
+  const offlineFrames = await renderedUpdate({replaying:false,connected:false});
   await sleep(400);
   assert.equal(Number(await page.locator('#motion-test').getAttribute('data-render-count')), offlineFrames, 'disconnection stops live activity');
   await page.evaluate(() => { window.motionRoom.update({connected:true}); window.motionRoom.setVisible(false); });
