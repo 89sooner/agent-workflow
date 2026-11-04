@@ -1,6 +1,6 @@
 # 관제실 운영 반영과 복구
 
-갱신: 2026-11-02 · 이 문서는 현재 WSL 로컬 배치를 설명한다.
+갱신: 2026-11-04 · 이 문서는 현재 WSL 로컬 배치를 설명한다.
 
 ## 대상과 경계
 
@@ -11,11 +11,28 @@
 | 8777 | H 원장 읽기 전용 서버 | 위 운영 소스, `/tmp/katakuri-h-local-queue-workflow-20261029` | `serve --read-only` 유지 |
 | 8877 | 과거 스냅샷 미리보기 | 별도 preview home | 운영 배포 대상으로 간주하지 않음 |
 | 8880 | React 개발 미리보기 | 별도 feature worktree와 observer home | 운영과 구분; 운영 확인 URL로 대체하지 않음 |
+| 8884 | 첫 연결 개선 미리보기 | `/tmp/agent-workflow-usability-20261104`, `/tmp/agent-workflow-usability-observer-20261104` | `watch`; 설정만 변경 가능, worker 없음. 임시 미리보기의 생존 여부는 접속 시 확인 |
 
 새 관제실은 `/mission`, 기존 관리 화면은 `/`다. 메타데이터 `server.json`에서 URL·PID·
 process_identity·read_only를 확인하고 `/proc/<pid>/cmdline`, cwd, 실제 리스너와 대조한다.
 파일에 적힌 PID만 보고 임의 프로세스를 종료하지 않는다. `server.lock`은 대시보드 잠금이고
 `daemon.lock`은 worker 잠금이다. 읽기 전용 서버는 worker를 만들지 않는다.
+
+## 연결 UI의 운영상 의미
+
+개선된 사용법은 [화면에서 프로젝트 연결](CONNECTION_SETUP.ko.md)에 있다. 소스 병합만으로
+기존 프로세스가 새 Python API를 불러오는 것은 아니다. 정적 UI와 서버 capability를 각각 확인한다.
+`GET /api/capabilities`의 `mode`, `can_configure_connections`, `can_manage_tasks`로 현재 모드를 확인한다.
+응답의 요청 토큰은 공개 로그나 보고서에 남기지 않는다.
+
+- `watch`: 연결 설정 저장만 허용한다. 관측 DB·작업·큐·모델 실행을 생성하지 않는다.
+- `serve --read-only`: 연결 설정을 포함한 POST를 차단한다. 사용자는 지원 범위와 제한 안내를 볼 수 있다.
+- 일반 `serve`: 연결 설정 가능. 관리 링크는 자신의 기본 원장에만 표시하며 기존 worker는 계속 동작한다.
+
+`connections.json`과 `opencode.json`은 해당 관제실의 home에 저장된다. 기존 연결을 유지하려면
+업그레이드·이전 시 이 파일도 보존한다. OpenCode 인증 환경변수는 새 서버 프로세스에 별도로 전달한다.
+읽기 전용 연결을 위해 기존 관리 서버를 중단할 필요는 없다. 별도 observer home과 빈 포트의
+`watch`에서 연결 UI를 사용할 수 있다. 이번 병합 요청은 운영 재시작·배포 요청과 구분한다.
 
 ## 반영 순서
 
@@ -35,6 +52,8 @@ process_identity·read_only를 확인하고 `/proc/<pid>/cmdline`, cwd, 실제 �
    8776은 원래 관리 모드, 8777은 원래 읽기 전용 모드로 시작한다. 변경된 state home을 쓰지 않는다.
 8. `/mission` 및 JS/CSS/아이콘·라이선스의 HTTP 200, 파일 해시, CSP, 원장 목록,
    최근 H task/run을 확인한다. 실제 브라우저에서 작업·이전 run·그래프·3D·이력을 선택한다.
+   연결 UI의 지원 범위, 빈 화면·오류 안내, 각 서버의 설정/관리 권한도 확인한다.
+   신규 연결 저장 검사는 운영 서버 대신 별도 observer/fixture에서 먼저 수행한다.
 9. 운영 HEAD = `origin/main` = 배포 목표 SHA인지 확인하고, 실제 8776/8777 URL과 health를 기록한다.
    합성 fixture 결과, 실제 원장 조회, 원격 CI, 독립 리뷰, 운영 반영은 별도 증거로 남긴다.
 

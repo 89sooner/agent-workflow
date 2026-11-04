@@ -12,9 +12,10 @@ worker를 실행하므로 관측 전용 서버에는 `watch` 또는 `serve --rea
 | 목적 | 주소 | state home | 실행 제어 |
 |---|---|---|---|
 | Katakuri H 작업 관측 | http://127.0.0.1:8777/mission | `/tmp/katakuri-h-local-queue-workflow-20261029` | 서버 전체 읽기 전용 |
-| 기본 원장 관측 | http://127.0.0.1:8776/mission | `~/.local/state/agent-workflow` | 관제실은 GET만 사용 |
+| 기본 원장 관측 | http://127.0.0.1:8776/mission | `~/.local/state/agent-workflow` | 관측 GET, 명시적 연결 설정 POST |
 | 기본 원장 관리 | http://127.0.0.1:8776/ | 위와 동일 | 기존 worker·관리 API |
-| 개발 미리보기 | http://127.0.0.1:8880/mission | `/tmp/agent-workflow-react-preview-20261102` | 별도 읽기 전용 연결 |
+| React 개발 미리보기 | http://127.0.0.1:8880/mission | `/tmp/agent-workflow-react-preview-20261102` | 기존 미리보기 |
+| 첫 연결 개선 미리보기 | http://127.0.0.1:8884/mission | `/tmp/agent-workflow-usability-observer-20261104` | 연결 설정만 가능, 작업 실행 불가 |
 
 위 주소는 이 WSL 배치의 설정이다. **8765는 Katakuri 운영 제어 서버**이므로 관제실을 위해
 종료하거나 같은 포트를 재사용하지 않는다. 다른 PC에서는 빈 포트와 실제 state home을 선택한다.
@@ -49,12 +50,14 @@ worker를 실행하므로 관측 전용 서버에는 `watch` 또는 `serve --rea
 | 경로 | 역할 |
 |---|---|
 | `frontend/mission/App.tsx` | 원장·프로젝트·작업·run 선택, 상세·로그·이력·재생 |
+| `frontend/mission/Connections.tsx` | 프로젝트·도구 연결 대화상자, 지원 범위와 실패 해결 안내 |
 | `frontend/mission/api.ts` | 범위별 polling, 취소, backoff, visibility 처리 |
 | `frontend/mission/model.ts` | 실제 데이터 → 그래프, 이벤트 시점 상태, 전달 이벤트 |
 | `frontend/mission/Graph.tsx` | SVG 실행 그래프, 실제 간선, 확대·키보드 선택 |
 | `frontend/mission/Room.tsx` | R3F Canvas, 절차적 작업 공간·이름·활동, OrbitControls, WebGL fallback |
 | `frontend/mission/mission.css` | 반응형 UI, 상태 표시, 제한된 전환 |
 | `scripts/build-mission.mjs` | 고정 의존성의 로컬 JS/CSS·라이선스 빌드와 일치 검사 |
+| `agent_workflow/onboarding.py` | capability, 프로젝트 후보 확인, 관측 설정 저장 |
 | `agent_workflow/server.py` | `/mission`과 정적 자산 allowlist, 취소된 GET 연결 정리 |
 | `tests/mission_integration.py`, `tests/mission_scenarios.mjs` | 격리된 실제 DB·HTTP·프로세스·Chromium 수용 검사 |
 | `scripts/test-mission.mjs` | 재생 시간순서·이름·중복 전달 방지·선택 단계 보존 회귀 검사 |
@@ -62,6 +65,8 @@ worker를 실행하므로 관측 전용 서버에는 `watch` 또는 `serve --rea
 프런트 런타임은 React/React DOM 19.3.1, R3F 9.8.2, Three.js 0.187.0이다.
 TypeScript 7.0.2와 esbuild 0.28.2를 빌드에 사용한다. Next.js 서버는 추가하지 않았다.
 서버와 UI 모두 기존 로컬 API를 사용하며 외부 CDN·폰트·3D 모델 요청이 없다.
+
+첫 연결의 자동 브라우저 검사는 `python3 tests/onboarding_integration.py`다. 임시 HTTP 서버·원장·OpenCode fixture를 사용한다.
 
 ## 개발 및 검증
 

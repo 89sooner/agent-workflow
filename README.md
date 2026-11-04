@@ -57,6 +57,9 @@ agent-workflow --home /path/to/observer watch --port 8878
 [화면 사용법](docs/REACT_MISSION_CONTROL.ko.md) · [상태·증거·API](docs/OBSERVABILITY.ko.md) ·
 [백업·재시작·배포 확인](docs/OPERATIONS.ko.md)
 
+사용성 계획 중 **UX-01~03은 구현·검증 완료**입니다. 다음 사용자 지정 작업은 **작업자 3D 형상 정교화**이며,
+프로젝트 통합·확인 요청함 등의 남은 범위는 [후속 상태](docs/FOLLOWUP_STATUS.ko.md)에서 구분합니다.
+
 ## 화면에서 처음 연결하기
 
 `watch`로 실행한 `/mission`에서 **프로젝트 연결 → 프로젝트 폴더 경로 → 사용 도구**를 선택합니다.
@@ -377,6 +380,8 @@ UI 회귀 검사는 `node tests/ui_scenarios.mjs http://127.0.0.1:8776`으로 �
 실제 작업 실행·배포를 요청하지 않습니다. 사용자용 CLI·대시보드에는 Playwright가 필요 없습니다.
 실제 임시 SQLite·HTTP·큐와 합성 CLI를 연결하는 관제실 브라우저 검사는
 `python3 tests/observability_integration.py`로 실행합니다. 모델 과금이나 운영 배포는 호출하지 않습니다.
+새 연결 UI의 첫 사용·권한·모바일 검사는 `python3 tests/onboarding_integration.py`,
+OpenCode 관측 검사는 `python3 tests/opencode_integration.py`입니다. 격리된 fixture로 실행합니다.
 
 `service-install --enable`은 사용자 systemd가 있으면 서비스를 등록하고, 없으면 대화형 Bash 로그인
 시작 파일의 관리 구역에 데몬 시작을 연결합니다. `--enable` 없이 실행하면 파일만 준비합니다.

@@ -1,6 +1,6 @@
 # v0.4.0 에이전트 관제실 사용 안내
 
-갱신: 2026-11-02. 새 `/mission`의 사용법은 [React 관제실](REACT_MISSION_CONTROL.ko.md), 현재 운영 절차는 [운영 안내](OPERATIONS.ko.md)에 있다. 아래 관측 API·증거 계약은 새 화면에서도 유지한다. 기존 화면에만 있는 제어는 `/`에서 사용한다.
+갱신: 2026-11-04. 새 `/mission`의 사용법은 [React 관제실](REACT_MISSION_CONTROL.ko.md), 현재 운영 절차는 [운영 안내](OPERATIONS.ko.md)에 있다. 아래 관측 API·증거 계약은 새 화면에서도 유지한다. 기존 화면에만 있는 제어는 `/`에서 사용한다.
 
 관제실은 agent-workflow가 실제로 호출한 구현 담당, 검사 실행기, 독립 리뷰, 통합·배포의 작업과 인계를 보여준다. Three.js 3D 작업실, 역할 목록, 실행 그래프, 시간순 이벤트, 선택한 단계의 결과와 로그가 같은 기록을 사용한다. 화면 구성·조작·프로젝트 탐색은 [3D 관제실 안내](SAAS_OBSERVATORY.ko.md)를 참고한다.
 
@@ -165,6 +165,27 @@ agent-workflow unhold WP-074
 잘린 범위는 경고와 truncation/pagination 정보로 표시한다. `run_id`를 알고 있으면 목록보다 오래된 해당 실행도 직접 조회할 수 있지만, 실행 목록 전체를 페이지로 탐색하는 기능은 없다. 오래된 이벤트를 추가로 불러와도 일반 그래프의 span 상한은 별도로 유지된다.
 
 관제실은 보이는 탭에서 정상 연결 시 약 2초마다 갱신한다. 오류 시 재시도 간격을 늘려 최대 30초로 제한하고, 숨겨진 탭에서는 관제실 polling과 재생을 멈춘다. 이는 WebSocket/SSE 스트리밍이나 프레임 단위 실시간 보장이 아니다.
+
+### 프로젝트 연결 API와 권한
+
+화면 절차는 [연결 사용법](CONNECTION_SETUP.ko.md)을 따른다. 다음 API는 작업 실행 API와 구분한다.
+
+| API | 의미 |
+|---|---|
+| `GET /api/capabilities` | 현재 서버 모드, 연결 설정/작업 관리 가능 여부, 자신의 원장 ID, 요청 토큰과 도구별 지원 범위 |
+| `GET /api/connections` | 현재 연결과 발견된 원장 목록; 사용 가능 여부, 오류, 마지막 성공 시각 |
+| `POST /api/connections/discover` | `project` 절대 경로에 해당하는 제한된 workflow 후보 조회. 설정을 저장하지 않음 |
+| `POST /api/connections/connect` | OpenCode의 `kind/project/url/name` 또는 workflow의 `kind/project/ledger_ids`로 명시적 연결 저장 |
+| `POST /api/connections/disconnect` | `kind=opencode`, `source_id`의 observer 설정만 해제. 원격 세션 보존 |
+
+설정 POST는 동일 출처·Host 검사와 `X-Workflow-Token`이 필요하며 JSON 본문은 8 KiB 이하이다.
+OpenCode 인증은 선택적인 `password_env`(값이 아닌 변수 이름)·`username`을 사용한다.
+연결 성공은 `source_id`, `execution_started: false`를 반환한다. 발견·연결은 task/job 생성과 모델 실행을 하지 않는다.
+`watch`는 이 설정 API만 허용하고 실행 API는 차단한다. `serve --read-only`는 설정을 포함한 POST를 차단한다.
+일반 `serve`의 관리 기능은 자신의 원장에서만 제공한다. 토큰은 보고서·공개 로그에 기록하지 않는다.
+
+`/api/project-observability`·`/api/observability`의 `ledger`에는 조회된 연결 ID를 사용한다.
+OpenCode 네이티브 세션은 workflow 관리 task와 별개이며 [OpenCode 관측 안내](OPENCODE_OBSERVATION.ko.md)의 범위·제한을 따른다.
 
 ## 7. 관측 범위와 원문 취급
 

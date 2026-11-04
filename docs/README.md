@@ -13,7 +13,7 @@
 | [기존 SaaS 화면](SAAS_OBSERVATORY.ko.md) | `/` 관리 UI와 기존 Three.js 관제실의 조작 |
 | [관측 API와 증거](OBSERVABILITY.ko.md) | task/job/run/span/event, 상태·완료·재생·로그 계약 |
 | [자동화](AUTOMATION_V0.3.ko.md) | profile, 격리 작업, 검증, 리뷰, 큐, release 명령 |
-| [후속 진행 현황](FOLLOWUP_STATUS.ko.md) | 구현된 기능과 배포/검증 증거의 구분 |
+| [후속 진행 현황](FOLLOWUP_STATUS.ko.md) | UX-01~03 완료·남은 범위·다음 3D 형상 작업·배포/검증 구분 |
 | [기본 개념](USER_GUIDE.ko.md) | v0.2 개념·파일럿 기록과 현재 문서 연결 |
 | [초기 구현 계획](IMPLEMENTATION_PLAN.md) | 2026-10의 구현 이력; 현재 미완료 목록으로 사용하지 않음 |
 | [조사 근거](OBSERVABILITY_RESEARCH.ko.md) | 2026-10-30 조사 결과; 최신 제품 조사로 간주하지 않음 |

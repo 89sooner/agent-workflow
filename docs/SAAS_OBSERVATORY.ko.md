@@ -1,6 +1,6 @@
 # Three.js 관제실과 SaaS형 워크스페이스
 
-갱신: 2026-11-02. 이 문서는 `/`의 기존 관리 UI와 Three.js 구현을 설명한다.
+갱신: 2026-11-04. 이 문서는 `/`의 기존 관리 UI와 Three.js 구현을 설명한다.
 새 `/mission`의 TypeScript·React·R3F 사용법은 [React 관제실](REACT_MISSION_CONTROL.ko.md),
 현재 URL·재시작 절차는 [운영 안내](OPERATIONS.ko.md)에 있다. 아래 초기 화면/검증 기록은 유지한다.
 
@@ -40,7 +40,7 @@ python3 -m agent_workflow --home /path/to/existing-state serve --read-only --por
 
 DB가 없으면 실패하며 빈 원장을 만들지 않는다. SQLite `mode=ro`와 `query_only`로 스키마 초기화 없이 읽고, 큐 worker와 scheduler를 시작하지 않는다. 변경 API는 403을 반환하고 화면의 등록·실행·보류·중단·재개 버튼은 비활성화된다. `server.lock`과 `server.json`은 서버 수명 관리를 위해 해당 home에 기록하며 `daemon.lock`은 획득하지 않는다. 같은 home의 대시보드 서버는 하나만 허용한다.
 
-완료한 작업의 단계별 이력은 관제실의 **실행 기록** 선택 상자에서 조회·재생한다. 사이드바 **실행 기록** 메뉴는 큐 jobs를 표시하므로 직접 CLI로 실행한 원장은 해당 목록이 비어 있을 수 있다. 프로젝트를 **모든 프로젝트**, 상태를 **모든 작업**으로 선택한 뒤 task ID로 검색한다. `serve --read-only`는 지정 home과 저장된 연결을 조회한다. 자동 발견은 `watch`, 연결 저장은 `connect`를 사용한다.
+완료한 작업의 단계별 이력은 관제실의 **실행 기록** 선택 상자에서 조회·재생한다. 사이드바 **실행 기록** 메뉴는 큐 jobs를 표시하므로 직접 CLI로 실행한 원장은 해당 목록이 비어 있을 수 있다. 프로젝트를 **모든 프로젝트**, 상태를 **모든 작업**으로 선택한 뒤 task ID로 검색한다. `serve --read-only`는 지정 home과 저장된 연결을 조회한다. 자동 발견은 `watch`, 연결 저장은 새 `/mission`의 **프로젝트 연결** 또는 기존 `connect`를 사용한다. [화면 연결 안내](CONNECTION_SETUP.ko.md)에 서버 모드별 설정 권한이 있다.
 
 ## 3D 공간
 

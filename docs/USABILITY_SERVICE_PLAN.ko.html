@@ -1016,8 +1016,9 @@
 <div class="stats"><div><b>98개 작업</b><span>8777 실제 화면에서 확인한 표본</span></div><div><b>26개 프로젝트 후보</b><span>경로 기반 표시 · 전체 옵션 제외</span></div><div><b>OpenCode 관측 구현</b><span>소스 통합 · 운영 적용은 별도</span></div><div><b>목표: 5분 안에 첫 관측</b><span>제품 수용 목표 · 아직 사용자 측정 전</span></div></div></header>
 <nav aria-label="계획서 목차"><a href="#verdict">진단</a><a href="#journey">사용 흐름</a><a href="#priorities">우선순위</a><a href="#opencode">OpenCode</a><a href="#architecture">구조</a><a href="#delivery">구현 순서</a><a href="#acceptance">출시 기준</a><a href="#evidence">근거·한계</a></nav>
 <main>
+<p class="note"><strong>2026-11-04 진행 상태:</strong> UX-01~03의 UI 연결·빈 화면/실패 진단·권한 구분을 구현하고 검증했다. <a href="CONNECTION_SETUP.ko.md">현재 사용법</a> · <a href="FOLLOWUP_STATUS.ko.md">완료 범위와 다음 작업</a>. 아래 초기 진단과 표본은 2026-11-03 당시 기록이다. 사용자 지정 다음 작업은 작업자 3D 형상 정교화이며 아직 구현 전이다. 소스 병합과 운영 적용은 별도다.</p>
 <section id="verdict"><h2>01 · 사용성 개선은 일부 이루어졌지만, 서비스 수준의 시작 경험은 부족하다</h2>
-<div class="grid"><article><h3>확인한 개선</h3><ul><li>실행 그래프와 3D 선택, 담당자 상세가 연결된다.</li><li>과거 실행·로그·이벤트 재생을 한 화면에서 탐색한다.</li><li>접속 오류·숨긴 탭·움직임 줄이기를 처리한다.</li><li>관측 화면은 GET만 사용하며 실제 기록과 추정을 구분한다.</li></ul></article>
+<div class="grid"><article><h3>확인한 개선</h3><ul><li>실행 그래프와 3D 선택, 담당자 상세가 연결된다.</li><li>과거 실행·로그·이벤트 재생을 한 화면에서 탐색한다.</li><li>접속 오류·숨긴 탭·움직임 줄이기를 처리한다.</li><li>관측 조회는 GET이며 실제 기록과 추정을 구분한다. 현재 명시적인 연결 설정은 별도 POST다.</li></ul></article>
 <article><h3>남아 있는 핵심 부담</h3><ul><li>사용자가 state home과 watch/serve 차이를 알아야 한다.</li><li>작업을 원장에 남기는 책임이 사용자 또는 에이전트 프롬프트에 있다.</li><li>다른 원장에 기록하면 같은 프로젝트여도 다른 화면 범위에 머문다.</li><li>“왜 안 보이는가”를 UI 대신 문서와 CLI로 진단한다.</li></ul></article></div>
 <p class="note"><strong>판단 근거:</strong> 소스와 실제 8777 화면의 동선 점검이다. 실제 신규 사용자 인터뷰나 사용성 실험 결과는 아니다. “사용자가 모두 실패한다”거나 전환율이 나쁘다는 수치는 아직 없다.</p>
 <div class="table-wrap"><table><thead><tr><th>문제</th><th>실제 관찰</th><th>사용자에게 생기는 비용</th></tr></thead><tbody>
