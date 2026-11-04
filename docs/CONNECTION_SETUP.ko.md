@@ -66,3 +66,7 @@ python3 -m agent_workflow --home /path/to/observer watch --port 8878
 브라우저 자동 검사로 동작을 검증한다. 계획의 ‘처음 사용하는 사람의 80%가 5분 이내 성공’ 목표는 실제 신규 사용자 조사가 필요하며 자동 검사 통과로 달성했다고 보지 않는다.
 
 [OpenCode 상세 안내](OPENCODE_OBSERVATION.ko.md) · [관제실 조작](REACT_MISSION_CONTROL.ko.md) · [전체 사용성 계획](USABILITY_SERVICE_PLAN.ko.html)
+
+## WP 없는 Claude Code 관측
+
+위 표의 Claude workflow 연결과 별도로 /sessions에서 프로젝트 훅 설치 명령을 준비할 수 있다. 최초 CLI 설치 후 새 네이티브 세션을 자동 관측한다. OpenCode와 통합 목록·요청함·이력을 제공하며 기존 workflow 연결은 유지한다. [파일럿 안내](NATIVE_PILOT.ko.md).

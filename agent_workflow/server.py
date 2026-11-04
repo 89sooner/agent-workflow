@@ -74,6 +74,7 @@ def stop_background(home):
 def handler(home, token, *, read_only=False, observer=False):
     from .opencode import Observer
     opencode = Observer(home)
+    native_lock = threading.Lock()
     # Discovery is read-only; only opaque IDs from this local allowlist are accepted.
     discovery_lock = threading.Lock()
     discovery_cache = {"at": 0, "value": None}
@@ -151,9 +152,9 @@ def handler(home, token, *, read_only=False, observer=False):
                 self.origin()
                 parsed = urlparse(self.path)
                 path = unquote(parsed.path)
-                if path in ("/", "/mission", "/mission/", "/static/mission.js", "/static/mission.css", "/static/MISSION_LICENSES.txt", "/static/mission-icon.svg", "/static/app.js", "/static/styles.css", "/static/observatory.js", "/static/observatory.css",
+                if path in ("/", "/mission", "/mission/", "/sessions", "/static/mission.js", "/static/mission.css", "/static/MISSION_LICENSES.txt", "/static/mission-icon.svg", "/static/app.js", "/static/styles.css", "/static/observatory.js", "/static/observatory.css",
                             "/static/saas.css", "/static/scene3d.js", "/static/scene3d.css", "/static/three-vendor.js", "/static/THREE_LICENSE.txt"):
-                    name = "index.html" if path == "/" else "mission.html" if path in ("/mission", "/mission/") else path.rsplit("/", 1)[1]
+                    name = "index.html" if path == "/" else "mission.html" if path in ("/mission", "/mission/", "/sessions") else path.rsplit("/", 1)[1]
                     mime = "text/html" if name.endswith(".html") else "text/javascript" if name.endswith(".js") else "text/css" if name.endswith(".css") else "image/svg+xml" if name.endswith(".svg") else "text/plain"
                     return self.response((assets / name).read_bytes(), content_type=mime + "; charset=utf-8")
                 if path == "/demo":
@@ -162,6 +163,13 @@ def handler(home, token, *, read_only=False, observer=False):
                         return self.response({"error": "시범 배포가 아직 없습니다."}, 404)
                     return self.response(p.read_bytes(), content_type="text/html; charset=utf-8")
                 query = parse_qs(parsed.query)
+                if path == "/api/native/sessions":
+                    from .native import snapshot
+                    with native_lock:
+                        return self.response(snapshot(home, opencode, query.get("session", [None])[0], refresh=observer or not read_only))
+                if path == "/api/native/setup":
+                    from .native import setup
+                    return self.response(setup(home, query.get("project", [""])[0]))
                 if path == "/api/capabilities":
                     from .onboarding import capabilities
                     return self.response(capabilities(home, token, read_only=read_only, observer=observer))

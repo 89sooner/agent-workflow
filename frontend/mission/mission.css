@@ -1272,3 +1272,17 @@ main {
   background: #111d2dc9;
   pointer-events: none;
 }
+
+.native-page { max-width: 1600px; margin: auto; padding: 20px; }
+.native-heading, .native-controls, .native-setup, .native-empty, .native-detail { padding: 18px; margin-bottom: 16px; }
+.native-heading, .native-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; justify-content: space-between; }
+.native-controls label { display: flex; gap: 8px; align-items: center; }
+.native-controls input[type=checkbox] { width: auto; }
+.native-columns { display: grid; grid-template-columns: minmax(220px, 320px) minmax(0, 1fr); gap: 18px; }
+.native-session { display: flex; flex-direction: column; text-align: left; width: 100%; padding: 14px; gap: 6px; border-radius: 0; overflow-wrap: anywhere; }
+.native-session[aria-pressed=true] { border-color: #66e6bb; background: #203c43; }
+.native-list { align-self: start; max-height: 800px; overflow: auto; }
+.native-detail, .native-setup { overflow-wrap: anywhere; }
+.native-setup pre { white-space: pre-wrap; }
+.native-history { max-height: 420px; overflow: auto; padding-left: 24px; }
+@media(max-width: 780px) { .native-columns { grid-template-columns: minmax(0,1fr); } .native-page { padding: 10px; } .native-list { max-height: 300px; } }

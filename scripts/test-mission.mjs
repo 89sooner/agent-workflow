@@ -182,3 +182,20 @@ for (const zones of [[], ["work","lounge","attention"], Array(12).fill("work"), 
   });
 }
 console.log("State rooms: explicit status, stale observation and separated layouts passed.");
+
+const travelBuild=await build({entryPoints:["frontend/mission/travel.ts"],bundle:true,write:false,platform:"node",format:"esm"});
+const {createJourney,retarget,stepJourney}=await import("data:text/javascript;base64,"+Buffer.from(travelBuild.outputFiles[0].text).toString("base64"));
+const j=createJourney([-7.9,0,2]);
+retarget(j,[-1.5,0,2],-4,true);
+assert.equal(j.phase,"rising");
+for(let i=0;i<30;i++) stepJourney(j,1/60);
+assert.equal(j.phase,"walking");
+const current=[...j.point];
+retarget(j,[7.9,0,4],-4,true);
+assert.deepEqual(j.point,current,"retarget must preserve current position");
+for(let i=0;i<2000;i++) stepJourney(j,1/60);
+assert.equal(j.phase,"seated");
+assert.deepEqual(j.point,[7.9,0,4]);
+retarget(j,[-7.9,0,2],-4,false);
+assert.equal(j.phase,"seated");assert.deepEqual(j.point,[-7.9,0,2]);
+console.log("Room travel: rise/walk/sit, retarget and reduced-motion snap passed.");

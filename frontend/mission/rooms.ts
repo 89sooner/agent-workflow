@@ -26,31 +26,29 @@ export function roomZone(status: string, activityKnown = true): RoomZone {
   return "attention";
 }
 export function roomLayout(zones: RoomZone[]) {
-  const columns = Math.max(1, Math.min(4, zones.length));
-  let cursor = 0;
-  const areas = roomZones.map((zone) => {
-    const count = zones.filter((z) => z === zone.id).length;
-    const depth = Math.max(1, Math.ceil(count / columns)) * 2.8;
-    const area = { ...zone, count, center: cursor + depth / 2, depth };
-    cursor += depth + 0.6;
-    return area;
-  });
-  const depth = cursor - 0.6;
-  for (const area of areas) area.center += 1 - depth / 2;
+  const depth = Math.max(2, Math.ceil(zones.length / 2)) * 2.8;
+  const areas = roomZones.map((zone, i) => ({
+    ...zone,
+    count: zones.filter((z) => z === zone.id).length,
+    x: (i - 1) * 6.4,
+    center: 1,
+    depth,
+  }));
   const offsets = { work: 0, lounge: 0, attention: 0 };
   const positions = zones.map((zone) => {
     const area = areas.find((a) => a.id === zone)!;
-    const i = offsets[zone]++;
+    const index = offsets[zone]++;
     return [
-      ((i % columns) - (columns - 1) / 2) * 2.6,
+      area.x + (index % 2 ? 1.5 : -1.5),
       0,
-      area.center - area.depth / 2 + 1.4 + Math.floor(i / columns) * 2.8,
+      1 - depth / 2 + 1.4 + Math.floor(index / 2) * 2.8,
     ] as [number, number, number];
   });
   return {
     areas,
     positions,
-    width: Math.max(6, columns * 2.6 + 2),
-    depth: depth + 1,
+    width: 19.2,
+    depth: depth + 4,
+    corridor: 1 - depth / 2 - 1.2,
   };
 }

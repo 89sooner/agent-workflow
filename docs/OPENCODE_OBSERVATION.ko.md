@@ -112,3 +112,7 @@ npm run check:mission
 모델을 호출하지 않으며 새 검증 세션 ID를 출력한다.
 
 사용성 개선의 우선순위와 후속 작업은 [서비스 사용성 개선 계획](USABILITY_SERVICE_PLAN.ko.html)에 있다.
+
+## 일상 세션 파일럿
+
+/sessions는 기존 /mission 상세와 별도로 Claude·OpenCode를 함께 표시하고 조회한 상태 메타데이터를 observer의 별도 DB에 보관한다. 위의 비영구 스냅샷 설명은 기존 /mission 어댑터 기준이다. 승인·질문 GET 목록이 지원되면 요청함에 반영한다. [보존 범위와 한계](NATIVE_PILOT.ko.md).

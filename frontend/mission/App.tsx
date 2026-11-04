@@ -558,6 +558,7 @@ export default function App() {
             AGENT WORKFLOW<small>MISSION CONTROL</small>
           </span>
         </a>
+        <a className="connect-entry" href="/sessions">일상 세션 · WP 없이 관측</a>
         <button
           className="connect-entry"
           onClick={() => setConnecting(true)}

@@ -162,6 +162,22 @@ try {
           : "unknown",
       };
     });
+    if(count===4){
+      await page.locator("#last").click();
+      await page.getByRole("button",{name:"선택한 작업자 가까이"}).click();
+      await page.evaluate(()=>window.setWorkerState("idle"));
+      await page.waitForFunction(()=>JSON.parse(document.querySelector("canvas").parentElement.dataset.travelPhases||"[]").includes("walking"));
+      await page.screenshot({path:join(output,"walking.png")});
+      await page.evaluate(()=>window.setWorkerState("failed"));
+      await page.waitForFunction(()=>JSON.parse(document.querySelector("canvas").parentElement.dataset.travelPhases||"[]").every(p=>p==="seated"),{},{timeout:30000});
+      await page.screenshot({path:join(output,"arrived.png")});
+      await page.evaluate(()=>window.setWorkerState("running"));
+      await page.waitForTimeout(350);
+      await page.locator("#motion").click();
+      await page.waitForFunction(()=>JSON.parse(document.querySelector("canvas").parentElement.dataset.travelPhases||"[]").every(p=>p==="seated"));
+      await page.locator("#motion").click();
+      await page.getByRole("button",{name:"시점 초기화"}).click();
+    }
     measurements.push({
       inputWorkers: count,
       displayedWorkers: Math.min(count, 12),
@@ -209,7 +225,7 @@ try {
       await page.waitForTimeout(250);
       assert((await page.locator('[data-zone="'+zone+'"]').innerText()).endsWith(String(Math.min(count,12))));
       await page.getByRole("button",{name:"선택한 작업자 가까이"}).click();
-      await page.waitForTimeout(200);
+      await page.locator('.room-nameplate[aria-pressed="true"]').waitFor({state:"visible",timeout:5000});
       await labels();
       assert.equal(await page.locator('.room-nameplate[aria-pressed="true"]:visible').count(),1);
       if (count===12 && status==="idle") await page.screenshot({path:join(output,"state-room-lounge.png")});

@@ -18,7 +18,7 @@ def capabilities(home, token, *, read_only=False, observer=False):
             {"id": "codex", "label": "Codex", "support": "workflow_only",
              "description": "agent-workflow에 기록된 작업만 관측합니다. 일반 Codex 대화의 자동 발견은 지원하지 않습니다."},
             {"id": "claude", "label": "Claude", "support": "workflow_only",
-             "description": "agent-workflow에 기록된 작업만 관측합니다. 일반 Claude 대화의 자동 발견은 지원하지 않습니다."},
+             "description": "agent-workflow에 기록된 작업만 관측합니다. 일상 세션 화면에서 프로젝트 관측 훅을 설치하면 WP 없이 Claude Code 세션도 관측할 수 있습니다."},
         ],
     }
 
