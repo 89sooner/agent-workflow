@@ -173,6 +173,9 @@ function Nameplates({
   }, [nodes, positions, selected, onSelect, gl, invalidate]);
   const projected = useMemo(() => new Vector3(), []);
   useFrame(({ camera }) => {
+    // Controls may move the camera earlier in this same demand-rendered frame.
+    // Project labels with the new view, even when no further frame is scheduled.
+    camera.updateMatrixWorld();
     const width = Math.min(156, size.width - 16),
       height = 32;
     const boxes: { x: number; y: number }[] = [];
