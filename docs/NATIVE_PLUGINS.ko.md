@@ -81,6 +81,7 @@ OpenCode 1.3.17의 `file:` 플러그인 항목은 JS 모듈을 직접 읽으므�
 
 기존 배열/설정 전체를 덮어쓰지 마세요. 로컬 파일과 패키지를 동시에 설치하지 마세요.
 필요하면 `AGENT_WORKFLOW_PYTHON=/absolute/observer-venv/bin/python`으로 사용할 Python을 지정합니다.
+OpenCode 브리지는 Python 3.11+의 `-P` 옵션을 사용합니다. `PYTHONPATH`는 설정하지 않는 것이 기본이며, 필요할 때는 신뢰하는 절대 경로만 사용하고 `.` 또는 빈 경로 항목을 넣지 마세요.
 
 **도구별 프로젝트 등록 — 한 번만 필요**
 

@@ -62,6 +62,13 @@ class NativePluginTests(unittest.TestCase):
         self.assertNotIn('PRIVATE',dump);self.assertNotIn('/do/not/read',dump)
         self.assertFalse((self.home/'state.sqlite3').exists())
 
+    def test_direct_hook_requires_explicit_absolute_cwd(self):
+        native.install(self.home,self.project,provider='codex')
+        payload=self.payload('SessionStart');payload.pop('cwd')
+        with patch('pathlib.Path.cwd',return_value=self.project):
+            self.assertFalse(native.ingest(self.home,self.project,payload,'codex'))
+        self.assertFalse(native.ingest(self.home,self.project,{**payload,'cwd':'.'},'codex'))
+
     def test_plugin_opt_in_scope_and_unregistration(self):
         payload=self.payload('SessionStart')
         self.assertFalse(native.ingest(self.home,self.project,payload,'codex','plugin'))
@@ -81,6 +88,7 @@ class NativePluginTests(unittest.TestCase):
         with self.assertRaises(WorkflowError):native.register(self.home,self.project,'codex')
         native.install(self.home,self.project,remove=True,provider='codex')
         native.register(self.home,self.project,'codex')
+        with self.assertRaises(WorkflowError):native.install(self.home,self.project,provider='codex')
 
     def test_removed_project_can_unregister_and_inspect(self):
         native.register(self.home,self.project,'codex')

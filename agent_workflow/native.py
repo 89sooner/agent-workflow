@@ -66,6 +66,9 @@ def install(home, project, remove=False, provider="claude"):
     root.mkdir(exist_ok=True)
     cmd = command(home, project, provider)
     with _registry_lock(home), _registry_lock(root):
+        if any(s["project"] == project and s.get("provider", "claude") == provider
+               and s.get("mode") == "plugin" for s in sources(home)):
+            raise WorkflowError("플러그인 등록은 native unregister로 해제한 뒤 직접 훅을 설치하세요.")
         previous_commands = {s.get("command") for s in sources(home) if s["project"] == project and s.get("provider", "claude") == provider}
         previous_commands.discard(None)
         previous_commands.add(cmd)
@@ -156,7 +159,8 @@ def ingest(home, project, payload, provider="claude", mode="direct"):
     if not any(s["project"] == project and s.get("provider", "claude") == provider
                and s.get("mode", "direct") == mode for s in sources(home)):
         return False
-    if not isinstance(payload, dict) or str(Path(payload.get("cwd", "")).resolve()) != project:
+    if (not isinstance(payload, dict) or not isinstance(payload.get("cwd"), str)
+            or not Path(payload["cwd"]).is_absolute() or str(Path(payload["cwd"]).resolve()) != project):
         return False
     sid, event = payload.get("session_id"), payload.get("hook_event_name")
     if not isinstance(sid, str) or not 0 < len(sid) <= 160 or event not in (CODEX_EVENTS if provider == "codex" else EVENT_STATES):

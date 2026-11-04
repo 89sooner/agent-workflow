@@ -19,7 +19,7 @@ export const AgentWorkflowObserver = async ({ directory, client }) => {
         const done = () => { clearTimeout(timer); resolve(); };
         try {
           child = spawn(process.env.AGENT_WORKFLOW_PYTHON || 'python3',
-            ['-m', 'agent_workflow.plugin_hook', 'opencode'],
+            ['-P', '-m', 'agent_workflow.plugin_hook', 'opencode'],
             { stdio: ['pipe', 'ignore', 'ignore'], windowsHide: true });
           timer = setTimeout(() => { child.kill(); done(); }, 2500);
           child.on('error', done);
