@@ -117,6 +117,9 @@ try {
       "실제로 할당한 이름",
     ),
   );
+  assert((await page.locator(".room-selection").innerText()).includes("지우"));
+  await page.getByRole("button", { name: "선택한 작업자 가까이" }).click();
+  await page.getByRole("button", { name: "시점 초기화", exact: true }).click();
   const movingA = await page.locator(".room-canvas canvas").screenshot();
   await page.waitForTimeout(250);
   const movingB = await page.locator(".room-canvas canvas").screenshot();

@@ -8,6 +8,8 @@ OpenCode는 로컬 서버와 프로젝트를 한 번 연결하면 이후 새 세
 
 현재 관제실: [React·TypeScript·R3F 사용 안내](docs/REACT_MISSION_CONTROL.ko.md) · [문서 목록](docs/README.md) · [운영 반영](docs/OPERATIONS.ko.md)
 
+3D 작업자를 선택한 뒤 **선택한 작업자 가까이**로 얼굴·손을 확대할 수 있습니다. 이름표는 화면 경계 안에서 겹침을 피하며, 선택 이름표가 우선합니다. 긴 이름 전체는 선택 정보와 담당자 목록에서 확인합니다. [3D 조작·성능 검증 안내](docs/DETAILED_WORKERS.ko.md).
+
 기존 v0.4.0 화면: [3D 관제실과 SaaS형 화면](docs/SAAS_OBSERVATORY.ko.md) · [관측·업그레이드 안내](docs/OBSERVABILITY.ko.md) · [제품·연구 조사](docs/OBSERVABILITY_RESEARCH.ko.md)
 
 프로젝트 설정·복구·연속 실행: [v0.3 자동화 안내](docs/AUTOMATION_V0.3.ko.md)

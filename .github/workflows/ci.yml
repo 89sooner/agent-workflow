@@ -70,6 +70,7 @@ jobs:
           python tests/ui_integration.py
           python tests/observability_integration.py
           python tests/saas_integration.py
+          node tests/workers_browser.mjs
           python tests/mission_integration.py
           python tests/opencode_integration.py
           python tests/onboarding_integration.py

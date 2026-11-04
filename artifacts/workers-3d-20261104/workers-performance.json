@@ -1,0 +1,42 @@
+{
+  "passed": true,
+  "environment": "Headless Chromium / SwiftShader; 90 rAF intervals per case, not GPU frame time or hardware FPS",
+  "measurements": [
+    {
+      "inputWorkers": 1,
+      "displayedWorkers": 1,
+      "medianMs": 16.699999999999818,
+      "p95Ms": 16.700000000000273,
+      "drawCalls": 43,
+      "triangles": 4096,
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+    },
+    {
+      "inputWorkers": 4,
+      "displayedWorkers": 4,
+      "medianMs": 16.699999999999818,
+      "p95Ms": 33.40000000000009,
+      "drawCalls": 151,
+      "triangles": 15604,
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+    },
+    {
+      "inputWorkers": 12,
+      "displayedWorkers": 12,
+      "medianMs": 33.30000000000018,
+      "p95Ms": 66.69999999999982,
+      "drawCalls": 417,
+      "triangles": 44988,
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+    },
+    {
+      "inputWorkers": 24,
+      "displayedWorkers": 12,
+      "medianMs": 33.399999999999636,
+      "p95Ms": 66.70000000000027,
+      "drawCalls": 417,
+      "triangles": 44988,
+      "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)"
+    }
+  ]
+}
