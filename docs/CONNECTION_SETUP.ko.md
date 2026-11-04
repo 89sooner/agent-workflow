@@ -23,7 +23,7 @@ OpenCode 서버와 해당 프로젝트는 이미 사용 중이어야 한다. 관
 | 사용 도구 | 자동으로 보이는 범위 |
 |---|---|
 | OpenCode | 한 번 연결한 서버·프로젝트의 네이티브 세션과 응답·도구 상태. 세션마다 workflow 작업 등록 불필요 |
-| Codex·Claude | agent-workflow에 기록된 작업·실행. 일반 대화나 기록되지 않은 하위 에이전트를 자동 수집하지 않음 |
+| Codex·Claude | `/mission`은 workflow 작업·실행, `/sessions`는 등록한 프로젝트의 훅/플러그인 이벤트. 일상 세션에는 WP 불필요 |
 
 workflow 후보는 기존의 제한된 알려진 위치·프로세스·저장된 연결에서 찾는다. 임의 위치의 기록이 후보에 없으면 기존 `connect PROJECT --ledger STATE_HOME` 명령으로 명시적으로 연결할 수 있다. 디스크 전체 검색은 하지 않는다.
 
