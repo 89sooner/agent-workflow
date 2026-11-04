@@ -83,3 +83,7 @@ python3 -m agent_workflow --home /tmp/katakuri-h-local-queue-workflow-20261029  
 - 과거 검사 로그를 현재 SHA의 결과로 재사용하지 않는다. 코드·검사 계약이 달라지면 새 검증을 기록한다.
 
 로컬 상태 DB와 전체 실행 로그는 `artifacts/`의 해당 배포 증거 폴더에 보존하며 공개 Git에 포함하지 않는다.
+
+## 정적 UI만 변경된 경우
+
+배포 전후 Python·서버·worker 코드가 같고 /api/capabilities 등 필요한 API가 정상 제공되는 경우에는 서버 재시작 없이 checkout을 fast-forward할 수 있다. 서버는 요청마다 정적 자산을 읽고 no-store로 제공한다. 이때도 원장 온라인 백업·jobs/batches·직접 실행·프로세스 식별자를 기록하고 배포 후 HTTP 해시 및 실제 브라우저를 검사한다. 서버·worker PID와 시작 식별자가 그대로인지 확인한다. 기존 탭은 새로고침해야 새 JS를 불러온다. API 미지원이나 Python 변경이 있으면 이 절차로 전체 배포를 완료했다고 판단하지 않는다.

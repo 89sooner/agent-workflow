@@ -161,3 +161,24 @@ assert.equal(atEvent(truncatedStart, 1).spans[0].ended_at, null);
 console.log(
   "Mission model: replay chronology, identity, actual transfers and bounded selection passed.",
 );
+
+const roomsBuild = await build({
+  entryPoints: ["frontend/mission/rooms.ts"], bundle: true, write: false, platform: "node", format: "esm",
+});
+const { roomZone, roomLayout } = await import("data:text/javascript;base64," + Buffer.from(roomsBuild.outputFiles[0].text).toString("base64"));
+assert.equal(roomZone("running"), "work");
+for (const status of ["idle", "queued", "assigned", "pending", "succeeded", "completed", "retrying"])
+  assert.equal(roomZone(status), "lounge");
+for (const status of ["failed", "blocked", "cancelled", "interrupted", "unknown", "future-status"])
+  assert.equal(roomZone(status), "attention");
+assert.equal(roomZone("running", false), "attention");
+assert.equal(roomZone("idle", false), "attention");
+for (const zones of [[], ["work","lounge","attention"], Array(12).fill("work"), Array(12).fill("lounge")]) {
+  const layout = roomLayout(zones);
+  assert.equal(new Set(layout.positions.map(p=>p.join(","))).size, zones.length);
+  layout.positions.forEach((position,i)=>{
+    const area = layout.areas.find(a=>a.id===zones[i]);
+    assert(position[2]>area.center-area.depth/2 && position[2]<area.center+area.depth/2);
+  });
+}
+console.log("State rooms: explicit status, stale observation and separated layouts passed.");
