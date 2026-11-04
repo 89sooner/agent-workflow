@@ -147,6 +147,9 @@ def parser():
     oc.add_parser("list", help="저장된 OpenCode 연결 조회")
     o = oc.add_parser("disconnect", help="관측 연결만 해제; OpenCode 세션·서버 보존")
     o.add_argument("id")
+    c = commands.add_parser("native", help="WP 없는 Claude 관측 훅 설치/해제; 실행 없음")
+    c.add_argument("operation", choices=["install", "uninstall"])
+    c.add_argument("--project", required=True)
     c = commands.add_parser("connect", help="프로젝트 원장 자동 발견·연결; 기존 원장 변경·실행 없음")
     c.add_argument("project", nargs="?", default=".")
     c.add_argument("--ledger", action="append", default=[], help="관측할 기존 상태 경로; 여러 번 지정 가능")
@@ -315,6 +318,9 @@ def dispatch(args):
         if args.opencode_command == "disconnect":
             return opencode.disconnect(args.home, args.id)
         return opencode.sources(args.home)
+    if args.command == "native":
+        from .native import install
+        return install(args.home, args.project, args.operation == "uninstall")
     if args.command == "connect":
         from .connections import connect
         return connect(args.home, args.project, args.ledger, args.profile, args.criterion, args.scope,

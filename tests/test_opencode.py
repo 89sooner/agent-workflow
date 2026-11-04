@@ -59,6 +59,8 @@ class OpenCodeTests(unittest.TestCase):
                 path = urlsplit(self.path).path
                 value = ({'healthy': True, 'version': test.version} if path == '/global/health' else
                          test.rows if path == '/session' else test.statuses if path == '/session/status' else
+                         getattr(test, 'permissions', []) if path == '/permission' else
+                         getattr(test, 'questions', []) if path == '/question' else
                          test.messages if path.endswith('/message') else {'error': 'unknown'})
                 body = json.dumps(value).encode()
                 self.send_response(200)
