@@ -27,3 +27,5 @@
 - [상태별 작업 공간](STATE_ROOMS.ko.md): 상태 분류, 휴게 의자, 연결 미확인·과거 기록 구분, 선택 확대.
 
 - [WP 없는 일상 세션 파일럿](NATIVE_PILOT.ko.md): Claude 훅·OpenCode 통합 관측, 확인 요청함, 별도 이력·재방문.
+
+WP 없는 Codex 관측과 Claude Code·OpenCode·Codex 플러그인 설치/진단/해제: [세 도구 플러그인 안내](NATIVE_PLUGINS.ko.md). 기존 관리형 WP 기능은 유지됩니다.

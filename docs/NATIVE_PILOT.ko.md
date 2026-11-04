@@ -115,3 +115,7 @@ Claude 훅 입력은 1MiB로 제한하며 파싱·저장 실패에도 승인/거
 미리보기 http://127.0.0.1:8888/sessions, observer /tmp/native-pilot-preview-20261104.
 기존 Katakuri 프로젝트·사용자 전역 Claude 설정·운영 8765/8776/8777·queue worker는 변경하지 않았다.
 앞서 구현한 방 구조·이동 애니메이션 소스도 포함했다. 운영 배포·origin/main 병합은 별도다.
+
+## 2026-11-05 확장
+
+Codex와 세 도구 플러그인 방식이 추가되었습니다. 기존 직접 Claude 훅 및 OpenCode HTTP 방식은 유지합니다. [최신 설치·해제·진단 안내](NATIVE_PLUGINS.ko.md).

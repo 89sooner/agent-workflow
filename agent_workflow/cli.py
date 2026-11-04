@@ -147,8 +147,9 @@ def parser():
     oc.add_parser("list", help="저장된 OpenCode 연결 조회")
     o = oc.add_parser("disconnect", help="관측 연결만 해제; OpenCode 세션·서버 보존")
     o.add_argument("id")
-    c = commands.add_parser("native", help="WP 없는 Claude 관측 훅 설치/해제; 실행 없음")
-    c.add_argument("operation", choices=["install", "uninstall"])
+    c = commands.add_parser("native", help="WP 없는 세 도구 관측 설치·등록·진단; 실행 없음")
+    c.add_argument("operation", choices=["install", "uninstall", "register", "unregister", "status"])
+    c.add_argument("--provider", choices=["claude", "codex", "opencode"], default="claude")
     c.add_argument("--project", required=True)
     c = commands.add_parser("connect", help="프로젝트 원장 자동 발견·연결; 기존 원장 변경·실행 없음")
     c.add_argument("project", nargs="?", default=".")
@@ -319,8 +320,12 @@ def dispatch(args):
             return opencode.disconnect(args.home, args.id)
         return opencode.sources(args.home)
     if args.command == "native":
-        from .native import install
-        return install(args.home, args.project, args.operation == "uninstall")
+        from .native import install, register, status
+        if args.operation == "status":
+            return status(args.home, args.project, args.provider)
+        if args.operation in {"register", "unregister"}:
+            return register(args.home, args.project, args.provider, args.operation == "unregister")
+        return install(args.home, args.project, args.operation == "uninstall", args.provider)
     if args.command == "connect":
         from .connections import connect
         return connect(args.home, args.project, args.ledger, args.profile, args.criterion, args.scope,

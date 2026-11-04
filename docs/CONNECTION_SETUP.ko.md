@@ -23,7 +23,7 @@ OpenCode 서버와 해당 프로젝트는 이미 사용 중이어야 한다. 관
 | 사용 도구 | 자동으로 보이는 범위 |
 |---|---|
 | OpenCode | 한 번 연결한 서버·프로젝트의 네이티브 세션과 응답·도구 상태. 세션마다 workflow 작업 등록 불필요 |
-| Codex·Claude | agent-workflow에 기록된 작업·실행. 일반 대화나 기록되지 않은 하위 에이전트를 자동 수집하지 않음 |
+| Codex·Claude | `/mission`은 workflow 작업·실행, `/sessions`는 등록한 프로젝트의 훅/플러그인 이벤트. 일상 세션에는 WP 불필요 |
 
 workflow 후보는 기존의 제한된 알려진 위치·프로세스·저장된 연결에서 찾는다. 임의 위치의 기록이 후보에 없으면 기존 `connect PROJECT --ledger STATE_HOME` 명령으로 명시적으로 연결할 수 있다. 디스크 전체 검색은 하지 않는다.
 
@@ -70,3 +70,7 @@ python3 -m agent_workflow --home /path/to/observer watch --port 8878
 ## WP 없는 Claude Code 관측
 
 위 표의 Claude workflow 연결과 별도로 /sessions에서 프로젝트 훅 설치 명령을 준비할 수 있다. 최초 CLI 설치 후 새 네이티브 세션을 자동 관측한다. OpenCode와 통합 목록·요청함·이력을 제공하며 기존 workflow 연결은 유지한다. [파일럿 안내](NATIVE_PILOT.ko.md).
+
+## Codex 및 플러그인 확장
+
+2026-11-05부터 `/sessions`는 Codex 직접 훅과 세 도구 플러그인 등록도 지원합니다. 위 workflow 원장 연결과 별개이며 기존 기능은 유지합니다. [최신 플러그인 설치·진단](NATIVE_PLUGINS.ko.md).

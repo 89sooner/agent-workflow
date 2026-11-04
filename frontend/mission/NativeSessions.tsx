@@ -52,11 +52,13 @@ export default function NativeSessions() {
     [inbox, setInbox] = useState(false);
   const [refresh, setRefresh] = useState(0),
     [connecting, setConnecting] = useState(false);
+  const [setupProvider, setSetupProvider] = useState("claude");
   const [project, setProject] = useState(""),
     [setup, setSetup] = useState<{
       command: string;
       cwd: string;
       requested: string;
+      provider: string;
     } | null>(null),
     [setupError, setSetupError] = useState("");
   const [reduce, setReduce] = useState(false),
@@ -137,9 +139,9 @@ export default function NativeSessions() {
     setSetupError("");
     try {
       const result = await get<{ command: string; cwd: string }>(
-        "/api/native/setup?" + new URLSearchParams({ project }),
+        "/api/native/setup?" + new URLSearchParams({ project, provider: setupProvider }),
       );
-      setSetup({ ...result, requested: project });
+      setSetup({ ...result, requested: project, provider: setupProvider });
     } catch (e) {
       setSetupError(String(e));
     }
@@ -151,7 +153,7 @@ export default function NativeSessions() {
           <span className="eyebrow">DAILY SESSIONS</span>
           <h1>일상 세션 관측</h1>
           <p>
-            WP 등록 없이 OpenCode·Claude Code 활동을 함께 봅니다. 관측은 작업
+            WP 등록 없이 OpenCode·Claude Code·Codex 활동을 함께 봅니다. 관측은 작업
             실행·승인·큐 등록을 하지 않습니다.
           </p>
         </div>
@@ -174,6 +176,7 @@ export default function NativeSessions() {
           >
             <option value="">전체 도구</option>
             <option value="claude">Claude Code</option>
+            <option value="codex">Codex</option>
             <option value="opencode">OpenCode</option>
           </select>
         </label>
@@ -213,16 +216,19 @@ export default function NativeSessions() {
         </label>
       </section>
       <details className="panel native-setup">
-        <summary>Claude Code 처음 연결하기</summary>
+        <summary>Claude Code·Codex 처음 연결하기</summary>
+        <label>연결 도구 <select aria-label="관측 훅 도구" value={setupProvider} onChange={e => {setSetupProvider(e.target.value); setSetup(null);}}>
+          <option value="claude">Claude Code</option><option value="codex">Codex</option>
+        </select></label>
         <p>
           프로젝트별 관측 훅을 한 번 설치하면 이후 새 세션을 자동 발견합니다.
           기존 훅은 보존합니다. 아래 명령을 해당 관제실 서버의 터미널에서 실행한
-          뒤 Claude Code 설정을 재로딩하거나 새 세션을 시작하세요.
+          뒤 설정을 재로딩하거나 새 세션을 시작하세요. Codex는 프로젝트 신뢰와 /hooks에서 훅 검토가 필요합니다.
         </p>
         <label>
           프로젝트 절대 경로{" "}
           <input
-            aria-label="Claude 프로젝트 경로"
+            aria-label={setupProvider === "codex" ? "Codex 프로젝트 경로" : "Claude 프로젝트 경로"}
             value={project}
             onChange={(e) => {
               setProject(e.target.value);
@@ -232,7 +238,7 @@ export default function NativeSessions() {
         </label>
         <button onClick={() => void prepare()}>설치 명령 준비</button>
         {setupError && <p role="alert">{setupError}</p>}
-        {setup && setup.requested === project && (
+        {setup && setup.requested === project && setup.provider === setupProvider && (
           <div>
             <p>실행 위치: {setup.cwd}</p>
             <pre>{setup.command}</pre>
@@ -250,7 +256,7 @@ export default function NativeSessions() {
               명령 복사
             </button>
             <p>
-              .claude/settings.local.json에 관측 훅을 추가하고 백업합니다.
+              {setupProvider === "codex" ? ".codex/hooks.json" : ".claude/settings.local.json"}에 관측 훅을 추가하고 백업합니다.
               모델을 실행하지 않습니다.
             </p>
           </div>
@@ -267,7 +273,7 @@ export default function NativeSessions() {
         </p>
       ))}
       <p className="panel-caption">
-        Claude는 마지막 훅 이후 5분이 지나면 현재 상태를 미확인으로 표시합니다.
+        Claude·Codex 및 OpenCode 플러그인은 마지막 이벤트 이후 5분이 지나면 현재 상태를 미확인으로 표시합니다.
         OpenCode 유휴는 세션 생존을 보장하지 않습니다. 응답 종료와 관리형 작업의
         검증 완료는 다릅니다.
       </p>
@@ -281,7 +287,7 @@ export default function NativeSessions() {
           <p>
             {sessions.length
               ? "검색·도구·확인 요청함 필터를 확인하세요."
-              : "OpenCode를 연결하거나 Claude 관측 훅을 설치한 다음 평소처럼 작업하세요."}
+              : "OpenCode를 연결하거나 Claude·Codex 관측 훅을 설치한 다음 평소처럼 작업하세요."}
           </p>
           <button
             onClick={() => {
@@ -367,8 +373,9 @@ export default function NativeSessions() {
       </div>
       <p className="panel-caption">
         최근 세션 500개·상태 이벤트 10,000개·선택 이력 200개까지 보관합니다.
-        OpenCode는 이 화면을 보는 동안의 polling 기록이며 중간 상태를 놓칠 수
-        있습니다. 세션 제목에도 사용자 정보가 포함될 수 있습니다.
+        OpenCode HTTP 연결은 화면을 보는 동안 조회하며, 플러그인은 도구 실행 중
+        이벤트를 기록합니다. 중간 상태가 누락될 수 있고 세션 제목에도 사용자
+        정보가 포함될 수 있습니다.
       </p>
       {connecting && capabilities.data && (
         <ConnectionDialog

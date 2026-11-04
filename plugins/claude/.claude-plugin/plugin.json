@@ -1,0 +1,5 @@
+{
+  "name": "agent-workflow-observer",
+  "version": "0.1.0",
+  "description": "Project-scoped passive daily session observation for agent-workflow"
+}

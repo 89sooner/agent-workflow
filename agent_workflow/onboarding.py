@@ -16,7 +16,7 @@ def capabilities(home, token, *, read_only=False, observer=False):
             {"id": "opencode", "label": "OpenCode", "support": "native_sessions",
              "description": "로컬 OpenCode 1.x 서버를 한 번 연결하면 새 세션을 자동으로 관측합니다."},
             {"id": "codex", "label": "Codex", "support": "workflow_only",
-             "description": "agent-workflow에 기록된 작업만 관측합니다. 일반 Codex 대화의 자동 발견은 지원하지 않습니다."},
+             "description": "agent-workflow에 기록된 작업만 관측합니다. 일상 세션 화면에서 Codex 관측 훅을 설치하고 신뢰하면 WP 없는 세션도 관측할 수 있습니다."},
             {"id": "claude", "label": "Claude", "support": "workflow_only",
              "description": "agent-workflow에 기록된 작업만 관측합니다. 일상 세션 화면에서 프로젝트 관측 훅을 설치하면 WP 없이 Claude Code 세션도 관측할 수 있습니다."},
         ],
