@@ -225,7 +225,7 @@ try {
       await page.waitForTimeout(250);
       assert((await page.locator('[data-zone="'+zone+'"]').innerText()).endsWith(String(Math.min(count,12))));
       await page.getByRole("button",{name:"선택한 작업자 가까이"}).click();
-      await page.waitForTimeout(200);
+      await page.locator('.room-nameplate[aria-pressed="true"]').waitFor({state:"visible",timeout:5000});
       await labels();
       assert.equal(await page.locator('.room-nameplate[aria-pressed="true"]:visible').count(),1);
       if (count===12 && status==="idle") await page.screenshot({path:join(output,"state-room-lounge.png")});

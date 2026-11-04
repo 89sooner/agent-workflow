@@ -88,7 +88,7 @@ function Controls({
       controls.current?.update();
       followed.current = key;
     }
-  });
+  }, -1); // Follow the updated actor before labels project onto the screen.
   return null;
 }
 // Screen-space labels stay readable at any zoom level. Selection wins collisions.
@@ -405,7 +405,7 @@ function Workstation({
         ? Math.sin(clock.elapsedTime * 1.7) * 0.035
         : 0;
     if (animate) invalidate();
-  });
+  }, -2); // Publish positions before camera following and label projection.
   useEffect(() => {
     invalidate();
   }, [animate, invalidate]);
