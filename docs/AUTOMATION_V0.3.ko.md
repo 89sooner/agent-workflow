@@ -1,6 +1,6 @@
 # Agent Workflow v0.3 사용 안내
 
-> 2026-11-02 추가 안내: 현재 화면은 [React 관제실](REACT_MISSION_CONTROL.ko.md), 등록 간소화/자동 발견은 [프로젝트 연결](PROJECT_OBSERVATORY.ko.md), 로컬 배포는 [운영 절차](OPERATIONS.ko.md)를 참고한다. 이 문서는 자동화 계약과 CLI 사용법을 설명한다.
+> 2026-11-04 추가 안내: 첫 연결은 [화면에서 프로젝트 연결](CONNECTION_SETUP.ko.md), 현재 화면은 [React 관제실](REACT_MISSION_CONTROL.ko.md), 등록 간소화/자동 발견은 [프로젝트 연결](PROJECT_OBSERVATORY.ko.md), 로컬 배포는 [운영 절차](OPERATIONS.ko.md)를 참고한다. 이 문서는 자동화 계약과 CLI 사용법을 설명한다.
 
 2026-10-09 · Linux / WSL 개인용
 

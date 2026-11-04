@@ -24,6 +24,27 @@ export async function get<T>(
   validate?.(value);
   return value as T;
 }
+export async function configure<T>(
+  path: string,
+  data: Record<string, unknown>,
+  token: string,
+  signal: AbortSignal,
+): Promise<T> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Workflow-Token": token },
+    body: JSON.stringify(data),
+    signal,
+  });
+  const value = await response.json();
+  if (!response.ok)
+    throw Error(
+      typeof value?.error === "string"
+        ? value.error
+        : `연결 설정 오류 ${response.status}`,
+    );
+  return value as T;
+}
 export function usePoll<T>(
   url: string | null,
   interval: number,
@@ -64,7 +85,14 @@ export function usePoll<T>(
         const data = await get<T>(url!, request.signal, validate);
         if (!disposed && ticket === generation) {
           failures = 0;
-          setResult({ url, data, error: "", at: Date.now(), loading: false, fresh: true });
+          setResult({
+            url,
+            data,
+            error: "",
+            at: Date.now(),
+            loading: false,
+            fresh: true,
+          });
         }
       } catch (e) {
         if (!disposed && ticket === generation) {

@@ -1,9 +1,9 @@
 # React 실행 관제실 사용 안내
 
-갱신: 2026-11-02 · TypeScript + React + Three.js + React Three Fiber.
+갱신: 2026-11-04 · TypeScript + React + Three.js + React Three Fiber.
 
 `/mission`은 실제 작업을 관측하는 새 화면이고 `/`는 기존 등록·실행·중단 관리 화면이다.
-둘은 같은 Python HTTP API와 SQLite 원장을 사용한다. `/mission`은 GET만 호출한다.
+둘은 같은 Python HTTP API를 사용한다. 관측은 GET이며, 명시적인 연결 설정은 토큰으로 검증한 설정 POST를 사용한다.
 새 화면을 열었다고 worker나 모델 호출이 시작되지는 않는다. 단, 일반 `serve` 서버 자체는
 worker를 실행하므로 관측 전용 서버에는 `watch` 또는 `serve --read-only`를 사용한다.
 
@@ -12,13 +12,16 @@ worker를 실행하므로 관측 전용 서버에는 `watch` 또는 `serve --rea
 | 목적 | 주소 | state home | 실행 제어 |
 |---|---|---|---|
 | Katakuri H 작업 관측 | http://127.0.0.1:8777/mission | `/tmp/katakuri-h-local-queue-workflow-20261029` | 서버 전체 읽기 전용 |
-| 기본 원장 관측 | http://127.0.0.1:8776/mission | `~/.local/state/agent-workflow` | 관제실은 GET만 사용 |
+| 기본 원장 관측 | http://127.0.0.1:8776/mission | `~/.local/state/agent-workflow` | 관측 GET, 명시적 연결 설정 POST |
 | 기본 원장 관리 | http://127.0.0.1:8776/ | 위와 동일 | 기존 worker·관리 API |
-| 개발 미리보기 | http://127.0.0.1:8880/mission | `/tmp/agent-workflow-react-preview-20261102` | 별도 읽기 전용 연결 |
+| React 개발 미리보기 | http://127.0.0.1:8880/mission | `/tmp/agent-workflow-react-preview-20261102` | 기존 미리보기 |
+| 첫 연결 개선 미리보기 | http://127.0.0.1:8884/mission | `/tmp/agent-workflow-usability-observer-20261104` | 연결 설정만 가능, 작업 실행 불가 |
 
 위 주소는 이 WSL 배치의 설정이다. **8765는 Katakuri 운영 제어 서버**이므로 관제실을 위해
 종료하거나 같은 포트를 재사용하지 않는다. 다른 PC에서는 빈 포트와 실제 state home을 선택한다.
 미리보기와 운영 적용 여부는 구분한다. 배포 SHA·health 기록은 [운영 절차](OPERATIONS.ko.md)로 확인한다.
+
+처음 연결할 때는 **프로젝트 연결**을 누른다. [화면에서 프로젝트 연결](CONNECTION_SETUP.ko.md)에 도구별 지원 범위와 오류 해결 방법이 있다.
 
 ## 사용 순서
 
@@ -31,7 +34,7 @@ worker를 실행하므로 관측 전용 서버에는 `watch` 또는 `serve --rea
 7. **기록 재생**을 누르면 불러온 이벤트의 고정 스냅샷을 순서대로 재생한다. 슬라이더로 이동하고, **실시간으로 돌아가기**로 종료한다. 재생은 실행 명령이 아니며 그 시점 이후의 결과를 미리 표시하지 않는다.
 8. 이벤트는 100개씩 표시한다. **이전 쪽 / 최신 쪽**은 불러온 이벤트를 탐색하고, **이전 기록 불러오기**는 서버의 이전 페이지를 추가한다. **JSON 내보내기**는 해당 작업/run의 기록을 내려받는다.
 9. 3D는 드래그 회전·스크롤 확대·**시점 초기화**를 지원한다. **3D 공간**을 끄거나 **움직임 줄이기**를 선택할 수 있다. OS reduced-motion 설정을 우선한다. WebGL을 사용할 수 없어도 그래프·담당자·이력은 사용할 수 있다.
-10. 작업 등록·실행·중단은 왼쪽 아래 **작업 등록·실행 관리**에서 기존 화면으로 이동한다. 8777 H 서버는 읽기 전용이다. 기본 원장의 등록·실행 관리는 8776 기존 관리 화면에서 한다. 원장을 바꾸면 대상이 달라지므로 state home을 먼저 확인한다.
+10. 작업 등록·실행·중단은 서버 자신의 관리 가능한 원장에서만 보이는 **작업 등록·실행 관리** 링크로 이동한다. 8777 H 서버는 읽기 전용이다. 기본 원장의 등록·실행 관리는 8776 기존 관리 화면에서 한다. 원장을 바꾸면 대상이 달라지므로 state home을 먼저 확인한다.
 
 ## 무엇을 보여 주는가
 
@@ -47,12 +50,14 @@ worker를 실행하므로 관측 전용 서버에는 `watch` 또는 `serve --rea
 | 경로 | 역할 |
 |---|---|
 | `frontend/mission/App.tsx` | 원장·프로젝트·작업·run 선택, 상세·로그·이력·재생 |
+| `frontend/mission/Connections.tsx` | 프로젝트·도구 연결 대화상자, 지원 범위와 실패 해결 안내 |
 | `frontend/mission/api.ts` | 범위별 polling, 취소, backoff, visibility 처리 |
 | `frontend/mission/model.ts` | 실제 데이터 → 그래프, 이벤트 시점 상태, 전달 이벤트 |
 | `frontend/mission/Graph.tsx` | SVG 실행 그래프, 실제 간선, 확대·키보드 선택 |
 | `frontend/mission/Room.tsx` | R3F Canvas, 절차적 작업 공간·이름·활동, OrbitControls, WebGL fallback |
 | `frontend/mission/mission.css` | 반응형 UI, 상태 표시, 제한된 전환 |
 | `scripts/build-mission.mjs` | 고정 의존성의 로컬 JS/CSS·라이선스 빌드와 일치 검사 |
+| `agent_workflow/onboarding.py` | capability, 프로젝트 후보 확인, 관측 설정 저장 |
 | `agent_workflow/server.py` | `/mission`과 정적 자산 allowlist, 취소된 GET 연결 정리 |
 | `tests/mission_integration.py`, `tests/mission_scenarios.mjs` | 격리된 실제 DB·HTTP·프로세스·Chromium 수용 검사 |
 | `scripts/test-mission.mjs` | 재생 시간순서·이름·중복 전달 방지·선택 단계 보존 회귀 검사 |
@@ -60,6 +65,8 @@ worker를 실행하므로 관측 전용 서버에는 `watch` 또는 `serve --rea
 프런트 런타임은 React/React DOM 19.3.1, R3F 9.8.2, Three.js 0.187.0이다.
 TypeScript 7.0.2와 esbuild 0.28.2를 빌드에 사용한다. Next.js 서버는 추가하지 않았다.
 서버와 UI 모두 기존 로컬 API를 사용하며 외부 CDN·폰트·3D 모델 요청이 없다.
+
+첫 연결의 자동 브라우저 검사는 `python3 tests/onboarding_integration.py`다. 임시 HTTP 서버·원장·OpenCode fixture를 사용한다.
 
 ## 개발 및 검증
 

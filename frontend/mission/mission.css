@@ -1,4 +1,143 @@
 @import url("./tokens.css");
+.connect-entry {
+  margin: 8px 18px;
+  border-color: #648df2;
+}
+.welcome-card {
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #142238;
+}
+.welcome-card h2 {
+  font-size: clamp(22px, 4vw, 32px);
+}
+.welcome-card ol {
+  padding-left: 22px;
+  line-height: 2.1;
+}
+.connection-dialog {
+  width: min(720px, calc(100vw - 24px));
+  max-height: calc(100dvh - 32px);
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: var(--text);
+  background: #101c2d;
+  overflow: auto;
+}
+.connection-dialog::backdrop {
+  background: #020712bf;
+}
+.connection-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.connection-heading h2 {
+  margin: 4px 0 16px;
+}
+.connection-dialog p {
+  overflow-wrap: anywhere;
+}
+.support-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 20px 0;
+}
+.support-grid > div {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.support-grid span {
+  display: block;
+  color: #a8c6ff;
+  margin-top: 6px;
+  font-size: 12px;
+}
+.support-grid p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 0;
+}
+.connection-fields {
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+  gap: 8px;
+}
+.connection-fields input,
+.connection-fields select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px;
+}
+.connection-fields .muted {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+.connection-advanced {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.connection-advanced summary {
+  cursor: pointer;
+}
+.connection-advanced label {
+  display: block;
+  margin: 16px 0 6px;
+}
+.candidate-option {
+  display: flex;
+  gap: 10px;
+  padding: 12px 0;
+}
+.candidate-option input {
+  width: 20px;
+  flex-shrink: 0;
+}
+.candidate-option span {
+  min-width: 0;
+}
+.candidate-option small,
+.candidate-option code {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.connection-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+.connection-footer p {
+  color: var(--muted);
+  font-size: 12px;
+}
+.connect-primary,
+.welcome-card > button {
+  background: #375eb4;
+  border-color: #7aa0f4;
+}
+@media (max-width: 600px) {
+  .connection-dialog {
+    padding: 18px;
+  }
+  .support-grid {
+    grid-template-columns: 1fr;
+  }
+  .support-grid p {
+    margin-top: 4px;
+  }
+  .welcome-card {
+    padding: 20px;
+  }
+}
 * {
   box-sizing: border-box;
 }

@@ -1,9 +1,9 @@
 # Agent Workflow
 
-[OpenCode 세션 자동 관측](docs/OPENCODE_OBSERVATION.ko.md) · [서비스 사용성 개선 계획](docs/USABILITY_SERVICE_PLAN.ko.html)
+[화면에서 프로젝트 연결](docs/CONNECTION_SETUP.ko.md) · [OpenCode 세션 자동 관측](docs/OPENCODE_OBSERVATION.ko.md) · [서비스 사용성 개선 계획](docs/USABILITY_SERVICE_PLAN.ko.html)
 
 OpenCode는 로컬 서버와 프로젝트를 한 번 연결하면 이후 새 세션을 별도 작업 등록 없이
-`/mission`에서 관측할 수 있습니다. `opencode connect` 사용법과 지원 범위는 위 안내를
+`/mission`에서 관측할 수 있습니다. 이제 **프로젝트 연결**에서 UI로 설정할 수 있습니다. CLI와 지원 범위는 위 안내를
 참고하세요. 현재 소스에 포함된 기능이며 기존 운영 서버에는 별도 반영이 필요합니다.
 
 현재 관제실: [React·TypeScript·R3F 사용 안내](docs/REACT_MISSION_CONTROL.ko.md) · [문서 목록](docs/README.md) · [운영 반영](docs/OPERATIONS.ko.md)
@@ -46,8 +46,8 @@ v0.3은 프로젝트 설정·별도 worktree 준비·파일 범위 예약·시�
 agent-workflow --home /path/to/observer watch --port 8878
 ```
 
-`watch`는 제한된 원장 후보를 자동 발견하고 worker를 시작하지 않는다. 특정 원장은
-`connect PROJECT --ledger STATE_HOME`으로 연결을 저장한다. 일반 `serve`는 큐 worker를
+`watch`는 제한된 원장 후보를 자동 발견하고 worker를 시작하지 않는다. 화면의 **프로젝트 연결**에서 OpenCode 또는 발견된 workflow 기록을 선택해 연결을 저장한다.
+임의 위치의 원장은 기존 `connect PROJECT --ledger STATE_HOME`도 지원한다. 일반 `serve`는 큐 worker를
 시작하므로 관측 전용 시작과 구분한다. 상세 절차는 [프로젝트 연결](docs/PROJECT_OBSERVATORY.ko.md)에 있다.
 
 프런트는 TypeScript·React·Three.js·React Three Fiber이며 Python 표준 라이브러리 서버와 SQLite를
@@ -56,6 +56,21 @@ agent-workflow --home /path/to/observer watch --port 8878
 
 [화면 사용법](docs/REACT_MISSION_CONTROL.ko.md) · [상태·증거·API](docs/OBSERVABILITY.ko.md) ·
 [백업·재시작·배포 확인](docs/OPERATIONS.ko.md)
+
+사용성 계획 중 **UX-01~03은 구현·검증 완료**입니다. 다음 사용자 지정 작업은 **작업자 3D 형상 정교화**이며,
+프로젝트 통합·확인 요청함 등의 남은 범위는 [후속 상태](docs/FOLLOWUP_STATUS.ko.md)에서 구분합니다.
+
+## 화면에서 처음 연결하기
+
+`watch`로 실행한 `/mission`에서 **프로젝트 연결 → 프로젝트 폴더 경로 → 사용 도구**를 선택합니다.
+OpenCode는 **연결하고 관측하기**, Codex·Claude는 **프로젝트 기록 찾기 → 후보 선택 → 연결하고 관측하기**로 진행합니다.
+OpenCode 기본 주소가 다르거나 인증이 필요하면 **서버 주소·인증 설정**을 펼칩니다.
+설정은 관측 연결만 저장하며 작업·큐·모델을 실행하지 않습니다.
+
+연결 없음, 세션 없음, 검색 결과 없음, 인증 실패, 서버 오류는 각각 다음 행동을 안내합니다.
+`serve --read-only`에서는 설정 변경과 관리 링크를 제공하지 않고 제한을 설명합니다.
+`watch`에서는 연결 설정만 가능하며, 작업 관리는 일반 서버 자신의 원장에서만 제공합니다.
+[첫 사용과 오류 해결 안내](docs/CONNECTION_SETUP.ko.md)를 참고하세요.
 
 ## 수동 등록 없이 어디까지 자동 관측되는가?
 
@@ -365,6 +380,8 @@ UI 회귀 검사는 `node tests/ui_scenarios.mjs http://127.0.0.1:8776`으로 �
 실제 작업 실행·배포를 요청하지 않습니다. 사용자용 CLI·대시보드에는 Playwright가 필요 없습니다.
 실제 임시 SQLite·HTTP·큐와 합성 CLI를 연결하는 관제실 브라우저 검사는
 `python3 tests/observability_integration.py`로 실행합니다. 모델 과금이나 운영 배포는 호출하지 않습니다.
+새 연결 UI의 첫 사용·권한·모바일 검사는 `python3 tests/onboarding_integration.py`,
+OpenCode 관측 검사는 `python3 tests/opencode_integration.py`입니다. 격리된 fixture로 실행합니다.
 
 `service-install --enable`은 사용자 systemd가 있으면 서비스를 등록하고, 없으면 대화형 Bash 로그인
 시작 파일의 관리 구역에 데몬 시작을 연결합니다. `--enable` 없이 실행하면 파일만 준비합니다.
