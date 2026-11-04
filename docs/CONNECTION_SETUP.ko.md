@@ -70,3 +70,7 @@ python3 -m agent_workflow --home /path/to/observer watch --port 8878
 ## WP 없는 Claude Code 관측
 
 위 표의 Claude workflow 연결과 별도로 /sessions에서 프로젝트 훅 설치 명령을 준비할 수 있다. 최초 CLI 설치 후 새 네이티브 세션을 자동 관측한다. OpenCode와 통합 목록·요청함·이력을 제공하며 기존 workflow 연결은 유지한다. [파일럿 안내](NATIVE_PILOT.ko.md).
+
+## Codex 및 플러그인 확장
+
+2026-11-05부터 `/sessions`는 Codex 직접 훅과 세 도구 플러그인 등록도 지원합니다. 위 workflow 원장 연결과 별개이며 기존 기능은 유지합니다. [최신 플러그인 설치·진단](NATIVE_PLUGINS.ko.md).

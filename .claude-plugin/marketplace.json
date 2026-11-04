@@ -1,0 +1,14 @@
+{
+  "name": "agent-workflow",
+  "owner": {
+    "name": "agent-workflow maintainers"
+  },
+  "plugins": [
+    {
+      "name": "agent-workflow-observer",
+      "source": "./plugins/claude",
+      "description": "Passive local session observer",
+      "version": "0.1.0"
+    }
+  ]
+}

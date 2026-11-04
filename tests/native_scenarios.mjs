@@ -20,7 +20,13 @@ try{
  page.on("pageerror",e=>errors.push(e.message));
  page.on("request",r=>{if(r.method()!=="GET")writes.push(r.url())});
  await page.goto(f.url+"/sessions");
- await waitFor(()=>document.querySelectorAll(".native-session").length===2);
+ await waitFor(()=>document.querySelectorAll(".native-session").length===3);
+ await page.getByLabel("도구 필터").selectOption("codex");
+ await page.locator(".native-session").click();
+ assert((await page.locator(".native-detail").innerText()).includes("codex-pilot"));
+ assert((await page.locator(".native-session").innerText()).includes("승인 대기"));
+ await page.screenshot({path:join(out,"codex-sessions.png"),fullPage:true});
+ await page.getByLabel("도구 필터").selectOption("");
  const claude=page.locator(".native-session").filter({hasText:"Claude"});
  await claude.click();
  assert((await page.locator(".native-detail").innerText()).includes("claude-pilot"));
@@ -32,7 +38,7 @@ try{
  await event("UserPromptSubmit","작업 중");
  await event("PermissionRequest","승인 대기");
  await page.getByLabel("확인 요청함",{exact:false}).check();
- assert.equal(await page.locator(".native-session").count(),1);
+ assert.equal(await page.locator(".native-session").count(),2);
  await event("Stop","입력 대기");
  await page.getByLabel("확인 요청함",{exact:false}).uncheck();
  await page.goto(link);
@@ -54,16 +60,20 @@ try{
  await page.waitForSelector(".native-session");
  assert((await page.locator(".native-session").innerText()).includes("종료"));
  await page.locator(".native-session").click();
- await page.getByText("Claude Code 처음 연결하기",{exact:true}).click();
+ await page.getByText("Claude Code·Codex 처음 연결하기",{exact:true}).click();
  await page.getByLabel("Claude 프로젝트 경로").fill(f.project);
  await page.getByRole("button",{name:"설치 명령 준비"}).click();
  await page.waitForSelector(".native-setup pre");
  assert((await page.locator(".native-setup pre").innerText()).includes("native install"));
+ await page.getByLabel("관측 훅 도구").selectOption("codex");
+ await page.getByRole("button",{name:"설치 명령 준비"}).click();
+ await page.waitForSelector(".native-setup pre");
+ assert((await page.locator(".native-setup pre").innerText()).includes("--provider codex"));
  await page.screenshot({path:join(out,"native-sessions.png"),fullPage:true});
  await page.setViewportSize({width:390,height:844});
  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),"mobile overflow");
  await page.getByRole("link",{name:"관리형 작업 관제실"}).click();
  await page.waitForURL("**/mission");
  assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);
- console.log(JSON.stringify({passed:true,checks:["Claude hook subprocess","OpenCode and Claude combined","working/approval/input/end","attention inbox","archive offline","deep link","setup command","mobile","existing mission link","zero writes"]}));
+ console.log(JSON.stringify({passed:true,checks:["Claude hook subprocess","OpenCode Claude Codex combined", "Codex filter and setup","working/approval/input/end","attention inbox","archive offline","deep link","setup command","mobile","existing mission link","zero writes"]}));
 }finally{await browser.close()}

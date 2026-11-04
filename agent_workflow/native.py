@@ -18,6 +18,11 @@ EVENT_STATES = {
     "SessionEnd": "ended", "SubagentStart": "running", "SubagentStop": "ended",
     "Notification": "unknown",
 }
+CODEX_EVENTS = {k: EVENT_STATES[k] for k in (
+    "SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse",
+    "PermissionRequest", "SubagentStart", "SubagentStop", "Stop")}
+CODEX_EVENTS.update(Interrupt="input", PreModelRequest="running")
+PROVIDERS = {"claude", "codex", "opencode"}
 MAX_EVENTS = 10000
 MAX_SESSIONS = 500
 
@@ -32,32 +37,36 @@ def sources(home):
     return data
 
 
-def command(home, project):
+def command(home, project, provider="claude"):
     return shlex.join([sys.executable, str(Path(__file__).with_name("native_hook.py")),
-                       "--home", str(state_home(home)), "--project", str(Path(project).resolve())])
+                       "--home", str(state_home(home)), "--project", str(Path(project).resolve()), "--provider", provider])
 
 
-def setup(home, project):
+def setup(home, project, provider="claude", require_exists=True):
+    if provider not in PROVIDERS:
+        raise WorkflowError("지원하지 않는 관측 도구입니다.")
     p = Path(project).expanduser()
-    if not p.is_absolute() or not p.is_dir():
+    if not p.is_absolute() or (require_exists and not p.is_dir()):
         raise WorkflowError("프로젝트 절대 경로를 확인하세요.")
     return {"project": str(p.resolve()), "command": shlex.join([
         sys.executable, "-m", "agent_workflow", "--home", str(state_home(home)),
-        "native", "install", "--project", str(p.resolve())]),
+        "native", "install", "--provider", provider, "--project", str(p.resolve())]),
         "cwd": str(Path(__file__).resolve().parent.parent)}
 
 
-def install(home, project, remove=False):
+def install(home, project, remove=False, provider="claude"):
+    if provider not in {"claude", "codex"}:
+        raise WorkflowError("OpenCode는 플러그인 설치 후 native register를 사용하세요.")
     home = state_home(home)
-    project = setup(home, project)["project"]
-    root = Path(project) / ".claude"
-    path = root / "settings.local.json"
+    project = setup(home, project, provider)["project"]
+    root = Path(project) / (".claude" if provider == "claude" else ".codex")
+    path = root / ("settings.local.json" if provider == "claude" else "hooks.json")
     if root.is_symlink() or path.is_symlink():
         raise WorkflowError("심볼릭 링크 설정 파일은 자동 변경하지 않습니다.")
     root.mkdir(exist_ok=True)
-    cmd = command(home, project)
+    cmd = command(home, project, provider)
     with _registry_lock(home), _registry_lock(root):
-        previous_commands = {s.get("command") for s in sources(home) if s["project"] == project}
+        previous_commands = {s.get("command") for s in sources(home) if s["project"] == project and s.get("provider", "claude") == provider}
         previous_commands.discard(None)
         previous_commands.add(cmd)
         original = path.read_text() if path.exists() else None
@@ -65,7 +74,7 @@ def install(home, project, remove=False):
         hooks = settings.setdefault("hooks", {})
         if not isinstance(hooks, dict):
             raise WorkflowError("기존 hooks 설정 형식을 확인하세요.")
-        for event in EVENT_STATES:
+        for event in (CODEX_EVENTS if provider == "codex" else EVENT_STATES):
             entries = hooks.get(event, [])
             if not isinstance(entries, list):
                 raise WorkflowError("기존 hook 항목 형식을 확인하세요.")
@@ -80,16 +89,16 @@ def install(home, project, remove=False):
                 kept.append({"matcher": "", "hooks": [{"type": "command", "command": cmd, "timeout": 3}]})
             hooks[event] = kept
         if original is not None:
-            backup = root / ("settings.local.json.observer-backup-" + str(time.time_ns()))
+            backup = root / (path.name + ".observer-backup-" + str(time.time_ns()))
             backup.write_text(original)
             backup.chmod(0o600)
         atomic_write(path, json.dumps(settings, ensure_ascii=False, indent=2))
-        registered = [s for s in sources(home) if s["project"] != project]
+        registered = [s for s in sources(home) if (s["project"], s.get("provider", "claude")) != (project, provider)]
         if not remove:
-            registered.append({"project": project, "provider": "claude", "installed_at": time.time(), "command": cmd})
+            registered.append({"project": project, "provider": provider, "mode": "direct", "installed_at": time.time(), "command": cmd})
         atomic_write(state_home(home) / "native-sources.json", json.dumps(registered))
     return {"project": project, "connected": not remove, "settings": str(path),
-            "execution_started": False, "note": "기존 Claude 세션은 설정 재로딩/재시작 후 관측됩니다. 모델 호출은 하지 않았습니다."}
+            "execution_started": False, "note": "새 세션/설정 재로딩 후 관측됩니다. Codex는 프로젝트 신뢰 및 /hooks 검토가 필요합니다. 모델 호출 없음."}
 
 
 def database(home):
@@ -115,19 +124,23 @@ def clean(value, limit=160):
 
 
 def record(home, provider, source, native_id, project, name, state, event,
-           tool="", parent="", model=""):
+           tool="", parent="", model="", only_if_new=False):
     identifier = hashlib.sha256((provider + "\0" + source + "\0" + native_id).encode()).hexdigest()[:32]
     timestamp = time.time()
     c = database(home)
     try:
         with c:
+            c.execute("BEGIN IMMEDIATE")
             old = c.execute("SELECT * FROM sessions WHERE id=?", (identifier,)).fetchone()
-            if not old or old["state"] != state or old["tool"] != tool or provider == "claude":
+            if old and only_if_new:
+                return None
+            if not old or old["state"] != state or old["tool"] != tool or provider in {"claude", "codex"}:
                 c.execute("INSERT INTO history(session_id,at,event,state,tool) VALUES(?,?,?,?,?)",
                           (identifier, timestamp, clean(event), state, clean(tool)))
             c.execute("""INSERT OR REPLACE INTO sessions VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
                       (identifier, provider, source, clean(native_id), project, clean(name), state,
-                       timestamp, clean(tool), clean(parent), clean(model) or (old["model"] if old else "")))
+                       timestamp, clean(tool), clean(parent) or (old["parent"] if old else ""),
+                       clean(model) or (old["model"] if old else "")))
             c.execute("DELETE FROM history WHERE seq NOT IN (SELECT seq FROM history ORDER BY seq DESC LIMIT ?)", (MAX_EVENTS,))
             c.execute("DELETE FROM sessions WHERE id NOT IN (SELECT id FROM sessions ORDER BY last_seen DESC LIMIT ?)", (MAX_SESSIONS,))
             c.execute("DELETE FROM history WHERE session_id NOT IN (SELECT id FROM sessions)")
@@ -136,18 +149,21 @@ def record(home, provider, source, native_id, project, name, state, event,
     return identifier
 
 
-def ingest(home, project, payload):
+def ingest(home, project, payload, provider="claude", mode="direct"):
+    if provider not in {"claude", "codex"}:
+        return False
     project = str(Path(project).resolve())
-    if project not in {s["project"] for s in sources(home)}:
+    if not any(s["project"] == project and s.get("provider", "claude") == provider
+               and s.get("mode", "direct") == mode for s in sources(home)):
         return False
     if not isinstance(payload, dict) or str(Path(payload.get("cwd", "")).resolve()) != project:
         return False
     sid, event = payload.get("session_id"), payload.get("hook_event_name")
-    if not isinstance(sid, str) or not 0 < len(sid) <= 160 or event not in EVENT_STATES:
+    if not isinstance(sid, str) or not 0 < len(sid) <= 160 or event not in (CODEX_EVENTS if provider == "codex" else EVENT_STATES):
         return False
-    state = EVENT_STATES[event]
+    state = (CODEX_EVENTS if provider == "codex" else EVENT_STATES)[event]
     tool = clean(payload.get("tool_name"))
-    if event == "PreToolUse" and tool == "AskUserQuestion":
+    if event == "PreToolUse" and tool in {"AskUserQuestion", "request_user_input"}:
         state = "input"
     if event == "Notification":
         state = {"permission_prompt": "approval", "idle_prompt": "input",
@@ -162,8 +178,8 @@ def ingest(home, project, payload):
             return False
         parent = sid
         sid += ":" + agent
-    record(home, "claude", project, sid, project,
-           "Claude · " + (clean(payload.get("agent_type")) or sid[:12]),
+    record(home, provider, project, sid, project,
+           ("Codex · " if provider == "codex" else "Claude · ") + (clean(payload.get("agent_type")) or sid[:12]),
            state, event, tool, parent, clean(payload.get("model")))
     return True
 
@@ -204,10 +220,10 @@ def snapshot(home, observer, session_id=None, refresh=True):
     c.row_factory = sqlite3.Row
     try:
         rows = [dict(r) for r in c.execute("SELECT * FROM sessions ORDER BY last_seen DESC")]
-        registered = {s["project"] for s in sources(home)}
+        registered = {(s.get("provider", "claude"), s["project"]) for s in sources(home)}
         now = time.time()
         for row in rows:
-            fresh = (row["source"] + "\0" + row["native_id"]) in available if row["provider"] == "opencode" else row["project"] in registered and now - row["last_seen"] < 300
+            fresh = (row["source"] + "\0" + row["native_id"]) in available if row["provider"] == "opencode" and not row["source"].startswith("plugin:") else (row["provider"], row["project"]) in registered and now - row["last_seen"] < 300
             row["observed_state"] = row["state"]
             row["fresh"] = fresh
             if not fresh and row["state"] != "ended":
@@ -218,3 +234,52 @@ def snapshot(home, observer, session_id=None, refresh=True):
                 "limits": {"sessions": MAX_SESSIONS, "events": MAX_EVENTS, "history": 200}}
     finally:
         c.close()
+
+
+def register(home, project, provider, remove=False):
+    """Opt a project into a plugin without editing any agent settings."""
+    project = setup(home, project, provider, require_exists=not remove)["project"]
+    with _registry_lock(state_home(home)):
+        rows = sources(home)
+        current = [s for s in rows if (s["project"], s.get("provider", "claude")) == (project, provider)]
+        if any(s.get("mode", "direct") != "plugin" for s in current):
+            raise WorkflowError("직접 설치한 훅은 native uninstall로 해제한 뒤 플러그인을 등록하세요.")
+        rows = [s for s in rows if s not in current]
+        if not remove:
+            rows.append({"project": project, "provider": provider, "mode": "plugin", "installed_at": time.time()})
+        atomic_write(state_home(home) / "native-sources.json", json.dumps(rows))
+    return {"project": project, "provider": provider, "registered": not remove,
+            "execution_started": False, "note": "플러그인 로딩·훅 신뢰는 원래 도구에서 확인하세요."}
+
+
+def status(home, project, provider):
+    project = setup(home, project, provider, require_exists=False)["project"]
+    registration = next((s for s in sources(home) if
+                         (s["project"], s.get("provider", "claude")) == (project, provider)), None)
+    rows = snapshot(home, None, refresh=False)["sessions"]
+    rows = [s for s in rows if s["project"] == project and s["provider"] == provider]
+    return {"provider": provider, "project": project, "home": str(state_home(home)),
+            "registration": registration, "observed_sessions": len(rows),
+            "last_seen": max((s["last_seen"] for s in rows), default=None),
+            "note": "등록은 플러그인 로딩/훅 신뢰 완료를 보장하지 않습니다. 새 세션 후 last_seen을 확인하세요."}
+
+
+def ingest_opencode(home, project, payload):
+    """Only the plugin's allowlisted metadata protocol, never message bodies."""
+    if not any(s["project"] == project and s.get("provider") == "opencode"
+               and s.get("mode") == "plugin" for s in sources(home)):
+        return False
+    sid, event = payload.get("session_id"), payload.get("hook_event_name")
+    states = {"session.created": "idle", "session.deleted": "ended", "session.idle": "idle",
+              "session.error": "attention", "permission.asked": "approval", "question.asked": "input",
+              "permission.replied": "unknown", "question.replied": "unknown", "question.rejected": "unknown",
+              "tool.execute.before": "running", "tool.execute.after": "running",
+              "session.discovered": "unknown"}
+    state = states.get(event)
+    if event == "session.status":
+        state = {"busy": "running", "idle": "idle", "retry": "retrying"}.get(payload.get("status"))
+    if not isinstance(sid, str) or not 0 < len(sid) <= 160 or state is None:
+        return False
+    return record(home, "opencode", "plugin:" + project, sid, project, "OpenCode · " + sid[:12],
+                  state, event, clean(payload.get("tool_name")), clean(payload.get("parent")),
+                  only_if_new=event == "session.discovered") is not None

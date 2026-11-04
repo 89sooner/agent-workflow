@@ -442,3 +442,5 @@ python3 tests/live_smoke.py --owner codex --reviewer claude --timeout 180
 상태별 3D 공간은 **작업실 / 대기·휴게실 / 확인 필요**로 구분합니다. 완료 기록을 현재 idle로 단정하지 않으며 연결 단절은 확인 필요로 표시합니다. [상태별 공간 사용법](docs/STATE_ROOMS.ko.md).
 
 WP 없이 OpenCode·Claude Code를 관측하려면 **일상 세션 /sessions**를 사용합니다. OpenCode는 서버·프로젝트 연결, Claude Code는 프로젝트 관측 훅을 한 번 설치합니다. 기존 WP·큐·검사·리뷰 기능은 유지합니다. [파일럿 사용·설치·해제 안내](docs/NATIVE_PILOT.ko.md).
+
+WP 없는 Codex 관측과 Claude Code·OpenCode·Codex 플러그인 설치/진단/해제: [세 도구 플러그인 안내](docs/NATIVE_PLUGINS.ko.md). 기존 관리형 WP 기능은 유지됩니다.

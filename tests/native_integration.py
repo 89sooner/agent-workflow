@@ -23,6 +23,8 @@ def main():
             text=True,capture_output=True,timeout=5)
         assert (result.returncode,result.stdout,result.stderr)==(0,"","")
     hook("SessionStart")
+    native.install(fixture.home,project,provider="codex")
+    native.ingest(fixture.home,project,dict(session_id="codex-pilot",hook_event_name="PermissionRequest",cwd=str(project)),"codex")
     control=Path(fixture.temp.name)/"control"
     stop=threading.Event()
     def commands():

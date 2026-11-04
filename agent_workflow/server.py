@@ -169,7 +169,7 @@ def handler(home, token, *, read_only=False, observer=False):
                         return self.response(snapshot(home, opencode, query.get("session", [None])[0], refresh=observer or not read_only))
                 if path == "/api/native/setup":
                     from .native import setup
-                    return self.response(setup(home, query.get("project", [""])[0]))
+                    return self.response(setup(home, query.get("project", [""])[0], query.get("provider", ["claude"])[0]))
                 if path == "/api/capabilities":
                     from .onboarding import capabilities
                     return self.response(capabilities(home, token, read_only=read_only, observer=observer))

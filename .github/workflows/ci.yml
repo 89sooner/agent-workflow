@@ -75,6 +75,8 @@ jobs:
           python tests/opencode_integration.py
           python tests/onboarding_integration.py
           python tests/native_integration.py
+          node tests/plugins.mjs
+          python scripts/package-plugins.py
       - name: Keep browser evidence
         if: always()
         uses: actions/upload-artifact@v4
