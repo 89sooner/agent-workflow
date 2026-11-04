@@ -223,13 +223,13 @@ def _read_profile(home, name, project):
 
 
 def connect(home, project, ledgers=(), profile=None, criteria=None, scope=None, registration_home=None,
-            *, include_processes=True, include_temporary=True, include_default=True):
+            *, include_processes=True, include_temporary=True, include_default=True, include_home=True):
     home = state_home(home)
     project = project_root(project)
     key = project_key(project)
     previous = next((p for p in load_registry(home)["projects"] if p["id"] == key), {})
     candidates = [*ledgers, *(p["home"] for p in previous.get("ledgers", []))]
-    if (home / "state.sqlite3").is_file():
+    if include_home and (home / "state.sqlite3").is_file():
         candidates.append(home)
     discovery = discover(project, candidates,
                          include_processes=include_processes, include_temporary=include_temporary,

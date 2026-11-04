@@ -12,6 +12,7 @@ import {
   pathName,
 } from "./model";
 import type {
+  Capabilities,
   Discovery,
   Event,
   Execution,
@@ -22,6 +23,7 @@ import type {
 } from "./types";
 import { ExecutionGraph } from "./Graph";
 import { Room } from "./Room";
+import { ConnectionDialog, diagnosis } from "./Connections";
 const empty: Trace = {
   schema_version: 1,
   generated_at: "",
@@ -235,18 +237,33 @@ export default function App() {
     [eventPage, setEventPage] = useState(0);
   const visible = useVisible(),
     systemReduce = useReducedMotion();
+  const [connecting, setConnecting] = useState(false);
+  const [pendingConnection, setPendingConnection] = useState("");
+  const capabilities = usePoll<Capabilities>(
+    "/api/capabilities",
+    30000,
+    refresh,
+  );
   const discovery = usePoll<Discovery>("/api/connections", 15000, refresh);
   const ledgers = discovery.data?.ledgers || [],
     currentLedger = ledgers.find((l) => l.id === ledger);
   useEffect(() => {
+    if (pendingConnection) {
+      if (ledgers.some((l) => l.id === pendingConnection)) {
+        changeLedger(pendingConnection);
+        setPendingConnection("");
+      }
+      return;
+    }
     if (discovery.data && !currentLedger) {
       setLedger(
         ledgers.find((l) => l.task_count && l.status === "available")?.id ||
           ledgers.find((l) => l.status === "available")?.id ||
+          ledgers[0]?.id ||
           "",
       );
     }
-  }, [discovery.data, currentLedger, ledgers]);
+  }, [discovery.data, currentLedger, ledgers, pendingConnection]);
   const overview = usePoll<Project>(
     currentLedger
       ? endpoint(
@@ -504,6 +521,16 @@ export default function App() {
   const truncated =
     overview.data?.truncated &&
     Object.values(overview.data.truncated).some(Boolean);
+  const observationError = query.error || discovery.error;
+  const issue = diagnosis(observationError);
+  const emptyRecords =
+    !!currentLedger &&
+    !!overview.data &&
+    !overview.data.tasks.length &&
+    !overview.error;
+  const canManage =
+    capabilities.data?.can_manage_tasks &&
+    currentLedger?.id === capabilities.data.primary_ledger_id;
   return (
     <div
       className="mission-shell"
@@ -512,6 +539,18 @@ export default function App() {
       <a className="skip-link" href="#mission-main">
         관제실 본문으로 이동
       </a>
+      {connecting && capabilities.data && (
+        <ConnectionDialog
+          capabilities={capabilities.data}
+          initialProject={project || currentLedger?.projects[0]?.path || ""}
+          onClose={() => setConnecting(false)}
+          onConnected={(id) => {
+            setPendingConnection(id);
+            setConnecting(false);
+            setRefresh((v) => v + 1);
+          }}
+        />
+      )}
       <aside className="sidebar">
         <a className="brand" href="/mission">
           <span className="brand-mark">⌘</span>
@@ -519,6 +558,13 @@ export default function App() {
             AGENT WORKFLOW<small>MISSION CONTROL</small>
           </span>
         </a>
+        <button
+          className="connect-entry"
+          onClick={() => setConnecting(true)}
+          disabled={!capabilities.data}
+        >
+          프로젝트 연결
+        </button>
         <div className="sidebar-section">
           <label htmlFor="ledger">작업 원장 / 연결</label>
           <select
@@ -526,13 +572,13 @@ export default function App() {
             value={ledger}
             onChange={(e) => changeLedger(e.target.value)}
           >
-            {!ledgers.length && <option value="">원장을 찾는 중</option>}
+            {!ledgers.length && (
+              <option value="">
+                {discovery.loading ? "연결 확인 중…" : "연결된 기록 없음"}
+              </option>
+            )}
             {ledgers.map((l) => (
-              <option
-                key={l.id}
-                value={l.id}
-                disabled={l.status !== "available" && l.kind !== "opencode"}
-              >
+              <option key={l.id} value={l.id}>
                 {l.label || pathName(l.home)} · {l.task_count}
                 {l.status !== "available" ? " · 연결 확인 필요" : ""}
               </option>
@@ -602,9 +648,29 @@ export default function App() {
             </button>
           ))}
           {!filtered.length && (
-            <p className="muted">
-              {overview.loading ? "기록을 읽는 중…" : "표시할 작업이 없습니다."}
-            </p>
+            <div className="muted" data-testid="task-empty">
+              <p>
+                {overview.loading
+                  ? "기록을 읽는 중…"
+                  : search || filter !== "all"
+                    ? "검색 조건에 맞는 작업이 없습니다."
+                    : !currentLedger
+                      ? "프로젝트를 연결해 관측을 시작하세요."
+                      : observationError
+                        ? "연결 상태를 확인하세요."
+                        : "아직 관측된 작업이 없습니다."}
+              </p>
+              {(search || filter !== "all") && (
+                <button
+                  onClick={() => {
+                    setSearch("");
+                    setFilter("all");
+                  }}
+                >
+                  검색 조건 초기화
+                </button>
+              )}
+            </div>
           )}
           {filtered.length > taskLimit && (
             <button onClick={() => setTaskLimit((v) => v + 40)}>
@@ -615,8 +681,10 @@ export default function App() {
         <div className="sidebar-bottom">
           {currentLedger?.kind === "opencode" ? (
             <p>OpenCode에서 평소처럼 작업하세요. 새 세션은 자동 표시됩니다.</p>
-          ) : (
+          ) : canManage ? (
             <a href="/">작업 등록·실행 관리 ↗</a>
+          ) : (
+            <p>관측 전용 · 이 연결에서 작업을 등록하거나 실행하지 않습니다.</p>
           )}
           <p>관측 화면 · 실행 변경 없음</p>
         </div>
@@ -636,7 +704,9 @@ export default function App() {
                 ? "연결 확인 필요"
                 : live
                   ? "연결됨"
-                  : "연결 중"}
+                  : discovery.loading
+                    ? "연결 확인 중"
+                    : "연결 필요"}
             </span>
             <button
               onClick={() => setRefresh((v) => v + 1)}
@@ -666,9 +736,11 @@ export default function App() {
                 ? "◷ 기록 재생"
                 : query.error || discovery.error
                   ? "Ⅱ 연결 끊김"
-                  : visible
-                    ? "● 실시간 관측"
-                    : "Ⅱ 관측 일시 정지"}
+                  : !currentLedger
+                    ? "연결 필요"
+                    : visible
+                      ? "● 실시간 관측"
+                      : "Ⅱ 관측 일시 정지"}
               <small>
                 {query.at
                   ? clock(new Date(query.at).toISOString())
@@ -678,414 +750,495 @@ export default function App() {
           </div>
           {(query.error || discovery.error) && (
             <div role="alert" className="notice error">
-              {query.error || discovery.error} · 마지막 기록을 유지하며 활동
-              표시를 멈췄습니다.
+              <h2>{issue.title}</h2>
+              <p>{issue.action}</p>
+              <p>{observationError}</p>
+              <p>
+                마지막 성공:{" "}
+                {query.at
+                  ? when(new Date(query.at).toISOString())
+                  : when(currentLedger?.last_success_at || undefined)}{" "}
+                · 이전 기록을 유지하며 활동 표시를 멈춥니다.
+              </p>
               <button onClick={() => setRefresh((v) => v + 1)}>
                 다시 연결
               </button>
             </div>
           )}
-          <div className="metrics">
-            {[
-              [
-                "확인된 실행",
-                counts.running || 0,
-                currentLedger?.kind === "opencode"
-                  ? "OpenCode가 busy로 보고한 세션"
-                  : "진행 중인 controller 프로세스",
-              ],
-              ["실행 대기", counts.queued || 0, "큐에 등록된 작업"],
-              [
-                "상태 미확인",
-                counts.unknown || 0,
-                "종료 증거를 확인할 수 없음",
-              ],
-              ["관측 작업", counts.tasks || 0, "선택한 원장의 작업"],
-            ].map(([title, value, desc]) => (
-              <div className="metric" key={title}>
-                <span>{title}</span>
-                <strong>{value}</strong>
-                <small>{desc}</small>
+          {capabilities.error && !observationError && (
+            <p className="notice error" role="alert">
+              연결 설정 권한을 확인하지 못했습니다. {capabilities.error}{" "}
+              새로고침해 다시 확인하세요.
+            </p>
+          )}
+          {!currentLedger && !discovery.loading && !discovery.error && (
+            <section className="welcome-card" data-testid="onboarding-empty">
+              <span className="eyebrow">FIRST CONNECTION</span>
+              <h2>내 프로젝트의 작업을 여기서 확인하세요</h2>
+              <p>
+                프로젝트와 사용 도구를 한 번 연결하세요. 새 기록은 자동으로
+                나타납니다.
+              </p>
+              <ol>
+                <li>프로젝트 폴더 선택</li>
+                <li>도구와 관측 범위 확인</li>
+                <li>연결 후 세션 선택</li>
+              </ol>
+              <button
+                onClick={() => setConnecting(true)}
+                disabled={!capabilities.data}
+              >
+                첫 프로젝트 연결
+              </button>
+              <p className="muted">
+                OpenCode는 서버의 새 세션을, Codex·Claude는 workflow에 남긴 실행
+                기록을 관측합니다.
+              </p>
+            </section>
+          )}
+          {emptyRecords && (
+            <section className="notice" data-testid="no-sessions">
+              <h2>
+                {currentLedger?.kind === "opencode"
+                  ? "연결됐지만 이 프로젝트의 세션이 없습니다"
+                  : "연결됐지만 아직 작업 기록이 없습니다"}
+              </h2>
+              <p>
+                {currentLedger?.kind === "opencode"
+                  ? "OpenCode에서 같은 프로젝트로 세션을 시작하면 자동 표시됩니다. 이미 작업 중이라면 연결한 서버와 프로젝트 폴더가 같은지 확인하세요."
+                  : "Codex·Claude의 일반 대화는 자동 수집하지 않습니다. workflow로 기록한 작업이 있다면 선택한 프로젝트와 연결을 확인하세요."}
+              </p>
+              <button onClick={() => setConnecting(true)}>
+                연결 설정 확인
+              </button>
+              <button onClick={() => setRefresh((v) => v + 1)}>
+                기록 다시 조회
+              </button>
+            </section>
+          )}
+          {currentLedger && (
+            <>
+              <div className="metrics">
+                {[
+                  [
+                    "확인된 실행",
+                    counts.running || 0,
+                    currentLedger?.kind === "opencode"
+                      ? "OpenCode가 busy로 보고한 세션"
+                      : "진행 중인 controller 프로세스",
+                  ],
+                  ["실행 대기", counts.queued || 0, "큐에 등록된 작업"],
+                  [
+                    "상태 미확인",
+                    counts.unknown || 0,
+                    "종료 증거를 확인할 수 없음",
+                  ],
+                  ["관측 작업", counts.tasks || 0, "선택한 원장의 작업"],
+                ].map(([title, value, desc]) => (
+                  <div className="metric" key={title}>
+                    <span>{title}</span>
+                    <strong>{value}</strong>
+                    <small>{desc}</small>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          {currentLedger?.kind === "opencode" && (
-            <p className="notice">
-              OpenCode 읽기 전용 관측 · 새 세션 자동 표시 · 대기는 응답 대기이며
-              작업 검증 완료가 아닙니다. 세션을 선택하면 기록된 에이전트
-              이름·모델·최근 응답과 도구 상태를 확인할 수 있습니다.
-            </p>
-          )}
-          {truncated && (
-            <p className="notice">
-              프로젝트 집계는 최근 기록 범위입니다. 잘린 항목의 전체 이력은
-              작업을 선택해 확인하세요.
-            </p>
-          )}
-          <div className="view-toolbar">
-            <div>
-              {taskId ? (
-                <label>
-                  실행 기록{" "}
-                  <select
-                    aria-label="실행 기록"
-                    value={runId}
-                    onChange={(e) => {
-                      setRun(e.target.value);
-                      setSelected(null);
-                      setReplay(null);
-                      setPlaying(false);
-                    }}
-                  >
-                    <option value="">현재 / 최근 실행</option>
-                    {trace.data?.runs.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {when(r.started_at)} · {label(r.status)} ·{" "}
-                        {r.id.slice(0, 8)}
-                      </option>
-                    ))}
-                  </select>
-                  {trace.data?.runs_truncated && (
-                    <span
-                      className="muted"
-                      role="status"
-                      data-testid="history-limit"
-                    >
-                      최근 조회 한도에 도달했습니다. 이 목록은 전체 이력이 아닐
-                      수 있습니다.
-                    </span>
-                  )}
-                </label>
-              ) : (
-                <span className="muted">
-                  노드를 선택해 작업의 전체 이력으로 이동하세요.
-                </span>
+              {currentLedger?.kind === "opencode" && (
+                <p className="notice">
+                  OpenCode 읽기 전용 관측 · 새 세션 자동 표시 · 대기는 응답
+                  대기이며 작업 검증 완료가 아닙니다. 세션을 선택하면 기록된
+                  에이전트 이름·모델·최근 응답과 도구 상태를 확인할 수 있습니다.
+                </p>
               )}
-            </div>
-            <div className="view-options">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={room}
-                  onChange={(e) => {
-                    setRoom(e.target.checked);
-                    save("mission-room", e.target.checked ? "on" : "off");
-                  }}
-                />
-                3D 공간
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={reduce || systemReduce}
-                  disabled={systemReduce}
-                  onChange={(e) => {
-                    setReduce(e.target.checked);
-                    save(
-                      "mission-motion",
-                      e.target.checked ? "reduce" : "system",
-                    );
-                  }}
-                />
-                움직임 줄이기
-              </label>
-            </div>
-          </div>
-          {query.loading && (
-            <p className="notice" role="status">
-              실행 기록을 읽고 있습니다…
-            </p>
-          )}
-          <div className="work-grid">
-            <div className="work-center">
-              {room && (
-                <Room
-                  nodes={graph.nodes}
-                  selected={selected}
-                  onSelect={selectNode}
-                  motion={motion}
-                  transfers={transfers}
-                  visible={visible}
-                />
+              {truncated && (
+                <p className="notice">
+                  프로젝트 집계는 최근 기록 범위입니다. 잘린 항목의 전체 이력은
+                  작업을 선택해 확인하세요.
+                </p>
               )}
-              <ExecutionGraph
-                graph={graph}
-                selected={selected}
-                onSelect={selectNode}
-                transfers={transfers}
-                motion={motion}
-                replay={!!replay}
-              />
-              <section className="panel">
-                <div className="panel-heading">
-                  <div>
-                    <span className="eyebrow">PEOPLE & PROCESSES</span>
-                    <h2>담당자와 실행기</h2>
-                  </div>
-                  <span className="muted">{selectedActors.length}개 표시</span>
-                </div>
-                <div className="actor-list">
-                  {selectedActors.map((a) => {
-                    const node =
-                      graph.nodes.find((n) => n.actorId === a.id) ||
-                      data.spans.find((s) => s.actor === a.id);
-                    return (
-                      <button
-                        key={a.id}
-                        onClick={() => {
-                          if (!taskId) {
-                            const span = data.spans.find(
-                              (s) => s.actor === a.id,
-                            );
-                            selectTask(a.task_id, span?.run_id || "");
-                          }
-                          if (node) setSelected(node.id);
-                        }}
-                        className="actor-card"
-                      >
-                        <span
-                          className="actor-dot"
-                          style={{ background: color(a.status) }}
-                        />
-                        <span>
-                          <strong>{a.label}</strong>
-                          <small>
-                            {label(a.role)} ·{" "}
-                            {a.name_source === "assigned"
-                              ? "할당 이름"
-                              : a.name_source === "native"
-                                ? "OpenCode 기록 이름"
-                                : a.name_source === "system"
-                                  ? "시스템"
-                                  : "자동 이름"}
-                          </small>
-                        </span>
-                        <Status value={a.status} />
-                      </button>
-                    );
-                  })}
-                  {!selectedActors.length && (
-                    <p className="muted">담당자 기록이 없습니다.</p>
-                  )}
-                </div>
-                {data.actors.length > 100 && (
-                  <p className="panel-caption">
-                    최대 100개 항목을 표시합니다. 작업을 선택해 범위를 좁히세요.
-                  </p>
-                )}
-              </section>
-              <section className="panel timeline-panel">
-                <div className="panel-heading">
-                  <div>
-                    <span className="eyebrow">EVENT STREAM</span>
-                    <h2>{replay ? "실행 기록 재생" : "최근 일어난 일"}</h2>
-                  </div>
-                  <div className="replay-actions">
-                    <button
-                      disabled={!mergedTrace.events.length || !visible}
-                      onClick={replayStart}
-                    >
-                      {playing
-                        ? "Ⅱ 일시 정지"
-                        : replay
-                          ? "▶ 계속 재생"
-                          : "▶ 기록 재생"}
-                    </button>
-                    {replay && (
-                      <button
-                        onClick={() => {
+              <div className="view-toolbar">
+                <div>
+                  {taskId ? (
+                    <label>
+                      실행 기록{" "}
+                      <select
+                        aria-label="실행 기록"
+                        value={runId}
+                        onChange={(e) => {
+                          setRun(e.target.value);
+                          setSelected(null);
                           setReplay(null);
                           setPlaying(false);
-                          setEventPage(0);
                         }}
                       >
-                        실시간으로 돌아가기
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {replay && (
-                  <div className="replay-scrubber">
-                    <label htmlFor="event-position">
-                      이벤트 {position + 1} / {replay.events.length} ·{" "}
-                      {clock(replay.events[position]?.at)}
-                    </label>
-                    <input
-                      id="event-position"
-                      type="range"
-                      min="0"
-                      max={Math.max(0, replay.events.length - 1)}
-                      value={position}
-                      onChange={(e) => {
-                        setPlaying(false);
-                        setPosition(Number(e.target.value));
-                      }}
-                    />
-                    <small>
-                      이벤트 순서 재생 · 실제 작업을 실행하지 않습니다.
-                    </small>
-                  </div>
-                )}
-                <ol className="event-list">
-                  {[...eventSource.events]
-                    .reverse()
-                    .slice(eventPage * 100, (eventPage + 1) * 100)
-                    .map((e) => (
-                      <li
-                        data-span-id={e.span_id}
-                        data-event-seq={e.seq}
-                        key={e.seq}
-                        className={
-                          replay?.events[position]?.seq === e.seq
-                            ? "event-current"
-                            : ""
-                        }
-                      >
-                        <time>{clock(e.at)}</time>
-                        <i style={{ background: color(e.status || "idle") }} />
-                        <button
-                          onClick={() => {
-                            if (!taskId && e.task_id) {
-                              selectTask(e.task_id, e.run_id || "");
-                              if (e.span_id) setSelected(e.span_id);
-                            } else {
-                              if (e.span_id) setSelected(e.span_id);
-                              if (replay) {
-                                setPlaying(false);
-                                setPosition(
-                                  replay.events.findIndex(
-                                    (x) => x.seq === e.seq,
-                                  ),
-                                );
-                              }
-                            }
-                          }}
+                        <option value="">현재 / 최근 실행</option>
+                        {trace.data?.runs.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {when(r.started_at)} · {label(r.status)} ·{" "}
+                            {r.id.slice(0, 8)}
+                          </option>
+                        ))}
+                      </select>
+                      {trace.data?.runs_truncated && (
+                        <span
+                          className="muted"
+                          role="status"
+                          data-testid="history-limit"
                         >
-                          <strong>{e.summary || e.kind}</strong>
-                          <small>
-                            {e.kind} · #{e.seq}
-                            {e.task_id ? " · " + e.task_id : ""}
-                          </small>
-                        </button>
-                      </li>
-                    ))}
-                </ol>
-                {!eventSource.events.length && (
-                  <p className="empty-state">아직 관측 이벤트가 없습니다.</p>
-                )}
-                <div className="panel-footer">
-                  <span>
-                    {Math.min(eventPage * 100 + 1, eventSource.events.length)}–
-                    {Math.min((eventPage + 1) * 100, eventSource.events.length)}{" "}
-                    / {eventSource.events.length}개
-                  </span>
-                  <div className="event-navigation">
-                    <button
-                      disabled={eventPage === 0}
-                      onClick={() => setEventPage((v) => v - 1)}
-                    >
-                      최신 쪽
-                    </button>
-                    <button
-                      disabled={
-                        (eventPage + 1) * 100 >= eventSource.events.length
-                      }
-                      onClick={() => setEventPage((v) => v + 1)}
-                    >
-                      이전 쪽
-                    </button>
-                  </div>
-                  {taskId && !replay && (
-                    <>
-                      <button
-                        disabled={
-                          moreLoading ||
-                          older.length >= 5000 ||
-                          before === null ||
-                          (before === undefined &&
-                            !trace.data?.pagination?.has_more)
-                        }
-                        onClick={() => void loadOlder()}
-                      >
-                        {moreLoading ? "읽는 중…" : "이전 기록 불러오기"}
-                      </button>
-                      <a
-                        href={endpoint("/api/observability/export", ledger, {
-                          task_id: taskId,
-                          ...(trace.data?.selected_run_id
-                            ? { run_id: trace.data.selected_run_id }
-                            : {}),
-                        })}
-                      >
-                        JSON 내보내기 ↗
-                      </a>
-                    </>
+                          최근 조회 한도에 도달했습니다. 이 목록은 전체 이력이
+                          아닐 수 있습니다.
+                        </span>
+                      )}
+                    </label>
+                  ) : (
+                    <span className="muted">
+                      노드를 선택해 작업의 전체 이력으로 이동하세요.
+                    </span>
                   )}
                 </div>
-                {moreError && (
-                  <p role="alert" className="notice error">
-                    {moreError}
-                  </p>
-                )}
-              </section>
-              <section className="panel">
-                <div className="panel-heading">
-                  <div>
-                    <span className="eyebrow">RUN HISTORY</span>
-                    <h2>{openCode ? "OpenCode 응답 이력" : "실행 이력"}</h2>
-                  </div>
+                <div className="view-options">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={room}
+                      onChange={(e) => {
+                        setRoom(e.target.checked);
+                        save("mission-room", e.target.checked ? "on" : "off");
+                      }}
+                    />
+                    3D 공간
+                  </label>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={reduce || systemReduce}
+                      disabled={systemReduce}
+                      onChange={(e) => {
+                        setReduce(e.target.checked);
+                        save(
+                          "mission-motion",
+                          e.target.checked ? "reduce" : "system",
+                        );
+                      }}
+                    />
+                    움직임 줄이기
+                  </label>
                 </div>
-                <div className="run-list">
-                  {executions
-                    .filter((r) => !taskId || r.task_id === taskId)
-                    .slice(0, 30)
-                    .map((r) => (
-                      <button
-                        key={r.id}
-                        onClick={() =>
-                          selectTask(r.task_id || "", r.run_id || "")
-                        }
-                      >
-                        <span>
-                          <strong>{r.task_id}</strong>
-                          <small>
-                            {r.source === "opencode"
-                              ? "OpenCode 응답"
-                              : r.source === "direct"
-                                ? "직접 실행"
-                                : "큐 실행"}{" "}
-                            · {when(r.started_at)} · {label(r.action)}
-                          </small>
-                        </span>
-                        <Status value={r.status} />
-                      </button>
-                    ))}
-                </div>
-                <p className="panel-caption">
-                  {openCode
-                    ? taskId
-                      ? "최근 응답 30개 표시 · 응답 종료는 작업 검증 완료와 다릅니다."
-                      : "세션을 선택하면 최근 응답 이력을 확인할 수 있습니다."
-                    : "최근 30개 표시 · 큐와 연결된 실행은 중복 집계하지 않습니다."}
+              </div>
+              {query.loading && (
+                <p className="notice" role="status">
+                  실행 기록을 읽고 있습니다…
                 </p>
-              </section>
-            </div>
-            <Inspector
-              key={`${ledger}:${taskId}:${selected || ""}`}
-              node={selectedNode}
-              ledger={ledger}
-              taskGoal={
-                tasks.find((t) => t.id === selectedNode?.taskId)?.goal ||
-                focusedTask?.goal
-              }
-              replay={!!replay}
-            />
-          </div>
-          {(data.warnings || []).map((w) => (
-            <p className="notice" key={w}>
-              {w}
-            </p>
-          ))}
+              )}
+              <div className="work-grid">
+                <div className="work-center">
+                  {room && (
+                    <Room
+                      nodes={graph.nodes}
+                      selected={selected}
+                      onSelect={selectNode}
+                      motion={motion}
+                      transfers={transfers}
+                      visible={visible}
+                    />
+                  )}
+                  <ExecutionGraph
+                    graph={graph}
+                    selected={selected}
+                    onSelect={selectNode}
+                    transfers={transfers}
+                    motion={motion}
+                    replay={!!replay}
+                  />
+                  <section className="panel">
+                    <div className="panel-heading">
+                      <div>
+                        <span className="eyebrow">PEOPLE & PROCESSES</span>
+                        <h2>담당자와 실행기</h2>
+                      </div>
+                      <span className="muted">
+                        {selectedActors.length}개 표시
+                      </span>
+                    </div>
+                    <div className="actor-list">
+                      {selectedActors.map((a) => {
+                        const node =
+                          graph.nodes.find((n) => n.actorId === a.id) ||
+                          data.spans.find((s) => s.actor === a.id);
+                        return (
+                          <button
+                            key={a.id}
+                            onClick={() => {
+                              if (!taskId) {
+                                const span = data.spans.find(
+                                  (s) => s.actor === a.id,
+                                );
+                                selectTask(a.task_id, span?.run_id || "");
+                              }
+                              if (node) setSelected(node.id);
+                            }}
+                            className="actor-card"
+                          >
+                            <span
+                              className="actor-dot"
+                              style={{ background: color(a.status) }}
+                            />
+                            <span>
+                              <strong>{a.label}</strong>
+                              <small>
+                                {label(a.role)} ·{" "}
+                                {a.name_source === "assigned"
+                                  ? "할당 이름"
+                                  : a.name_source === "native"
+                                    ? "OpenCode 기록 이름"
+                                    : a.name_source === "system"
+                                      ? "시스템"
+                                      : "자동 이름"}
+                              </small>
+                            </span>
+                            <Status value={a.status} />
+                          </button>
+                        );
+                      })}
+                      {!selectedActors.length && (
+                        <p className="muted">담당자 기록이 없습니다.</p>
+                      )}
+                    </div>
+                    {data.actors.length > 100 && (
+                      <p className="panel-caption">
+                        최대 100개 항목을 표시합니다. 작업을 선택해 범위를
+                        좁히세요.
+                      </p>
+                    )}
+                  </section>
+                  <section className="panel timeline-panel">
+                    <div className="panel-heading">
+                      <div>
+                        <span className="eyebrow">EVENT STREAM</span>
+                        <h2>{replay ? "실행 기록 재생" : "최근 일어난 일"}</h2>
+                      </div>
+                      <div className="replay-actions">
+                        <button
+                          disabled={!mergedTrace.events.length || !visible}
+                          onClick={replayStart}
+                        >
+                          {playing
+                            ? "Ⅱ 일시 정지"
+                            : replay
+                              ? "▶ 계속 재생"
+                              : "▶ 기록 재생"}
+                        </button>
+                        {replay && (
+                          <button
+                            onClick={() => {
+                              setReplay(null);
+                              setPlaying(false);
+                              setEventPage(0);
+                            }}
+                          >
+                            실시간으로 돌아가기
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {replay && (
+                      <div className="replay-scrubber">
+                        <label htmlFor="event-position">
+                          이벤트 {position + 1} / {replay.events.length} ·{" "}
+                          {clock(replay.events[position]?.at)}
+                        </label>
+                        <input
+                          id="event-position"
+                          type="range"
+                          min="0"
+                          max={Math.max(0, replay.events.length - 1)}
+                          value={position}
+                          onChange={(e) => {
+                            setPlaying(false);
+                            setPosition(Number(e.target.value));
+                          }}
+                        />
+                        <small>
+                          이벤트 순서 재생 · 실제 작업을 실행하지 않습니다.
+                        </small>
+                      </div>
+                    )}
+                    <ol className="event-list">
+                      {[...eventSource.events]
+                        .reverse()
+                        .slice(eventPage * 100, (eventPage + 1) * 100)
+                        .map((e) => (
+                          <li
+                            data-span-id={e.span_id}
+                            data-event-seq={e.seq}
+                            key={e.seq}
+                            className={
+                              replay?.events[position]?.seq === e.seq
+                                ? "event-current"
+                                : ""
+                            }
+                          >
+                            <time>{clock(e.at)}</time>
+                            <i
+                              style={{ background: color(e.status || "idle") }}
+                            />
+                            <button
+                              onClick={() => {
+                                if (!taskId && e.task_id) {
+                                  selectTask(e.task_id, e.run_id || "");
+                                  if (e.span_id) setSelected(e.span_id);
+                                } else {
+                                  if (e.span_id) setSelected(e.span_id);
+                                  if (replay) {
+                                    setPlaying(false);
+                                    setPosition(
+                                      replay.events.findIndex(
+                                        (x) => x.seq === e.seq,
+                                      ),
+                                    );
+                                  }
+                                }
+                              }}
+                            >
+                              <strong>{e.summary || e.kind}</strong>
+                              <small>
+                                {e.kind} · #{e.seq}
+                                {e.task_id ? " · " + e.task_id : ""}
+                              </small>
+                            </button>
+                          </li>
+                        ))}
+                    </ol>
+                    {!eventSource.events.length && (
+                      <p className="empty-state">
+                        아직 관측 이벤트가 없습니다.
+                      </p>
+                    )}
+                    <div className="panel-footer">
+                      <span>
+                        {Math.min(
+                          eventPage * 100 + 1,
+                          eventSource.events.length,
+                        )}
+                        –
+                        {Math.min(
+                          (eventPage + 1) * 100,
+                          eventSource.events.length,
+                        )}{" "}
+                        / {eventSource.events.length}개
+                      </span>
+                      <div className="event-navigation">
+                        <button
+                          disabled={eventPage === 0}
+                          onClick={() => setEventPage((v) => v - 1)}
+                        >
+                          최신 쪽
+                        </button>
+                        <button
+                          disabled={
+                            (eventPage + 1) * 100 >= eventSource.events.length
+                          }
+                          onClick={() => setEventPage((v) => v + 1)}
+                        >
+                          이전 쪽
+                        </button>
+                      </div>
+                      {taskId && !replay && (
+                        <>
+                          <button
+                            disabled={
+                              moreLoading ||
+                              older.length >= 5000 ||
+                              before === null ||
+                              (before === undefined &&
+                                !trace.data?.pagination?.has_more)
+                            }
+                            onClick={() => void loadOlder()}
+                          >
+                            {moreLoading ? "읽는 중…" : "이전 기록 불러오기"}
+                          </button>
+                          <a
+                            href={endpoint(
+                              "/api/observability/export",
+                              ledger,
+                              {
+                                task_id: taskId,
+                                ...(trace.data?.selected_run_id
+                                  ? { run_id: trace.data.selected_run_id }
+                                  : {}),
+                              },
+                            )}
+                          >
+                            JSON 내보내기 ↗
+                          </a>
+                        </>
+                      )}
+                    </div>
+                    {moreError && (
+                      <p role="alert" className="notice error">
+                        {moreError}
+                      </p>
+                    )}
+                  </section>
+                  <section className="panel">
+                    <div className="panel-heading">
+                      <div>
+                        <span className="eyebrow">RUN HISTORY</span>
+                        <h2>{openCode ? "OpenCode 응답 이력" : "실행 이력"}</h2>
+                      </div>
+                    </div>
+                    <div className="run-list">
+                      {executions
+                        .filter((r) => !taskId || r.task_id === taskId)
+                        .slice(0, 30)
+                        .map((r) => (
+                          <button
+                            key={r.id}
+                            onClick={() =>
+                              selectTask(r.task_id || "", r.run_id || "")
+                            }
+                          >
+                            <span>
+                              <strong>{r.task_id}</strong>
+                              <small>
+                                {r.source === "opencode"
+                                  ? "OpenCode 응답"
+                                  : r.source === "direct"
+                                    ? "직접 실행"
+                                    : "큐 실행"}{" "}
+                                · {when(r.started_at)} · {label(r.action)}
+                              </small>
+                            </span>
+                            <Status value={r.status} />
+                          </button>
+                        ))}
+                    </div>
+                    <p className="panel-caption">
+                      {openCode
+                        ? taskId
+                          ? "최근 응답 30개 표시 · 응답 종료는 작업 검증 완료와 다릅니다."
+                          : "세션을 선택하면 최근 응답 이력을 확인할 수 있습니다."
+                        : "최근 30개 표시 · 큐와 연결된 실행은 중복 집계하지 않습니다."}
+                    </p>
+                  </section>
+                </div>
+                <Inspector
+                  key={`${ledger}:${taskId}:${selected || ""}`}
+                  node={selectedNode}
+                  ledger={ledger}
+                  taskGoal={
+                    tasks.find((t) => t.id === selectedNode?.taskId)?.goal ||
+                    focusedTask?.goal
+                  }
+                  replay={!!replay}
+                />
+              </div>
+              {(data.warnings || []).map((w) => (
+                <p className="notice" key={w}>
+                  {w}
+                </p>
+              ))}
+            </>
+          )}
           <footer className="workspace-footer">
             {openCode
               ? "실행 중은 OpenCode 상태 API의 busy입니다. 세션 대기와 응답 종료, 작업 검증 완료는 서로 다릅니다."

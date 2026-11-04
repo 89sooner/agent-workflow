@@ -1,6 +1,6 @@
 # 프로젝트 연결과 실제 에이전트 관제실
 
-갱신: 2026-11-02. connect/start/watch와 프로젝트 관측은 main에 통합된 기능이다.
+갱신: 2026-11-04. connect/start/watch와 프로젝트 관측은 main에 통합된 기능이다.
 새 React `/mission` 화면의 조작은 [React 관제실](REACT_MISSION_CONTROL.ko.md),
 운영 적용은 [운영 절차](OPERATIONS.ko.md)를 참고한다. 완료·프로세스 종료·배포는 별도 증거다.
 
@@ -26,7 +26,8 @@ python3 -m agent_workflow --home /path/to/observer watch --port 8878
 왼쪽 **작업 원장 선택**에서 최근 작업이 있는 원장을 선택한다. 프로젝트
 전체 관제실이 기본 화면이다. 에이전트나 작업을 선택하면 개별 실행의 단계,
 이벤트, 이전 실행, 기록 재생으로 이동한다. **프로젝트 전체 보기**로 돌아온다.
-조회 전용 상태에서는 등록·실행·중단 버튼과 모든 POST 요청이 차단된다.
+작업 등록·실행·중단 요청은 관측 전용 상태에서 차단된다. `watch`는 UI의 명시적인 연결 설정 POST만 허용하며
+`serve --read-only`는 설정을 포함한 모든 POST를 차단한다. [화면에서 프로젝트 연결](CONNECTION_SETUP.ko.md)을 참고한다.
 
 `serve --read-only`는 지정한 기존 DB와 저장한 연결만 읽는다. `watch`와 달리
 프로세스·임시 경로의 자동 발견을 추가하지 않는다. 기존 일반 `serve`는 여전히

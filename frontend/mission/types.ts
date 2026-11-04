@@ -105,7 +105,17 @@ export interface Ledger {
   home: string;
   status: string;
   task_count: number;
+  matching_task_count?: number;
+  last_success_at?: string | null;
   projects: { id: string; path: string }[];
+}
+export interface Capabilities {
+  can_configure_connections: boolean;
+  can_manage_tasks: boolean;
+  primary_ledger_id: string | null;
+  csrf_token: string;
+  mode: "observer" | "read_only" | "manage";
+  tools: { id: string; label: string; support: string; description: string }[];
 }
 export interface Discovery {
   ledgers: Ledger[];

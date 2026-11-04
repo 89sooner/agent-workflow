@@ -77,15 +77,22 @@ def handler(home, token, *, read_only=False, observer=False):
     # Discovery is read-only; only opaque IDs from this local allowlist are accepted.
     discovery_lock = threading.Lock()
     discovery_cache = {"at": 0, "value": None}
+    last_success = {}
 
     def connections():
         from .connections import discover, load_registry
         with discovery_lock:
             if discovery_cache["value"] is None or time.monotonic() - discovery_cache["at"] > 15:
                 registry = load_registry(home)
-                homes = [home] + [item["home"] for project in registry["projects"] for item in project["ledgers"]]
+                homes = [item["home"] for project in registry["projects"] for item in project["ledgers"]]
+                if (Path(home) / "state.sqlite3").is_file():
+                    homes.append(home)
                 result = discover(homes=homes, include_processes=observer, include_temporary=observer, include_default=observer)
                 result["ledgers"].extend(opencode.ledgers())
+                for item in result["ledgers"]:
+                    if item["status"] == "available":
+                        last_success[item["id"]] = now()
+                    item["last_success_at"] = last_success.get(item["id"])
                 result["observer"] = observer
                 discovery_cache.update(at=time.monotonic(), value=result)
             return discovery_cache["value"]
@@ -155,6 +162,9 @@ def handler(home, token, *, read_only=False, observer=False):
                         return self.response({"error": "시범 배포가 아직 없습니다."}, 404)
                     return self.response(p.read_bytes(), content_type="text/html; charset=utf-8")
                 query = parse_qs(parsed.query)
+                if path == "/api/capabilities":
+                    from .onboarding import capabilities
+                    return self.response(capabilities(home, token, read_only=read_only, observer=observer))
                 if path == "/api/connections":
                     return self.response(connections())
                 source_id = query.get("ledger", [""])[0]
@@ -276,7 +286,9 @@ def handler(home, token, *, read_only=False, observer=False):
             store = None
             try:
                 self.origin()
-                if read_only or observer or urlparse(self.path).query:
+                configuration = self.path in {"/api/connections/discover", "/api/connections/connect", "/api/connections/disconnect"}
+                if (urlparse(self.path).query or (read_only and not observer)
+                        or (observer and not configuration)):
                     return self.response({"error": "조회 전용 관제실에서는 작업을 변경하거나 실행할 수 없습니다."}, 403)
                 if not secrets.compare_digest(self.headers.get("X-Workflow-Token", ""), token):
                     return self.response({"error": "요청 토큰 오류"}, 403)
@@ -286,6 +298,15 @@ def handler(home, token, *, read_only=False, observer=False):
                 data = json.loads(self.rfile.read(length))
                 if not isinstance(data, dict):
                     raise WorkflowError("JSON object가 필요합니다.")
+                if configuration:
+                    from .onboarding import configure
+                    result = configure(home, self.path.rsplit("/", 1)[1], data)
+                    if not self.path.endswith("/discover"):
+                        with discovery_lock:
+                            discovery_cache.update(at=0, value=None)
+                        with opencode.lock:
+                            opencode.cache.clear()
+                    return self.response(result)
                 store = Store(home)
                 if self.path in {"/api/hold", "/api/unhold"}:
                     from .core import set_hold, clear_hold
