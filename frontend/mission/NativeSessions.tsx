@@ -228,7 +228,7 @@ export default function NativeSessions() {
         <label>
           프로젝트 절대 경로{" "}
           <input
-            aria-label="Claude 프로젝트 경로"
+            aria-label={setupProvider === "codex" ? "Codex 프로젝트 경로" : "Claude 프로젝트 경로"}
             value={project}
             onChange={(e) => {
               setProject(e.target.value);
@@ -373,8 +373,9 @@ export default function NativeSessions() {
       </div>
       <p className="panel-caption">
         최근 세션 500개·상태 이벤트 10,000개·선택 이력 200개까지 보관합니다.
-        OpenCode는 이 화면을 보는 동안의 polling 기록이며 중간 상태를 놓칠 수
-        있습니다. 세션 제목에도 사용자 정보가 포함될 수 있습니다.
+        OpenCode HTTP 연결은 화면을 보는 동안 조회하며, 플러그인은 도구 실행 중
+        이벤트를 기록합니다. 중간 상태가 누락될 수 있고 세션 제목에도 사용자
+        정보가 포함될 수 있습니다.
       </p>
       {connecting && capabilities.data && (
         <ConnectionDialog
