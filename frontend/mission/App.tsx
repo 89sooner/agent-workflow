@@ -938,6 +938,8 @@ export default function App() {
                       onSelect={selectNode}
                       motion={motion}
                       transfers={transfers}
+                      activityKnown={!!replay || (!query.error && !discovery.error && query.fresh && discovery.fresh && !!live)}
+                      historical={!!replay || !!runId}
                       visible={visible}
                     />
                   )}

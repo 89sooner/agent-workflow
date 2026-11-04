@@ -44,3 +44,7 @@
 재현: 의존성 설치 후 `WORKFLOW_PLAYWRIGHT_PATH=/path/to/playwright node tests/workers_browser.mjs`. `WORKFLOW_SCREENSHOT_DIR`로 JSON·스크린샷 저장 위치를 지정할 수 있다. 기본 경로는 `/tmp/workers-browser-evidence`다. CI에도 같은 검사를 포함한다.
 
 공개 가능한 합성 측정 원본: [workers-performance.json](../artifacts/workers-3d-20261104/workers-performance.json). 운영 데이터 스크린샷·로그는 공개 커밋에 포함하지 않는다.
+
+## 상태별 공간
+
+모든 작업자를 책상에 표시하던 방식에서 상태별 공간으로 확장했다. 실행 중에는 책상, 대기·완료에는 휴게 의자, 실패·중단·관측 미확인에는 확인 필요 공간을 사용한다. [최신 상태 분류와 조작](STATE_ROOMS.ko.md). 위 성능 수치는 상태별 공간 도입 전 형상의 측정 기록이다.

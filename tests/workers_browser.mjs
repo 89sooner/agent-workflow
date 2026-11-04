@@ -24,10 +24,14 @@ const result = await build({
     function App() {
       const [selected, setSelected] = useState(null);
       const [motion, setMotion] = useState(true);
+      const [status,setStatus]=useState("running");
+      const [known,setKnown]=useState(true);
+      window.setWorkerState=(status,known=true)=>{setStatus(status);setKnown(known)};
+      const displayNodes=nodes.map((n,i)=>({...n,status:status==="mixed"?["running","idle","failed"][i%3]:status}));
       const [, rerender] = useState(0); window.rerender = ()=>rerender(n=>n+1);
       return <><button id="last" onClick={()=>setSelected(nodes.at(-1).id)}>마지막 작업자</button>
         <button id="motion" onClick={()=>setMotion(!motion)}>움직임</button>
-        <Room nodes={nodes} selected={selected} onSelect={n=>setSelected(n.id)} motion={motion} transfers={[]} visible={true}/></>;
+        <Room activityKnown={known} nodes={displayNodes} selected={selected} onSelect={n=>setSelected(n.id)} motion={motion} transfers={[]} visible={true}/></>;
     }
     createRoot(document.getElementById('root')).render(<App/>);
   `,
@@ -200,7 +204,25 @@ try {
     await page.waitForTimeout(300);
     const b = await page.locator("canvas").screenshot();
     assert(a.equals(b), "disabled motion renders a stable scene");
+    for (const [status, known, zone] of [["idle",true,"lounge"],["failed",true,"attention"],["running",false,"attention"],["running",true,"work"]]) {
+      await page.evaluate(([status, known])=>window.setWorkerState(status,known),[status,known]);
+      await page.waitForTimeout(250);
+      assert((await page.locator('[data-zone="'+zone+'"]').innerText()).endsWith(String(Math.min(count,12))));
+      await page.getByRole("button",{name:"선택한 작업자 가까이"}).click();
+      await page.waitForTimeout(200);
+      await labels();
+      assert.equal(await page.locator('.room-nameplate[aria-pressed="true"]:visible').count(),1);
+      if (count===12 && status==="idle") await page.screenshot({path:join(output,"state-room-lounge.png")});
+    }
     await page.setViewportSize({ width: 1440, height: 900 });
+    if(count===12){
+      await page.evaluate(()=>window.setWorkerState("mixed"));
+      await page.getByRole("button",{name:"시점 초기화"}).click();
+      await page.waitForTimeout(500);
+      for(const zone of ["work","lounge","attention"]) assert((await page.locator('[data-zone="'+zone+'"]').innerText()).endsWith("4"));
+      await labels();
+      await page.screenshot({path:join(output,"state-room-mixed.png")});
+    }
   }
   assert.deepEqual(errors, []);
   const report = {

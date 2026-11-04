@@ -438,3 +438,5 @@ python3 tests/live_smoke.py --owner codex --reviewer claude --timeout 180
 릴리스 API는 [GitHub PR 병합](https://docs.github.com/en/rest/pulls/pulls#merge-a-pull-request),
 [commit statuses](https://docs.github.com/en/rest/commits/statuses),
 [check runs](https://docs.github.com/en/rest/checks/runs)를 참조했습니다.
+
+상태별 3D 공간은 **작업실 / 대기·휴게실 / 확인 필요**로 구분합니다. 완료 기록을 현재 idle로 단정하지 않으며 연결 단절은 확인 필요로 표시합니다. [상태별 공간 사용법](docs/STATE_ROOMS.ko.md).
