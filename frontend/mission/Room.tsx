@@ -7,10 +7,16 @@ import {
   type ReactNode,
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { CanvasTexture, Group, Mesh, Vector3 } from "three";
+import {
+  Group,
+  Mesh,
+  Vector3,
+  CapsuleGeometry,
+  MeshStandardMaterial,
+} from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Node, Transfer } from "./types";
-import { color } from "./model";
+import { color, label } from "./model";
 function ContextHealth({ onLost }: { onLost: () => void }) {
   const { gl } = useThree();
   useEffect(() => {
@@ -24,7 +30,15 @@ function ContextHealth({ onLost }: { onLost: () => void }) {
   }, [gl, onLost]);
   return null;
 }
-function Controls({ reset, compact }: { reset: number; compact: boolean }) {
+function Controls({
+  reset,
+  compact,
+  focus,
+}: {
+  reset: number;
+  compact: boolean;
+  focus: [number, number, number] | null;
+}) {
   const { camera, gl, invalidate } = useThree();
   const controls = useRef<OrbitControls | null>(null);
   useEffect(() => {
@@ -32,7 +46,7 @@ function Controls({ reset, compact }: { reset: number; compact: boolean }) {
     controls.current = c;
     const change = () => invalidate();
     c.enableDamping = false;
-    c.minDistance = 6;
+    c.minDistance = 2.8;
     c.maxDistance = 32;
     c.maxPolarAngle = Math.PI * 0.47;
     c.target.set(0, 0, 1);
@@ -46,34 +60,144 @@ function Controls({ reset, compact }: { reset: number; compact: boolean }) {
   }, [camera, gl, invalidate]);
   useEffect(() => {
     camera.position.set(
-      ...((compact ? [5, 6, 7] : [9, 10, 12]) as [number, number, number]),
+      ...((compact ? [6, 5, -5] : [10, 9, -11]) as [number, number, number]),
     );
     controls.current?.target.set(0, 0.5, 1);
     controls.current?.update();
     invalidate();
   }, [reset, compact, camera, invalidate]);
+  useEffect(() => {
+    if (!focus) return;
+    camera.position.set(focus[0] + 2.8, 2.7, focus[2] - 2.8);
+    controls.current?.target.set(focus[0], 1, focus[2]);
+    controls.current?.update();
+    invalidate();
+  }, [focus, camera, invalidate]);
   return null;
 }
-function Nameplate({ name }: { name: string }) {
-  const texture = useMemo(() => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 512;
-    canvas.height = 80;
-    const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = "#132033";
-    ctx.fillRect(0, 0, 512, 80);
-    ctx.fillStyle = "#e6eef8";
-    ctx.font = "500 30px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(name.length > 22 ? name.slice(0, 21) + "…" : name, 256, 50);
-    return new CanvasTexture(canvas);
-  }, [name]);
-  useEffect(() => () => texture.dispose(), [texture]);
-  return (
-    <sprite position={[0, 2.35, 0]} scale={[2.6, 0.4, 1]}>
-      <spriteMaterial map={texture} depthTest={false} />
-    </sprite>
-  );
+// Screen-space labels stay readable at any zoom level. Selection wins collisions.
+function Nameplates({
+  nodes,
+  positions,
+  selected,
+  onSelect,
+}: {
+  nodes: Node[];
+  positions: [number, number, number][];
+  selected: string | null;
+  onSelect: (node: Node) => void;
+}) {
+  const { gl, size, invalidate } = useThree();
+  const entries = useRef<
+    { node: Node; element: HTMLButtonElement; point: Vector3 }[]
+  >([]);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const host = gl.domElement.parentElement!;
+    const overlay = document.createElement("div");
+    overlay.className = "room-nameplates";
+    Object.assign(overlay.style, {
+      position: "absolute",
+      inset: "0",
+      pointerEvents: "none",
+      overflow: "hidden",
+    });
+    host.appendChild(overlay);
+    overlayRef.current = overlay;
+    return () => {
+      entries.current = [];
+      overlayRef.current = null;
+      overlay.remove();
+    };
+  }, [gl]);
+  useEffect(() => {
+    const overlay = overlayRef.current!;
+    const previous = new Map(
+      entries.current.map((entry) => [entry.node.id, entry]),
+    );
+    entries.current = nodes.map((node, i) => {
+      const existing = previous.get(node.id);
+      previous.delete(node.id);
+      const element = existing?.element ?? document.createElement("button");
+      element.className = "room-nameplate";
+      element.title = node.label + " · " + label(node.role);
+      element.setAttribute("aria-label", element.title);
+      element.setAttribute("aria-pressed", String(node.id === selected));
+      element.textContent = element.title;
+      Object.assign(element.style, {
+        position: "absolute",
+        width: "156px",
+        height: "32px",
+        boxSizing: "border-box",
+        padding: "4px 8px",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        font: "12px sans-serif",
+        background: "#132033",
+        color: "#e6eef8",
+        border:
+          node.id === selected ? "2px solid #7bffd0" : "1px solid #526479",
+        borderRadius: "5px",
+        pointerEvents: "auto",
+        visibility: existing ? element.style.visibility : "hidden",
+      });
+      element.onclick = () => onSelect(node);
+      if (!existing) overlay.appendChild(element);
+      return {
+        node,
+        element,
+        point: new Vector3(positions[i][0], 2.35, positions[i][2]),
+      };
+    });
+    for (const entry of previous.values()) entry.element.remove();
+    invalidate();
+  }, [nodes, positions, selected, onSelect, gl, invalidate]);
+  const projected = useMemo(() => new Vector3(), []);
+  useFrame(({ camera }) => {
+    const width = Math.min(156, size.width - 16),
+      height = 32;
+    const boxes: { x: number; y: number }[] = [];
+    const ordered = [...entries.current].sort(
+      (a, b) => Number(b.node.id === selected) - Number(a.node.id === selected),
+    );
+    for (const { node, element, point } of ordered) {
+      projected.copy(point).project(camera);
+      const valid =
+        width > 0 &&
+        size.height >= height + 16 &&
+        projected.z >= -1 &&
+        projected.z <= 1;
+      const x = Math.max(
+        8,
+        Math.min(
+          size.width - width - 8,
+          ((projected.x + 1) * size.width) / 2 - width / 2,
+        ),
+      );
+      const y = Math.max(
+        8,
+        Math.min(
+          size.height - height - 8,
+          ((1 - projected.y) * size.height) / 2 - height,
+        ),
+      );
+      const inside =
+        node.id === selected ||
+        (Math.abs(projected.x) <= 1 && Math.abs(projected.y) <= 1);
+      const collision = boxes.some(
+        (b) => Math.abs(b.x - x) < width + 6 && Math.abs(b.y - y) < height + 6,
+      );
+      const show = valid && inside && !collision;
+      element.style.visibility = show ? "visible" : "hidden";
+      if (show) {
+        element.style.width = width + "px";
+        element.style.transform = `translate(${x}px, ${y}px)`;
+        boxes.push({ x, y });
+      }
+    }
+  });
+  return null;
 }
 function Workstation({
   node,
@@ -89,12 +213,39 @@ function Workstation({
   animate: boolean;
 }) {
   const arm = useRef<Group>(null),
-    head = useRef<Mesh>(null);
+    head = useRef<Group>(null);
   const { invalidate } = useThree();
-  useFrame(({ clock }) => {
+  const [detail, setDetail] = useState(true);
+  const detailRef = useRef(true);
+  const finger = useMemo(
+    () => ({
+      geometry: new CapsuleGeometry(0.014, 0.055, 2, 6),
+      material: new MeshStandardMaterial({ color: "#a8bfce", roughness: 0.65 }),
+    }),
+    [],
+  );
+  useEffect(
+    () => () => {
+      finger.geometry.dispose();
+      finger.material.dispose();
+    },
+    [finger],
+  );
+  useFrame(({ clock, camera }) => {
+    const near =
+      selected ||
+      Math.hypot(
+        camera.position.x - position[0],
+        camera.position.y - position[1],
+        camera.position.z - position[2],
+      ) < 9;
+    if (near !== detailRef.current) {
+      detailRef.current = near;
+      setDetail(near);
+    }
     if (arm.current)
       arm.current.rotation.x = animate
-        ? Math.sin(clock.elapsedTime * 5) * 0.12
+        ? Math.sin(clock.elapsedTime * 5) * 0.035
         : 0;
     if (head.current)
       head.current.rotation.z = animate
@@ -131,51 +282,179 @@ function Workstation({
           <meshStandardMaterial color="#26364a" />
         </mesh>
       ))}
-      <mesh position={[0, 1.18, -0.5]}>
-        <boxGeometry args={[1, 0.64, 0.1]} />
+      <mesh position={[-0.5, 1.14, -0.5]}>
+        <boxGeometry args={[0.8, 0.56, 0.1]} />
         <meshStandardMaterial color="#131d2d" />
       </mesh>
-      <mesh position={[0, 1.18, -0.435]}>
-        <planeGeometry args={[0.86, 0.49]} />
+      <mesh position={[-0.5, 1.14, -0.435]}>
+        <planeGeometry args={[0.69, 0.43]} />
         <meshStandardMaterial
           color={color(node.status)}
           emissive={color(node.status)}
           emissiveIntensity={animate ? 0.75 : 0.15}
         />
       </mesh>
-      <mesh position={[0, 0.8, 0.13]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[0.65, 0.23]} />
+      <mesh position={[0, 0.816, 0.13]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[0.8, 0.26]} />
         <meshStandardMaterial color="#7890aa" />
       </mesh>
-      <mesh position={[0, 0.65, 0.55]}>
-        <boxGeometry args={[0.52, 0.67, 0.38]} />
+      {/* Rounded suit panels and exposed joints keep the seated silhouette readable. */}
+      <mesh position={[0, 0.7, 0.55]} scale={[1, 1.15, 0.72]}>
+        <capsuleGeometry args={[0.24, 0.22, 4, 12]} />
         <meshStandardMaterial
           color={
             node.kind === "agent" || node.kind === "assignment"
               ? "#4d718e"
               : "#616485"
           }
+          roughness={0.65}
+          metalness={0.18}
         />
       </mesh>
-      <mesh ref={head} position={[0, 1.22, 0.55]}>
-        <sphereGeometry args={[0.24, 16, 12]} />
-        <meshStandardMaterial color="#b7cadd" />
+      <mesh position={[0, 0.99, 0.55]}>
+        <cylinderGeometry args={[0.09, 0.11, 0.13, 12]} />
+        <meshStandardMaterial color="#25384a" metalness={0.5} roughness={0.4} />
       </mesh>
-      <group ref={arm} position={[0, 0.94, 0.4]}>
-        {[-0.34, 0.34].map((x) => (
-          <mesh key={x} position={[x, -0.03, -0.12]} rotation={[0.8, 0, 0]}>
-            <boxGeometry args={[0.14, 0.38, 0.15]} />
-            <meshStandardMaterial color="#7a9db9" />
-          </mesh>
+      <group ref={head} position={[0, 1.23, 0.55]}>
+        <mesh scale={[1, 1.06, 0.92]}>
+          <sphereGeometry args={[0.245, 20, 14]} />
+          <meshStandardMaterial
+            color="#c5d5df"
+            roughness={0.55}
+            metalness={0.2}
+          />
+        </mesh>
+        <mesh position={[0, 0.015, -0.195]} scale={[1, 0.55, 0.32]}>
+          <sphereGeometry args={[0.205, 16, 10]} />
+          <meshStandardMaterial
+            color="#14293b"
+            roughness={0.28}
+            metalness={0.18}
+          />
+        </mesh>
+        {[-1, 1].map((side) => (
+          <group key={side}>
+            <mesh position={[side * 0.078, 0.02, -0.253]}>
+              <boxGeometry args={[0.058, 0.022, 0.012]} />
+              <meshStandardMaterial
+                color="#a7e5ec"
+                emissive="#64b7c8"
+                emissiveIntensity={0.35}
+              />
+            </mesh>
+            <mesh
+              position={[side * 0.235, 0, 0]}
+              rotation={[0, 0, Math.PI / 2]}
+            >
+              <cylinderGeometry args={[0.078, 0.078, 0.045, 12]} />
+              <meshStandardMaterial
+                color="#698aa1"
+                metalness={0.5}
+                roughness={0.4}
+              />
+            </mesh>
+          </group>
+        ))}
+        <mesh position={[0, -0.12, -0.207]}>
+          <boxGeometry args={[0.09, 0.018, 0.02]} />
+          <meshStandardMaterial color="#668195" />
+        </mesh>
+      </group>
+      <group ref={arm} position={[0, 0.92, 0.4]}>
+        {[-1, 1].map((side) => (
+          <group key={side} position={[side * 0.3, 0, 0.1]}>
+            <mesh>
+              <sphereGeometry args={[0.11, 12, 8]} />
+              <meshStandardMaterial
+                color="#8ea9ba"
+                roughness={0.4}
+                metalness={0.3}
+              />
+            </mesh>
+            <mesh
+              position={[0, -0.13, -0.055]}
+              rotation={[0.4, 0, side * 0.12]}
+            >
+              <capsuleGeometry args={[0.075, 0.15, 3, 10]} />
+              <meshStandardMaterial color="#5f819b" roughness={0.6} />
+            </mesh>
+            <mesh position={[0, -0.24, -0.12]}>
+              <sphereGeometry args={[0.073, 10, 8]} />
+              <meshStandardMaterial
+                color="#25384a"
+                metalness={0.4}
+                roughness={0.45}
+              />
+            </mesh>
+            <mesh position={[0, -0.17, -0.23]} rotation={[1.1, 0, 0]}>
+              <capsuleGeometry args={[0.063, 0.17, 3, 10]} />
+              <meshStandardMaterial color="#8ea9ba" roughness={0.5} />
+            </mesh>
+            <mesh position={[0, -0.105, -0.35]} scale={[1, 0.48, 1.25]}>
+              <sphereGeometry args={[0.075, 10, 8]} />
+              <meshStandardMaterial color="#c5d5df" roughness={0.5} />
+            </mesh>
+            {detail &&
+              [0, 1, 2].map((index) => (
+                <mesh
+                  key={index}
+                  geometry={finger.geometry}
+                  material={finger.material}
+                  dispose={null}
+                  position={[(index - 1) * 0.035, -0.104, -0.425]}
+                  rotation={[Math.PI / 2, 0, 0]}
+                ></mesh>
+              ))}
+          </group>
         ))}
       </group>
+      {[-1, 1].map((side) => (
+        <group key={side}>
+          <mesh
+            position={[side * 0.14, 0.38, 0.4]}
+            rotation={[Math.PI / 2, 0, 0]}
+          >
+            <capsuleGeometry args={[0.095, 0.22, 3, 10]} />
+            <meshStandardMaterial color="#4d657e" roughness={0.7} />
+          </mesh>
+          <mesh position={[side * 0.14, 0.22, 0.23]}>
+            <capsuleGeometry args={[0.075, 0.18, 3, 10]} />
+            <meshStandardMaterial color="#69859c" roughness={0.6} />
+          </mesh>
+          <mesh position={[side * 0.14, 0.075, 0.15]} scale={[0.9, 0.5, 1.6]}>
+            <sphereGeometry args={[0.12, 12, 8]} />
+            <meshStandardMaterial color="#24364b" roughness={0.85} />
+          </mesh>
+        </group>
+      ))}
       <mesh position={[0, 0.4, 0.8]}>
         <boxGeometry args={[0.65, 0.8, 0.12]} />
         <meshStandardMaterial color="#22364b" />
       </mesh>
-      <Nameplate name={node.label} />
+      <mesh position={[0.16, 0.87, 0.36]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry
+          args={[
+            0.055,
+            0.055,
+            0.018,
+            node.role === "review" ? 3 : node.role === "check" ? 4 : 6,
+          ]}
+        />
+        <meshStandardMaterial color="#e0c893" roughness={0.7} />
+      </mesh>
     </group>
   );
+}
+function RenderMetrics() {
+  const { gl } = useThree();
+  useFrame(() => {
+    const host = gl.domElement.parentElement;
+    if (host) {
+      host.dataset.drawCalls = String(gl.info.render.calls);
+      host.dataset.triangles = String(gl.info.render.triangles);
+    }
+  });
+  return null;
 }
 function Packet({
   transfer,
@@ -237,6 +516,7 @@ export function Room({
   transfers: Transfer[];
   visible: boolean;
 }) {
+  const [focus, setFocus] = useState<[number, number, number] | null>(null);
   const [reset, setReset] = useState(0),
     [lost, setLost] = useState(false);
   const selectedNode = nodes.find((n) => n.id === selected);
@@ -282,8 +562,35 @@ export function Room({
           <span className="eyebrow">AGENT WORKSPACE</span>
           <h2>함께 일하는 공간</h2>
         </div>
-        <button onClick={() => setReset((v) => v + 1)}>시점 초기화</button>
+        <div>
+          <button
+            disabled={!selectedNode || lost}
+            onClick={() => {
+              const i = shown.findIndex((n) => n.id === selected);
+              if (i >= 0) setFocus([...positions[i]]);
+            }}
+          >
+            선택한 작업자 가까이
+          </button>
+          <button
+            onClick={() => {
+              setFocus(null);
+              setReset((v) => v + 1);
+            }}
+          >
+            시점 초기화
+          </button>
+        </div>
       </div>
+      {selectedNode && (
+        <p
+          className="room-selection"
+          style={{ padding: "0 18px", overflowWrap: "anywhere" }}
+        >
+          <strong>{selectedNode.label}</strong> · {label(selectedNode.role)} ·{" "}
+          {label(selectedNode.status)}
+        </p>
+      )}
       <div
         className="room-canvas"
         data-testid="r3f-room"
@@ -303,7 +610,7 @@ export function Room({
             <Canvas
               frameloop={visible ? "demand" : "never"}
               dpr={[1, 1.5]}
-              camera={{ position: [9, 10, 12], fov: 45 }}
+              camera={{ position: [10, 9, -11], fov: 45 }}
               gl={{ antialias: true, alpha: false }}
               fallback={fallback}
               onCreated={({ gl }) => {
@@ -314,8 +621,8 @@ export function Room({
               }}
             >
               <color attach="background" args={["#111d2d"]} />
-              <ambientLight intensity={1.5} />
-              <directionalLight position={[6, 12, 4]} intensity={2.3} />
+              <ambientLight intensity={1.2} />
+              <directionalLight position={[4, 8, -5]} intensity={2} />
               <pointLight
                 position={[-7, 5, -3]}
                 color="#7ef4cf"
@@ -356,7 +663,18 @@ export function Room({
                     <Packet key={t.seq} transfer={t} from={from} to={to} />
                   ) : null;
                 })}
-              <Controls reset={reset} compact={shown.length <= 4} />
+              <Controls
+                reset={reset}
+                compact={shown.length <= 4}
+                focus={focus}
+              />
+              <Nameplates
+                nodes={shown}
+                positions={positions}
+                selected={selected}
+                onSelect={onSelect}
+              />
+              <RenderMetrics />
               <ContextHealth onLost={() => setLost(true)} />
             </Canvas>
           </Boundary>
