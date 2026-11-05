@@ -166,6 +166,7 @@ const roomsBuild = await build({
   entryPoints: ["frontend/mission/rooms.ts"], bundle: true, write: false, platform: "node", format: "esm",
 });
 const { roomZone, roomLayout } = await import("data:text/javascript;base64," + Buffer.from(roomsBuild.outputFiles[0].text).toString("base64"));
+assert.equal(roomZone("ended",true),"lounge","ended record is not an active attention request");
 assert.equal(roomZone("running"), "work");
 for (const status of ["idle", "queued", "assigned", "pending", "succeeded", "completed", "retrying"])
   assert.equal(roomZone(status), "lounge");

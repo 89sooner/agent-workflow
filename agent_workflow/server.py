@@ -152,9 +152,9 @@ def handler(home, token, *, read_only=False, observer=False):
                 self.origin()
                 parsed = urlparse(self.path)
                 path = unquote(parsed.path)
-                if path in ("/", "/mission", "/mission/", "/sessions", "/static/mission.js", "/static/mission.css", "/static/MISSION_LICENSES.txt", "/static/mission-icon.svg", "/static/app.js", "/static/styles.css", "/static/observatory.js", "/static/observatory.css",
+                if path in ("/", "/mission", "/mission/", "/sessions", "/overview", "/static/mission.js", "/static/mission.css", "/static/MISSION_LICENSES.txt", "/static/mission-icon.svg", "/static/app.js", "/static/styles.css", "/static/observatory.js", "/static/observatory.css",
                             "/static/saas.css", "/static/scene3d.js", "/static/scene3d.css", "/static/three-vendor.js", "/static/THREE_LICENSE.txt"):
-                    name = "index.html" if path == "/" else "mission.html" if path in ("/mission", "/mission/", "/sessions") else path.rsplit("/", 1)[1]
+                    name = "index.html" if path == "/" else "mission.html" if path in ("/mission", "/mission/", "/sessions", "/overview") else path.rsplit("/", 1)[1]
                     mime = "text/html" if name.endswith(".html") else "text/javascript" if name.endswith(".js") else "text/css" if name.endswith(".css") else "image/svg+xml" if name.endswith(".svg") else "text/plain"
                     return self.response((assets / name).read_bytes(), content_type=mime + "; charset=utf-8")
                 if path == "/demo":
@@ -163,10 +163,44 @@ def handler(home, token, *, read_only=False, observer=False):
                         return self.response({"error": "시범 배포가 아직 없습니다."}, 404)
                     return self.response(p.read_bytes(), content_type="text/html; charset=utf-8")
                 query = parse_qs(parsed.query)
+                if path == "/api/overview":
+                    from .overview import snapshot as overview_snapshot
+                    from .native import snapshot as native_snapshot
+                    try:
+                        with native_lock:
+                            sessions = native_snapshot(home, opencode, refresh=observer or not read_only)
+                    except (WorkflowError, OSError, ValueError, sqlite3.Error):
+                        sessions = {"sessions": [], "errors": [{"source": "native", "error": "일상 세션을 조회할 수 없습니다."}]}
+                    try:
+                        ledgers = connections()["ledgers"]
+                    except (WorkflowError, OSError, ValueError, sqlite3.Error):
+                        ledgers = []
+                        sessions["errors"] = sessions.get("errors", []) + [{"source": "connections", "error": "원장 연결을 조회할 수 없습니다."}]
+                    return self.response(overview_snapshot(ledgers, sessions))
+                if path == "/api/native/metrics":
+                    from .session_metrics import snapshot as metrics_snapshot
+                    return self.response(metrics_snapshot(home,query.get("days",["1"])[0],query.get("project",[None])[0],query.get("provider",[None])[0]))
+                if path == "/api/native/bookmarks":
+                    from .bookmarks import view as bookmark_view
+                    return self.response(bookmark_view(home))
+                if path == "/api/native/bookmarks/export":
+                    from .bookmarks import export as bookmark_export
+                    return self.response(bookmark_export(home,query.get("id", [""])[0]),attachment="observation-bookmark.json")
+                if path == "/api/native/evidence":
+                    from .session_evidence import view as evidence_view, sources as evidence_sources
+                    result = evidence_view(home, query.get("session", [""])[0])
+                    try:
+                        result["ledgers"] = evidence_sources(home)
+                    except (WorkflowError, OSError, sqlite3.Error, ValueError):
+                        result.update(ledgers=[], sources_error="등록 원장 목록을 조회할 수 없습니다. 연결 설정을 확인하세요.")
+                    return self.response(result)
                 if path == "/api/native/sessions":
                     from .native import snapshot
                     with native_lock:
                         return self.response(snapshot(home, opencode, query.get("session", [None])[0], refresh=observer or not read_only))
+                if path == "/api/connections/diagnostics":
+                    from .diagnostics import connection
+                    return self.response(connection(home, query.get("project", [""])[0], query.get("provider", ["claude"])[0]))
                 if path == "/api/native/setup":
                     from .native import setup
                     return self.response(setup(home, query.get("project", [""])[0], query.get("provider", ["claude"])[0]))
@@ -294,7 +328,7 @@ def handler(home, token, *, read_only=False, observer=False):
             store = None
             try:
                 self.origin()
-                configuration = self.path in {"/api/connections/discover", "/api/connections/connect", "/api/connections/disconnect"}
+                configuration = self.path in {"/api/native/bookmarks", "/api/native/evidence", "/api/connections/discover", "/api/connections/connect", "/api/connections/disconnect"}
                 if (urlparse(self.path).query or (read_only and not observer)
                         or (observer and not configuration)):
                     return self.response({"error": "조회 전용 관제실에서는 작업을 변경하거나 실행할 수 없습니다."}, 403)
@@ -306,6 +340,12 @@ def handler(home, token, *, read_only=False, observer=False):
                 data = json.loads(self.rfile.read(length))
                 if not isinstance(data, dict):
                     raise WorkflowError("JSON object가 필요합니다.")
+                if self.path == "/api/native/bookmarks":
+                    from .bookmarks import change as bookmark_change
+                    return self.response(bookmark_change(home,data))
+                if self.path == "/api/native/evidence":
+                    from .session_evidence import change as evidence_change
+                    return self.response(evidence_change(home, data))
                 if configuration:
                     from .onboarding import configure
                     result = configure(home, self.path.rsplit("/", 1)[1], data)

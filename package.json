@@ -10,7 +10,15 @@
     "dev:mission": "node scripts/build-mission.mjs --watch",
     "typecheck": "tsc --noEmit",
     "check:mission": "node scripts/build-mission.mjs --check",
-    "test:mission": "node scripts/test-mission.mjs"
+    "test:activity:browser": "WORKFLOW_NATIVE_SCENARIO=tests/activity_scenarios.mjs python3 tests/native_integration.py",
+    "test:projects:browser": "WORKFLOW_NATIVE_SCENARIO=tests/project_spaces_scenarios.mjs python3 tests/native_integration.py",
+    "test:evidence:browser": "WORKFLOW_NATIVE_SCENARIO=tests/session_evidence_scenarios.mjs python3 tests/native_integration.py",
+    "test:metrics:browser": "WORKFLOW_NATIVE_SCENARIO=tests/session_metrics_scenarios.mjs python3 tests/native_integration.py",
+    "test:bookmarks:browser": "WORKFLOW_NATIVE_SCENARIO=tests/bookmarks_scenarios.mjs python3 tests/native_integration.py",
+    "test:hierarchy:browser": "WORKFLOW_NATIVE_SCENARIO=tests/session_hierarchy_scenarios.mjs python3 tests/native_integration.py",
+    "test:notifications": "node scripts/test-notifications.mjs",
+    "test:notifications:browser": "WORKFLOW_NATIVE_SCENARIO=tests/notifications_scenarios.mjs python3 tests/native_integration.py",
+    "test:mission": "node scripts/test-mission.mjs && node scripts/test-attention.mjs && node scripts/test-notifications.mjs && node scripts/test-session-hierarchy.mjs && node scripts/test-activity.mjs"
   },
   "devDependencies": {
     "@react-three/fiber": "9.8.2",

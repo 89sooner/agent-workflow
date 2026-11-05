@@ -1,9 +1,12 @@
 # 문서 안내
 
-갱신: 2026-11-04. 현재 사용법과 과거 설계·검증 기록을 구분한다.
+갱신: 2026-11-05. 현재 사용법과 과거 설계·검증 기록을 구분한다.
 
 | 문서 | 현재 역할 |
 |---|---|
+| [통합 관제실 사용 안내](OBSERVATORY_REL01_USAGE.ko.md) | 통합 화면·진단·대기 정렬·알림; 운영 모드와 파일럿 미완료 구분 |
+| [관제실 개선 구현 계획](OBSERVATORY_IMPLEMENTATION_PLAN.ko.md) | 조사 기반 REL-01~04, FR·WP·수용 기준·운영 보존; 검토 상태 |
+| [유사 앱 조사와 개선 후보](SIMILAR_APPS_RESEARCH_2026-11-05.ko.md) | 2026-11-05 공식 자료 조사, 기존 기능 비교와 P0~P2 제안; 구현 계획 승인과 구분 |
 | [화면에서 프로젝트 연결](CONNECTION_SETUP.ko.md) | UX-01~03: 첫 연결, 빈 화면·오류 진단, 관측 설정과 실행 권한 |
 | [OpenCode 관측](OPENCODE_OBSERVATION.ko.md) | 연결·자동 세션 발견·인증·지원 범위; 소스 통합과 운영 적용 구분 |
 | [서비스 사용성 개선 계획](USABILITY_SERVICE_PLAN.ko.html) | 실제 화면 진단, 첫 연결·일상 관리 개선 우선순위와 수용 기준 |
@@ -29,3 +32,5 @@
 - [WP 없는 일상 세션 파일럿](NATIVE_PILOT.ko.md): Claude 훅·OpenCode 통합 관측, 확인 요청함, 별도 이력·재방문.
 
 WP 없는 Codex 관측과 Claude Code·OpenCode·Codex 플러그인 설치/진단/해제: [세 도구 플러그인 안내](NATIVE_PLUGINS.ko.md). 기존 관리형 WP 기능은 유지됩니다.
+
+- [2026-11-05 통합 관제실 검증·미완료 조건](OBSERVATORY_VALIDATION_2026-11-05.ko.md)

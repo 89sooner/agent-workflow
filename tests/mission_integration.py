@@ -42,6 +42,7 @@ def main():
             store.close()
         second = Store(root / 'second')
         try:
+            create_task(second, 'OBS-TRACE', fixture['other_project'], '동명 작업 다른 원장 근거', ['observed'], [], [], 'claude', 'none', 'fixture only')
             create_task(second, 'SECOND-ONLY', fixture['other_project'], 'Second independent ledger', ['observed'], [], [], 'claude', 'none', 'fixture only')
         finally:
             second.close()

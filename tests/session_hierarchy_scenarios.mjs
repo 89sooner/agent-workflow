@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import {createRequire} from 'node:module';
+import {homedir} from 'node:os';
+import {join} from 'node:path';
+const {chromium}=createRequire(import.meta.url)(process.env.WORKFLOW_PLAYWRIGHT_PATH||join(homedir(),'.cache/webprobe/runtime/node_modules/playwright'));
+const f=JSON.parse(await fs.readFile(process.argv[2],'utf8'));
+const browser=await chromium.launch({headless:true,args:['--enable-unsafe-swiftshader']});
+try{
+ const page=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
+ const errors=[],writes=[];
+ page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(r.method()!=='GET')writes.push(r.url())});
+ await page.addInitScript(()=>{Object.defineProperty(navigator,'clipboard',{value:{writeText:async value=>{if(window.__failCopy)throw Error('denied');window.__copied=value}}})});
+ await page.goto(f.url+'/sessions');await page.waitForSelector('.native-session');
+ await fs.writeFile(f.control,'subagentstart');
+ await page.getByText(/부모·하위 에이전트 탐색/).click();
+ const tree=page.getByLabel('세션 계층');
+ await tree.getByRole('button',{name:'Claude · reviewer',exact:true}).waitFor();
+ await tree.getByRole('button',{name:'Claude · reviewer',exact:true}).click();
+ await page.getByRole('heading',{name:'Claude · reviewer',exact:true}).waitFor();
+ assert((await page.locator('.native-detail').innerText()).includes('claude-pilot:child-1'));
+ assert((await page.locator('.native-detail').innerText()).includes('부모 세션: claude-pilot'));
+ const back=page.getByLabel('원래 도구로 복귀');
+ await back.getByRole('button',{name:'세션 ID 복사',exact:true}).click();
+ assert.equal(await page.evaluate(()=>window.__copied),'claude-pilot:child-1');
+ await page.evaluate(()=>window.__failCopy=true);
+ await back.getByRole('button',{name:'프로젝트 경로 복사',exact:true}).click();
+ await back.getByText('클립보드에 접근할 수 없습니다.',{exact:false}).waitFor();
+ assert.equal(await back.locator('a').count(),0,'no invented deep link');
+ await page.setViewportSize({width:390,height:844});
+ assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await page.screenshot({path:'/tmp/observatory-wp08-mobile.png',fullPage:true});
+ await fs.writeFile(f.control,'subagentstop');
+ await page.getByLabel('종료 이력 포함').check();
+ await page.waitForFunction(()=>[...document.querySelectorAll('.native-session')].some(e=>e.textContent.includes('reviewer')&&e.textContent.includes('종료')));
+ assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);
+ console.log(JSON.stringify({passed:true,checks:['real hook subprocess child lifecycle','hierarchy selection','parent ID','clipboard success/failure instrumented','no invented link','mobile','zero writes/errors']}));
+}finally{await browser.close()}

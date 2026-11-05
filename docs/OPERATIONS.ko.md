@@ -1,6 +1,6 @@
 # 관제실 운영 반영과 복구
 
-갱신: 2026-11-04 · 이 문서는 현재 WSL 로컬 배치를 설명한다.
+갱신: 2026-11-05 · 이 문서는 현재 WSL 로컬 배치를 설명한다.
 
 ## 대상과 경계
 
@@ -25,14 +25,14 @@ process_identity·read_only를 확인하고 `/proc/<pid>/cmdline`, cwd, 실제 �
 `GET /api/capabilities`의 `mode`, `can_configure_connections`, `can_manage_tasks`로 현재 모드를 확인한다.
 응답의 요청 토큰은 공개 로그나 보고서에 남기지 않는다.
 
-- `watch`: 연결 설정 저장만 허용한다. 관측 DB·작업·큐·모델 실행을 생성하지 않는다.
+- `watch`: 연결 설정과 관측 메타데이터(근거·북마크)를 저장할 수 있다. workflow 작업·큐·모델 실행과 worker를 시작하지 않는다.
 - `serve --read-only`: 연결 설정을 포함한 POST를 차단한다. 사용자는 지원 범위와 제한 안내를 볼 수 있다.
 - 일반 `serve`: 연결 설정 가능. 관리 링크는 자신의 기본 원장에만 표시하며 기존 worker는 계속 동작한다.
 
 `connections.json`과 `opencode.json`은 해당 관제실의 home에 저장된다. 기존 연결을 유지하려면
 업그레이드·이전 시 이 파일도 보존한다. OpenCode 인증 환경변수는 새 서버 프로세스에 별도로 전달한다.
 읽기 전용 연결을 위해 기존 관리 서버를 중단할 필요는 없다. 별도 observer home과 빈 포트의
-`watch`에서 연결 UI를 사용할 수 있다. 이번 병합 요청은 운영 재시작·배포 요청과 구분한다.
+`watch`에서 연결 UI를 사용할 수 있다. 2026-11-05 사용자는 이번 통합 관제실 변경의 운영 반영도 승인했다. 배포 전후 상태와 실제 브라우저 결과를 별도로 기록한다.
 
 ## 반영 순서
 
@@ -87,3 +87,13 @@ python3 -m agent_workflow --home /tmp/katakuri-h-local-queue-workflow-20261029  
 ## 정적 UI만 변경된 경우
 
 배포 전후 Python·서버·worker 코드가 같고 /api/capabilities 등 필요한 API가 정상 제공되는 경우에는 서버 재시작 없이 checkout을 fast-forward할 수 있다. 서버는 요청마다 정적 자산을 읽고 no-store로 제공한다. 이때도 원장 온라인 백업·jobs/batches·직접 실행·프로세스 식별자를 기록하고 배포 후 HTTP 해시 및 실제 브라우저를 검사한다. 서버·worker PID와 시작 식별자가 그대로인지 확인한다. 기존 탭은 새로고침해야 새 JS를 불러온다. API 미지원이나 Python 변경이 있으면 이 절차로 전체 배포를 완료했다고 판단하지 않는다.
+
+## 통합 관제실 릴리스의 운영 조건
+
+- 원래 모드와 home을 유지한다. 8776은 관리 모드와 기존 기본 home, 8777은 H home의 엄격한 읽기 전용 모드다.
+- 8776 `/overview`는 명시적으로 연결한 기본 원장과 H 원장을 함께 조회한다. 원장 DB를 합치지 않는다. 8777 `/mission`은 기존 H 직접 관측 URL을 유지한다.
+- `/sessions`의 일상 관측은 해당 home에 프로젝트/훅/플러그인을 연결한 뒤 시작한다. 배포만으로 기존 대화나 모든 프로세스를 가져오지 않는다. 읽기 전용 8777에서 설정·북마크 저장은 차단한다.
+- `jobs`가 queued/running이거나 활성 batch·직접 실행이 있으면 worker가 포함된 관리 서버를 재시작하지 않는다. 전환 직전과 시작 직전에 재확인한다.
+- 이번 배포는 SQLite online backup, 기존 로컬 문서의 외부 백업과 이름 있는 stash, 병합 SHA로 fast-forward, 서버 모드 검증, HTTP 자산 해시·CSP·API 및 Chromium 검증을 포함한다.
+- 작업 원장: `/tmp/aw-observatory-release-state-20261105`, 작업 `AW-OBS-PUBLISH-20261105`. 실제 배포/health·브라우저 증거: `/tmp/aw-observatory-deploy-20261105/`. 토큰·DB·전체 로그는 공개 Git에 포함하지 않는다.
+- 기능 사용법: [통합 관제실 사용 안내](OBSERVATORY_REL01_USAGE.ko.md). 개발 검증과 잔여 조건: [검증 기록](OBSERVATORY_VALIDATION_2026-11-05.ko.md). 사용자 파일럿은 미완료, 비용 기능은 보류다.

@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+const out=await build({entryPoints:['frontend/mission/hierarchy.ts'],bundle:true,write:false,format:'esm',platform:'node'});
+const {sessionHierarchy}=await import('data:text/javascript;base64,'+Buffer.from(out.outputFiles[0].text).toString('base64'));
+const row=(id,parent='',source='one',provider='claude')=>({id,native_id:id,parent,source,provider,name:id,state:'running'});
+const rows=[row('parent'),row('child','parent'),row('orphan','missing'),row('a','b'),row('b','a'),row('self','self'),{...row('parent','','two'),id:'other-source'},row('isolated','parent','two'),row('other-tool','parent','one','codex')];
+const before=structuredClone(rows),result=sessionHierarchy(rows);
+assert.equal(result.length,rows.length);assert.equal(new Set(result.map(r=>r.session.id)).size,rows.length);
+assert.equal(result.find(r=>r.session.id==='child').depth,1);
+assert.equal(result.find(r=>r.session.id==='isolated').depth,1);
+assert.equal(result.find(r=>r.session.id==='orphan').issue,'parent_missing');
+assert.equal(result.find(r=>r.session.id==='other-tool').issue,'parent_missing');
+assert.equal(result.filter(r=>r.issue==='cycle').length,2);assert.deepEqual(rows,before);
+const deep=Array.from({length:500},(_,i)=>row(String(i),i?String(i-1):''));
+assert.equal(sessionHierarchy(deep).at(-1).depth,499);
+console.log('Session hierarchy: identity isolation, missing parent, cycles, 500-depth traversal, no mutation passed');

@@ -11,6 +11,7 @@ export const labels: Record<string, string> = {
   blocked: "확인 필요",
   held: "보류",
   idle: "대기",
+  ended: "기록 종료",
   assigned: "배정됨",
   queued: "실행 대기",
   interrupted: "중단됨",
