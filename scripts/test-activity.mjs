@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {build} from 'esbuild';
+const out=await build({entryPoints:['frontend/mission/activity.ts'],bundle:true,write:false,format:'esm',platform:'node'});
+const {activityPose,activityLabel}=await import('data:text/javascript;base64,'+Buffer.from(out.outputFiles[0].text).toString('base64'));
+assert.equal(activityPose('reading').handMotion,false);
+assert(activityPose('reading').headPitch>0);assert.equal(activityPose('writing').headPitch,0);
+assert.notEqual(activityPose('writing').tint,activityPose('command').tint);
+assert.notEqual(activityPose('writing').marker,activityPose('command').marker);
+assert.notEqual(activityPose('working').marker,activityPose('writing').marker);
+assert.equal(activityLabel('unknown'),'관측 미확인');assert.equal(activityLabel('input'),'입력 대기');
+console.log('Activity: reading posture, writing/command marker and fallback labels passed');

@@ -19,12 +19,29 @@ try{
  };
  page.on("pageerror",e=>errors.push(e.message));
  page.on("request",r=>{if(r.method()!=="GET")writes.push(r.url())});
+ await page.goto(f.url+"/overview");
+ await page.getByRole("heading",{name:"프로젝트 통합 관제실",exact:true}).waitFor();
+ await waitFor(()=>document.querySelectorAll('li a[href^="/sessions?session="]').length===3);
+ await page.getByText("프로젝트 관측 연결 진단",{exact:true}).click();
+ await page.getByLabel("진단 도구").selectOption("codex");
+ await page.getByLabel("진단 프로젝트 경로").fill(f.project);
+ await page.getByRole("button",{name:"연결 진단 실행",exact:true}).click();
+ await page.getByLabel("연결 진단 결과").waitFor();
+ assert((await page.getByLabel("연결 진단 결과").innerText()).includes("호스트 활성화: 미확인"));
+ assert((await page.getByLabel("연결 진단 결과").innerText()).includes("첫 이벤트 수신: 확인"));
+ await page.getByLabel("진단 도구").selectOption("opencode");
+ assert.equal(await page.getByLabel("연결 진단 결과").count(),0);
+ await page.locator('li a[href^="/sessions?session="]').first().click();
+ await page.waitForURL("**/sessions?session=**");
+ await page.waitForSelector(".native-detail");
  await page.goto(f.url+"/sessions");
  await waitFor(()=>document.querySelectorAll(".native-session").length===3);
  await page.getByLabel("도구 필터").selectOption("codex");
  await page.locator(".native-session").click();
  assert((await page.locator(".native-detail").innerText()).includes("codex-pilot"));
  assert((await page.locator(".native-session").innerText()).includes("승인 대기"));
+ assert((await page.locator(".native-detail").innerText()).includes("대기 시작:"));
+ assert((await page.locator(".native-detail").innerText()).includes("최근 관측 기록"));
  await page.screenshot({path:join(out,"codex-sessions.png"),fullPage:true});
  await page.getByLabel("도구 필터").selectOption("");
  const claude=page.locator(".native-session").filter({hasText:"Claude"});
@@ -37,6 +54,7 @@ try{
  }
  await event("UserPromptSubmit","작업 중");
  await event("PermissionRequest","승인 대기");
+ assert((await page.locator(".native-session").first().innerText()).includes("Codex"));
  await page.getByLabel("확인 요청함",{exact:false}).check();
  assert.equal(await page.locator(".native-session").count(),2);
  await event("Stop","입력 대기");

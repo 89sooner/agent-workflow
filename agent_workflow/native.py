@@ -1,4 +1,5 @@
 """Local native-session observation, isolated from workflow tasks/jobs."""
+from functools import lru_cache
 import hashlib
 import json
 import os
@@ -25,6 +26,12 @@ CODEX_EVENTS.update(Interrupt="input", PreModelRequest="running")
 PROVIDERS = {"claude", "codex", "opencode"}
 MAX_EVENTS = 10000
 MAX_SESSIONS = 500
+
+
+@lru_cache(maxsize=1024)
+def _project_identity(path, bucket):
+    from .connections import project_key
+    return project_key(path)
 
 
 def sources(home):
@@ -115,6 +122,8 @@ def database(home):
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY, provider TEXT, source TEXT, native_id TEXT, project TEXT,
       name TEXT, state TEXT, last_seen REAL, tool TEXT, parent TEXT, model TEXT);
+    CREATE TABLE IF NOT EXISTS session_transitions (
+      session_id TEXT PRIMARY KEY, state TEXT, since REAL);
     CREATE TABLE IF NOT EXISTS history (
       seq INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT, at REAL,
       event TEXT, state TEXT, tool TEXT);
@@ -137,16 +146,20 @@ def record(home, provider, source, native_id, project, name, state, event,
             old = c.execute("SELECT * FROM sessions WHERE id=?", (identifier,)).fetchone()
             if old and only_if_new:
                 return None
-            if not old or old["state"] != state or old["tool"] != tool or provider in {"claude", "codex"}:
+            if not old or old["state"] != state:
+                c.execute("INSERT OR REPLACE INTO session_transitions VALUES(?,?,?)",
+                          (identifier, state, timestamp))
+            if not old or old["state"] != state or old["tool"] != tool or provider in {"claude", "codex"} or event in {"tool.execute.before", "tool.execute.after"}:
                 c.execute("INSERT INTO history(session_id,at,event,state,tool) VALUES(?,?,?,?,?)",
                           (identifier, timestamp, clean(event), state, clean(tool)))
             c.execute("""INSERT OR REPLACE INTO sessions VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
-                      (identifier, provider, source, clean(native_id), project, clean(name), state,
+                      (identifier, provider, source, clean(native_id), project, clean(name) or (old["name"] if old else provider.title() + " · " + clean(native_id)[:12]), state,
                        timestamp, clean(tool), clean(parent) or (old["parent"] if old else ""),
                        clean(model) or (old["model"] if old else "")))
             c.execute("DELETE FROM history WHERE seq NOT IN (SELECT seq FROM history ORDER BY seq DESC LIMIT ?)", (MAX_EVENTS,))
             c.execute("DELETE FROM sessions WHERE id NOT IN (SELECT id FROM sessions ORDER BY last_seen DESC LIMIT ?)", (MAX_SESSIONS,))
             c.execute("DELETE FROM history WHERE session_id NOT IN (SELECT id FROM sessions)")
+            c.execute("DELETE FROM session_transitions WHERE session_id NOT IN (SELECT id FROM sessions)")
     finally:
         c.close()
     return identifier
@@ -183,13 +196,14 @@ def ingest(home, project, payload, provider="claude", mode="direct"):
         parent = sid
         sid += ":" + agent
     record(home, provider, project, sid, project,
-           ("Codex · " if provider == "codex" else "Claude · ") + (clean(payload.get("agent_type")) or sid[:12]),
+           "" if payload.get("agent_id") and not clean(payload.get("agent_type")) else ("Codex · " if provider == "codex" else "Claude · ") + (clean(payload.get("agent_type")) or sid[:12]),
            state, event, tool, parent, clean(payload.get("model")))
     return True
 
 
 def snapshot(home, observer, session_id=None, refresh=True):
     from . import opencode
+    observed_at = time.time()
     errors = []
     available = set()
     if refresh:
@@ -197,6 +211,7 @@ def snapshot(home, observer, session_id=None, refresh=True):
             try:
                 data = observer.view(source["id"])
                 waiting = {}
+                waiting_complete = True
                 for endpoint, waiting_state in (("/question", "input"), ("/permission", "approval")):
                     try:
                         requests = opencode.Client(source).get(endpoint)
@@ -204,8 +219,11 @@ def snapshot(home, observer, session_id=None, refresh=True):
                             raise WorkflowError("승인·질문 목록 형식을 확인할 수 없습니다.")
                         waiting.update({r["sessionID"]: waiting_state for r in requests})
                     except (WorkflowError, ValueError, OSError) as exc:
+                        waiting_complete = False
                         errors.append({"source": source["id"], "error": endpoint + " 대기 요청 관측 미확인: " + str(exc)})
 
+                if not waiting_complete:
+                    continue  # Preserve earlier waits; partial data cannot prove resolution.
                 for task in data["tasks"]:
                     available.add(source["id"] + "\0" + task["id"])
                     state = {"running": "running", "idle": "idle", "retrying": "retrying"}.get(task["status"], "unknown")
@@ -219,23 +237,36 @@ def snapshot(home, observer, session_id=None, refresh=True):
                 errors.append({"source": source["id"], "error": str(exc)})
     path = state_home(home) / "native-observation.sqlite3"
     if not path.exists():
-        return {"sessions": [], "history": [], "errors": errors, "sources": sources(home)}
+        return {"sessions": [], "history": [], "errors": errors, "sources": sources(home), "observed_at": observed_at}
     c = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=1)
     c.row_factory = sqlite3.Row
     try:
+        c.execute("BEGIN")
         rows = [dict(r) for r in c.execute("SELECT * FROM sessions ORDER BY last_seen DESC")]
+        transitions = {r["session_id"]: dict(r) for r in c.execute("SELECT * FROM session_transitions")} if c.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='session_transitions'").fetchone() else {}
+        from .activity import activity
+        latest_events = {r[0]: r[1] for r in c.execute(
+            "SELECT h.session_id,h.event FROM history h JOIN (SELECT session_id,MAX(seq) seq FROM history GROUP BY session_id) last ON last.seq=h.seq")}
         registered = {(s.get("provider", "claude"), s["project"]) for s in sources(home)}
         now = time.time()
+        identity_bucket = int(time.monotonic() // 30)
         for row in rows:
-            fresh = (row["source"] + "\0" + row["native_id"]) in available if row["provider"] == "opencode" and not row["source"].startswith("plugin:") else (row["provider"], row["project"]) in registered and now - row["last_seen"] < 300
+            row["project_id"] = _project_identity(row["project"], identity_bucket)
+            fresh = (row["source"] + "\0" + row["native_id"]) in available if row["provider"] == "opencode" and not row["source"].startswith("plugin:") else (row["provider"], row["project"]) in registered and 0 <= now - row["last_seen"] < 300
             row["observed_state"] = row["state"]
             row["fresh"] = fresh
+            row["activity"] = activity(row["state"], fresh, latest_events.get(row["id"]), row["tool"])
+            transition = transitions.get(row["id"], {})
+            row["state_since"] = transition.get("since") if transition.get("state") == row["state"] else None
+            row["waiting_since"] = row["state_since"] if fresh and row["state"] in {"input", "approval", "attention"} else None
+            row["freshness_reason"] = "observed" if fresh else "source_unavailable" if row["provider"] == "opencode" and not row["source"].startswith("plugin:") else "not_registered" if (row["provider"], row["project"]) not in registered else "event_expired"
             if not fresh and row["state"] != "ended":
                 row["state"] = "unknown"
         history = [dict(r) for r in c.execute(
             "SELECT * FROM history WHERE session_id=? ORDER BY seq DESC LIMIT 200", (session_id,))] if session_id else []
         return {"sessions": rows, "history": history, "errors": errors, "sources": sources(home),
-                "limits": {"sessions": MAX_SESSIONS, "events": MAX_EVENTS, "history": 200}}
+                "limits": {"sessions": MAX_SESSIONS, "events": MAX_EVENTS, "history": 200}, "observed_at": observed_at}
     finally:
         c.close()
 

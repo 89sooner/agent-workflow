@@ -1286,3 +1286,7 @@ main {
 .native-setup pre { white-space: pre-wrap; }
 .native-history { max-height: 420px; overflow: auto; padding-left: 24px; }
 @media(max-width: 780px) { .native-columns { grid-template-columns: minmax(0,1fr); } .native-page { padding: 10px; } .native-list { max-height: 300px; } }
+
+.room-canvas[data-render-mode="list"] { touch-action: pan-y; }
+.room-worker-list { height: 100%; overflow: auto; padding: 16px; box-sizing: border-box; overflow-wrap: anywhere; }
+.room-worker-list li { margin-bottom: 8px; }

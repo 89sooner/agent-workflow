@@ -34,6 +34,112 @@ class OnboardingTests(unittest.TestCase):
         return {"kind": "opencode", "project": self.project, "url": self.url,
                 "name": "한글 연결", **kw}
 
+    def test_diagnostics_route_is_read_only_and_validates_query(self):
+        from urllib.parse import urlencode
+        for flags in ({}, {"read_only": True}, {"read_only": True, "observer": True}):
+            server = self.dashboard(**flags)
+            query = urlencode({"project": self.project, "provider": "codex"})
+            code, value = self.request(server, '/api/connections/diagnostics?' + query)
+            self.assertEqual(code, 200)
+            self.assertFalse(value['execution_started'])
+            self.assertEqual(value['provider'], 'codex')
+            self.assertEqual(self.request(server, '/api/connections/diagnostics?project=relative')[0], 400)
+        self.assertFalse((self.home / 'state.sqlite3').exists())
+        self.assertFalse((self.home / 'native-observation.sqlite3').exists())
+
+    def test_overview_native_failure_is_partial_not_http_failure(self):
+        from agent_workflow.core import WorkflowError
+        server = self.dashboard(read_only=True)
+        with patch('agent_workflow.native.snapshot', side_effect=WorkflowError('private detail')), patch.object(
+                connections, 'discover', return_value={"ledgers": [], "warnings": []}):
+            code, value = self.request(server, '/api/overview')
+        self.assertEqual(code, 200)
+        self.assertTrue(value['errors'])
+        self.assertNotIn('private detail', json.dumps(value))
+        self.assertFalse(value['execution_started'])
+
+    def test_session_evidence_permission_and_no_workflow_initialization(self):
+        from agent_workflow import native
+        Path(self.project).mkdir(exist_ok=True)
+        native.install(self.home,self.project)
+        native.ingest(self.home,self.project,dict(session_id="evidence",hook_event_name="SessionStart",cwd=self.project))
+        sid=native.snapshot(self.home,None,refresh=False)["sessions"][0]["id"]
+        payload=dict(action="add",session=sid,kind="pr",url="https://github.com/example/repo/pull/1")
+        server=self.dashboard(read_only=True)
+        self.assertEqual(self.request(server,'/api/native/evidence',payload)[0],403)
+        observer=self.dashboard(read_only=True,observer=True)
+        self.assertEqual(self.request(observer,'/api/native/evidence',payload,{"X-Workflow-Token":"wrong"})[0],403)
+        self.assertEqual(self.request(observer,'/api/native/evidence',payload)[0],200)
+        code,value=self.request(observer,'/api/native/evidence?session='+sid)
+        self.assertEqual(code,200);self.assertEqual(len(value['links']),1)
+        self.assertFalse((self.home/'state.sqlite3').exists())
+        self.assertFalse((self.home/'daemon.lock').exists())
+
+    def test_evidence_rejects_discovery_and_revokes_disconnected_ledger(self):
+        from agent_workflow import native
+        Path(self.project).mkdir(exist_ok=True)
+        native.install(self.home,self.project)
+        native.ingest(self.home,self.project,dict(session_id="evidence-registry",hook_event_name="SessionStart",cwd=self.project))
+        sid=native.snapshot(self.home,None,refresh=False)["sessions"][0]["id"]
+        other=Path(self.temp.name)/"discovered-only";store=Store(other)
+        store.db.execute('INSERT INTO tasks(id,data,revision) VALUES(?,?,?)',('SAME',json.dumps(dict(id='SAME',status='completed',workspace={'branch':'only-explicit-branch'})),1))
+        store.db.commit();store.close();before=(other/'state.sqlite3').read_bytes()
+        identifier=connections.ledger_id(other)
+        payload=dict(action='add',session=sid,kind='workflow',ledger=identifier,task='SAME')
+        observer=self.dashboard(read_only=True,observer=True)
+        registry=self.home/'connections.json'
+        with patch.object(connections,'_process_homes',return_value=iter([other])):
+            code,candidates=self.request(observer,'/api/connections')
+            self.assertEqual(code,200);self.assertIn(identifier,[row['id'] for row in candidates['ledgers']])
+            self.assertEqual(self.request(observer,'/api/native/evidence',payload)[0],400)
+            registry.write_text(json.dumps(dict(version=1,projects=[dict(id='p',path=self.project,ledgers=[dict(home=str(other))])])))
+            code,linked=self.request(observer,'/api/native/evidence',payload);self.assertEqual(code,200)
+            code,value=self.request(observer,'/api/native/evidence?session='+sid)
+            self.assertEqual(value['links'][0]['branch'],'only-explicit-branch')
+            self.assertIn(identifier,[row['id'] for row in value['ledgers']])
+            registry.write_text(json.dumps(dict(version=1,projects=[])))
+            self.assertIn(identifier,[row['id'] for row in self.request(observer,'/api/connections')[1]['ledgers']])
+            code,value=self.request(observer,'/api/native/evidence?session='+sid)
+            self.assertEqual(value['links'][0]['status'],'근거 접근 불가')
+            self.assertIsNone(value['links'][0]['url']);self.assertNotIn('branch',value['links'][0])
+            self.assertNotIn(identifier,[row['id'] for row in value['ledgers']])
+            self.assertEqual(self.request(observer,'/api/native/evidence',payload)[0],400)
+            registry.write_text('invalid registry')
+            code,value=self.request(observer,'/api/native/evidence?session='+sid)
+            self.assertEqual(code,200);self.assertTrue(value['sources_error'])
+            self.assertEqual(self.request(observer,'/api/native/evidence',dict(action='remove',session=sid,id=linked['id']))[0],200)
+        self.assertEqual(before,(other/'state.sqlite3').read_bytes())
+        self.assertFalse((self.home/'state.sqlite3').exists());self.assertFalse((self.home/'daemon.lock').exists())
+
+    def test_bookmarks_permission_and_metadata_export(self):
+        from agent_workflow import native
+        Path(self.project).mkdir(exist_ok=True)
+        native.install(self.home,self.project)
+        native.ingest(self.home,self.project,dict(session_id="bookmark",hook_event_name="SessionStart",cwd=self.project))
+        sid=native.snapshot(self.home,None,refresh=False)["sessions"][0]["id"]
+        payload=dict(action="add",session=sid,label="HTTP bookmark",first_seq=1,last_seq=1)
+        readonly=self.dashboard(read_only=True)
+        self.assertEqual(self.request(readonly,'/api/native/bookmarks',payload)[0],403)
+        observer=self.dashboard(read_only=True,observer=True)
+        self.assertEqual(self.request(observer,'/api/native/bookmarks',payload,{"X-Workflow-Token":"wrong"})[0],403)
+        code,value=self.request(observer,'/api/native/bookmarks',payload)
+        self.assertEqual(code,200)
+        code,export=self.request(observer,'/api/native/bookmarks/export?id='+value['id'])
+        self.assertEqual(code,200);self.assertTrue(export['complete'])
+        invalid={**payload,'first_seq':10**100,'last_seq':10**100}
+        self.assertEqual(self.request(observer,'/api/native/bookmarks',invalid)[0],400)
+        self.assertFalse((self.home/'state.sqlite3').exists())
+        self.assertFalse((self.home/'daemon.lock').exists())
+
+    def test_metrics_readonly_period_validation_and_no_state_initialization(self):
+        server=self.dashboard(read_only=True)
+        code,value=self.request(server,'/api/native/metrics?days=1')
+        self.assertEqual(code,200);self.assertIsNone(value['tool_error_rate'])
+        self.assertEqual(self.request(server,'/api/native/metrics?days=bad')[0],400)
+        self.assertEqual(self.request(server,'/api/native/metrics?provider=unknown')[0],400)
+        self.assertFalse((self.home/'native-observation.sqlite3').exists())
+        self.assertFalse((self.home/'state.sqlite3').exists())
+
     def test_capabilities_do_not_initialize_state_and_describe_modes(self):
         for flags, mode, configure, manage in [({}, "manage", True, True),
                 ({"read_only": True}, "read_only", False, False),

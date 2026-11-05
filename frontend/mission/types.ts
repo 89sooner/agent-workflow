@@ -122,6 +122,7 @@ export interface Discovery {
   warnings: unknown[];
 }
 export interface Node {
+  activity?: string;
   id: string;
   taskId: string;
   actorId: string;

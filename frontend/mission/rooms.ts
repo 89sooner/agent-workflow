@@ -18,6 +18,7 @@ export function roomZone(status: string, activityKnown = true): RoomZone {
       "retrying",
       "succeeded",
       "completed",
+      "ended",
       "needs_review",
       "ready_to_finish",
     ].includes(status)

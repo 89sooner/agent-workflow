@@ -50,6 +50,7 @@ export function usePoll<T>(
   interval: number,
   refresh: number,
   validate?: (v: unknown) => void,
+  background = false,
 ) {
   const [result, setResult] = useState<{
     url: string | null;
@@ -112,7 +113,7 @@ export function usePoll<T>(
         }
       } finally {
         clearTimeout(timeout);
-        if (!disposed && ticket === generation && !document.hidden)
+        if (!disposed && ticket === generation && (!document.hidden || background))
           timer = setTimeout(
             poll,
             Math.min(30000, interval * 2 ** Math.min(failures, 3)),
@@ -121,14 +122,14 @@ export function usePoll<T>(
     }
     const visibility = () => {
       clearTimeout(timer);
-      if (document.hidden) {
+      if (document.hidden && !background) {
         ++generation;
         controller?.abort();
         // Retain the records, but revalidate activity after returning to the tab.
         setResult((old) => ({ ...old, fresh: false }));
       } else void poll();
     };
-    if (!document.hidden) void poll();
+    if (!document.hidden || background) void poll();
     document.addEventListener("visibilitychange", visibility);
     return () => {
       disposed = true;
@@ -137,7 +138,7 @@ export function usePoll<T>(
       controller?.abort();
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [url, interval, refresh, validate]);
+  }, [url, interval, refresh, validate, background]);
   return result.url === url
     ? result
     : { url, data: null, error: "", at: 0, loading: !!url, fresh: false };

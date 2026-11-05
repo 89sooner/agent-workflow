@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import {createRequire} from 'node:module';
+import {homedir} from 'node:os';
+import {join} from 'node:path';
+const {chromium}=createRequire(import.meta.url)(process.env.WORKFLOW_PLAYWRIGHT_PATH||join(homedir(),'.cache/webprobe/runtime/node_modules/playwright'));
+const f=JSON.parse(await fs.readFile(process.argv[2],'utf8'));
+const browser=await chromium.launch({headless:true,args:['--enable-unsafe-swiftshader']});
+try{
+ const page=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'}),errors=[],writes=[];
+ page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(r.method()!=='GET')writes.push(r.url())});
+ await page.goto(f.url+'/sessions');await page.waitForSelector('.native-session');
+ const send=async command=>{await fs.writeFile(f.control+'.next',command);await fs.rename(f.control+'.next',f.control);while(await fs.stat(f.control).then(()=>true,()=>false))await page.waitForTimeout(50)};
+ await send('metricsfixture');
+ await page.getByText('관측 시간·도구 오류 요약',{exact:true}).click();
+ const panel=page.getByLabel('관측 분석');
+ await panel.getByText('결과가 기록된 도구 1개',{exact:false}).waitFor();
+ assert((await panel.innerText()).includes('오류율 100.0%'));
+ assert((await panel.innerText()).includes('관측 공백'));
+ await send('metricsclock');
+ await page.getByLabel('분석 기간').selectOption('7');
+ await panel.getByText('결과가 기록된 도구 1개',{exact:false}).waitFor();
+ await panel.getByText('시계 이상 1개',{exact:false}).waitFor();
+ assert((await panel.innerText()).includes('오류율 100.0%'));
+ await page.getByLabel('도구 필터',{exact:true}).selectOption('codex');
+ await panel.getByText('오류율 미확인',{exact:false}).waitFor();
+ assert(!(await panel.innerText()).includes('오류율 0.0%'));
+ await send('metricsretention');
+ await panel.getByText('세션 또는 이벤트 보관 한도에 도달했습니다.',{exact:false}).waitFor();
+ assert((await panel.innerText()).includes('세션 500/500개'));
+ await page.setViewportSize({width:390,height:844});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);
+ console.log(JSON.stringify({passed:true,checks:['observed failure denominator','clock reversal preserves explicit outcome','500-session retention warning outside provider filter','unknown gap label','period change','provider filtering','unsupported outcome unknown not zero','mobile','GET only']}));
+}finally{await browser.close()}

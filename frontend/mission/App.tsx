@@ -212,9 +212,9 @@ function Inspector({
   );
 }
 export default function App() {
-  const [ledger, setLedger] = useState(persisted("mission-ledger")),
+  const [ledger, setLedger] = useState(new URLSearchParams(location.search).get("ledger") || persisted("mission-ledger")),
     [project, setProject] = useState(""),
-    [taskId, setTask] = useState(""),
+    [taskId, setTask] = useState(new URLSearchParams(location.search).get("task") || ""),
     [runId, setRun] = useState("");
   const [search, setSearch] = useState(""),
     [filter, setFilter] = useState("all"),
@@ -255,17 +255,14 @@ export default function App() {
       }
       return;
     }
-    if (discovery.data && !currentLedger) {
-      setLedger(
-        ledgers.find((l) => l.task_count && l.status === "available")?.id ||
-          ledgers.find((l) => l.status === "available")?.id ||
-          ledgers[0]?.id ||
-          "",
-      );
+    if (discovery.data && !ledger) {
+      const initial = ledgers.find((l) => l.task_count && l.status === "available")?.id ||
+        ledgers.find((l) => l.status === "available")?.id || ledgers[0]?.id;
+      if (initial) changeLedger(initial);
     }
-  }, [discovery.data, currentLedger, ledgers, pendingConnection]);
+  }, [discovery.data, ledger, ledgers, pendingConnection]);
   const overview = usePoll<Project>(
-    currentLedger
+    currentLedger?.status === "available"
       ? endpoint(
           "/api/project-observability",
           ledger,
@@ -277,7 +274,7 @@ export default function App() {
     assertTrace,
   );
   const trace = usePoll<Trace>(
-    currentLedger && taskId
+    currentLedger?.status === "available" && taskId
       ? endpoint("/api/observability", ledger, {
           task_id: taskId,
           ...(runId ? { run_id: runId } : {}),
@@ -578,6 +575,7 @@ export default function App() {
                 {discovery.loading ? "연결 확인 중…" : "연결된 기록 없음"}
               </option>
             )}
+            {ledger && !currentLedger && <option value={ledger} disabled>접근 불가 · {ledger}</option>}
             {ledgers.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.label || pathName(l.home)} · {l.task_count}
@@ -585,6 +583,10 @@ export default function App() {
               </option>
             ))}
           </select>
+          {discovery.data && ledger && currentLedger?.status !== "available" && <p role="alert">
+            지정한 원장에 접근할 수 없습니다. 다른 원장의 동명 작업으로 대체하지 않습니다.
+            연결을 복구하거나 작업 원장을 직접 선택하세요.
+          </p>}
           <p className="ledger-path" title={currentLedger?.home}>
             {currentLedger?.home || "연결된 원장 없음"}
           </p>

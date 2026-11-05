@@ -1,3 +1,4 @@
+import { activityLabel, activityPose } from "./activity";
 import {
   Component,
   useEffect,
@@ -314,6 +315,7 @@ function Workstation({
   const arm = useRef<Group>(null),
     head = useRef<Group>(null);
   const { invalidate } = useThree();
+  const pose = activityPose(node.activity);
   const [detail, setDetail] = useState(true);
   const detailRef = useRef(true);
   const finger = useMemo(
@@ -396,10 +398,11 @@ function Workstation({
         j.phase !== "seated"
           ? -0.65 + (walking ? Math.sin(clock.elapsedTime * 10) * 0.15 : 0)
           : animate
-            ? Math.sin(clock.elapsedTime * 5) * 0.035
+            ? pose.armRest + (pose.handMotion ? Math.sin(clock.elapsedTime * 5) * 0.035 : 0)
             : zone === "work"
               ? 0
               : -0.65;
+    if (head.current) head.current.rotation.x = j.phase === "seated" && zone === "work" ? pose.headPitch : 0;
     if (head.current)
       head.current.rotation.z = animate
         ? Math.sin(clock.elapsedTime * 1.7) * 0.035
@@ -408,7 +411,7 @@ function Workstation({
   }, -2); // Publish positions before camera following and label projection.
   useEffect(() => {
     invalidate();
-  }, [animate, invalidate]);
+  }, [animate, node.activity, invalidate]);
   return (
     <group
       position={position}
@@ -429,6 +432,12 @@ function Workstation({
           </mesh>
 
           <group ref={torso}>
+            {node.activity && <mesh position={[0, 1.65, 0.55]}>
+              {pose.marker === "box" ? <boxGeometry args={[0.12, 0.12, 0.12]} />
+                : pose.marker === "octahedron" ? <octahedronGeometry args={[0.09]} />
+                : <sphereGeometry args={[0.07, 12, 8]} />}
+              <meshBasicMaterial color={pose.tint} toneMapped={false} />
+            </mesh>}
             {/* Rounded suit panels and exposed joints keep the seated silhouette readable. */}
             <mesh position={[0, 0.7, 0.55]} scale={[1, 1.15, 0.72]}>
               <capsuleGeometry args={[0.24, 0.22, 4, 12]} />
@@ -739,6 +748,7 @@ export function Room({
   const phases = useMemo(() => new Map<string, string>(), []);
   const livePositions = useMemo(() => new Map<string, Point>(), []);
   const [focus, setFocus] = useState<string | null>(null);
+  const [listView, setListView] = useState(false);
   const [reset, setReset] = useState(0),
     [lost, setLost] = useState(false);
   const selectedNode = nodes.find((n) => n.id === selected);
@@ -748,9 +758,11 @@ export function Room({
       Number(b.status === "running") - Number(a.status === "running") ||
       Number(b.kind === "agent") - Number(a.kind === "agent"),
   );
-  const shown = latest.slice(0, 12);
+  const shown = listView ? [...latest] : latest.slice(0, 12);
   if (selectedNode && !shown.some((n) => n.id === selectedNode.id)) {
-    if (shown.length < 12) shown.push(selectedNode);
+    const sameActor = shown.findIndex(n=>n.actorId===selectedNode.actorId);
+    if (sameActor>=0) shown[sameActor] = selectedNode;
+    else if (listView || shown.length<12) shown.push(selectedNode);
     else shown[11] = selectedNode;
   }
   const zones = shown.map((n) => roomZone(n.status, activityKnown));
@@ -792,8 +804,9 @@ export function Room({
           <h2>함께 일하는 공간</h2>
         </div>
         <div>
+          <button onClick={()=>setListView(v=>!v)}>{listView?"3D 보기":"목록 보기"}</button>
           <button
-            disabled={!selectedNode || lost}
+            disabled={!selectedNode || lost || listView}
             onClick={() => {
               const i = shown.findIndex((n) => n.id === selected);
               if (i >= 0) setFocus(shown[i].id);
@@ -847,19 +860,24 @@ export function Room({
         >
           <strong>{selectedNode.label}</strong> · {label(selectedNode.role)} ·{" "}
           {label(selectedNode.status)}
+          {selectedNode.activity && <> · {activityLabel(selectedNode.activity)}</>}
         </p>
       )}
       <div
         className="room-canvas"
         data-testid="r3f-room"
-        data-active={!lost && activityKnown && motion && zones.includes("work")}
+        data-active={!listView && !lost && activityKnown && motion && zones.includes("work")}
+        data-render-mode={listView?"list":"3d"}
       >
         {!nodes.length && (
           <div className="room-empty-overlay">
             배정 또는 실행 기록을 기다립니다.
           </div>
         )}
-        {lost ? (
+        {listView ? <div className="room-worker-list" aria-label="작업 공간 목록">
+          <p>3D 렌더링을 중지했습니다. 같은 관측 기록을 목록으로 표시합니다.</p>
+          <ul>{shown.map(n=><li key={n.id}><button aria-pressed={selected===n.id} onClick={()=>onSelect(n)}>{n.label}</button> · {label(n.status)}{n.activity&&<> · {activityLabel(n.activity)}</>}</li>)}</ul>
+        </div> : lost ? (
           fallback
         ) : (
           <Boundary fallback={fallback}>

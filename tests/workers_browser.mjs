@@ -20,7 +20,7 @@ const result = await build({
     const count = Number(new URLSearchParams(location.search).get('count') || 12);
     const nodes = Array.from({length:count}, (_, i) => ({id:'worker-'+i, actorId:'actor-'+i, taskId:'synthetic',
       label:'작업자 '+i+' 긴 이름과 실제 할당 역할 확인', role:i%2?'review':'implement',
-      kind:'agent', status:'running', x:0,y:0}));
+      kind:'agent', status:'running', activity:['reading','writing','command'][i%3], x:0,y:0}));
     function App() {
       const [selected, setSelected] = useState(null);
       const [motion, setMotion] = useState(true);
@@ -135,14 +135,15 @@ try {
       ),
       focusedName,
     );
-    const sample = await page.evaluate(async () => {
+    const sample = await page.evaluate(async ({durationMs}) => {
       const values = [];
       let last = performance.now();
+      const started=last;
       await new Promise((resolve) => {
         function tick(now) {
           values.push(now - last);
           last = now;
-          if (values.length < 91) requestAnimationFrame(tick);
+          if (values.length < 91 || now-started<durationMs) requestAnimationFrame(tick);
           else resolve();
         }
         requestAnimationFrame(tick);
@@ -153,15 +154,17 @@ try {
       const gl = document.querySelector("canvas").getContext("webgl2");
       const ext = gl.getExtension("WEBGL_debug_renderer_info");
       return {
-        medianMs: values[45],
-        p95Ms: values[85],
+        medianMs: values[Math.floor(values.length*.5)],
+        p95Ms: values[Math.floor(values.length*.95)],
+        sampleCount: values.length,
+        durationMs: performance.now()-started,
         drawCalls: Number(host.dataset.drawCalls),
         triangles: Number(host.dataset.triangles),
         renderer: ext
           ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)
           : "unknown",
       };
-    });
+    }, {durationMs:count===24?Number(process.env.WORKFLOW_WORKER_SAMPLE_MS||0):0});
     if(count===4){
       await page.locator("#last").click();
       await page.getByRole("button",{name:"선택한 작업자 가까이"}).click();
@@ -238,6 +241,20 @@ try {
       for(const zone of ["work","lounge","attention"]) assert((await page.locator('[data-zone="'+zone+'"]').innerText()).endsWith("4"));
       await labels();
       await page.screenshot({path:join(output,"state-room-mixed.png")});
+    }
+    if(count===24){
+      await page.getByRole("button",{name:"목록 보기",exact:true}).click();
+      await page.getByLabel("작업 공간 목록").waitFor();
+      assert.equal(await page.locator("canvas").count(),0,"list mode stops WebGL rendering");
+      assert.equal(await page.getByLabel("작업 공간 목록").locator("li").count(),24);
+      await page.getByLabel("작업 공간 목록").getByRole("button").last().click();
+      assert.equal(await page.getByLabel("작업 공간 목록").locator('[aria-pressed="true"]').count(),1);
+      const fallback=await page.evaluate(async durationMs=>{
+        const values=[];const started=performance.now();let last=started;
+        await new Promise(resolve=>{function tick(now){values.push(now-last);last=now;if(values.length<91||now-started<durationMs)requestAnimationFrame(tick);else resolve()}requestAnimationFrame(tick)});
+        values.shift();values.sort((a,b)=>a-b);return {p95Ms:values[Math.floor(values.length*.95)],durationMs:performance.now()-started,sampleCount:values.length};
+      },Number(process.env.WORKFLOW_WORKER_SAMPLE_MS||0));
+      measurements.push({inputWorkers:24,displayedWorkers:24,mode:"list",webglCanvas:0,...fallback});
     }
   }
   assert.deepEqual(errors, []);

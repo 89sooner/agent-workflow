@@ -67,6 +67,27 @@ const snapshot = async (name) => {
   });
 };
 try {
+  // A missing explicit source must never resolve a same-ID task from another source.
+  const identity = await browser.newPage(), identityQueries=[];
+  identity.on('request',r=>{const url=new URL(r.url());if(url.pathname==='/api/observability')identityQueries.push(url)});
+  await identity.route('**/api/connections',async route=>{
+    const response=await route.fetch(),data=await response.json();
+    data.ledgers=data.ledgers.filter(l=>l.id!==f.ledger);
+    await route.fulfill({response,json:data});
+  });
+  await identity.goto(f.url+'/mission?'+new URLSearchParams({ledger:f.ledger,task:'OBS-TRACE'}));
+  await identity.getByRole('alert').filter({hasText:'지정한 원장에 접근할 수 없습니다.'}).waitFor();
+  assert.equal(await identity.locator('#ledger').inputValue(),f.ledger);
+  await identity.waitForTimeout(500);
+  assert.equal(identityQueries.length,0,'missing explicit ledger cannot fetch same task from another source');
+  await identity.locator('#ledger').selectOption(f.second_ledger);
+  await identity.locator('.task-item').filter({hasText:'OBS-TRACE'}).waitFor();
+  assert.equal(await identity.locator('.page-heading code').count(),0,'manual source selection clears old task selection');
+  assert.equal(identityQueries.length,0);
+  await identity.locator('.task-item').filter({hasText:'OBS-TRACE'}).click();
+  await identity.locator('.page-heading code').filter({hasText:'OBS-TRACE'}).waitFor();
+  assert(identityQueries.some(u=>u.searchParams.get('ledger')===f.second_ledger&&u.searchParams.get('task_id')==='OBS-TRACE'));
+  await identity.close();
   await page.goto(f.url + "/mission");
   await page.locator(`#ledger option[value="${f.ledger}"]`).waitFor({ state: "attached" });
   // Discovery sorts by ledger update time; select this fixture's execution ledger explicitly.
@@ -381,6 +402,7 @@ try {
         "old-stage selection",
         "pagination",
         "cross-ledger delayed response",
+        "missing explicit ledger preserves same-ID task identity",
         "project filter",
         "mobile overflow",
         "keyboard",

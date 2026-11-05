@@ -74,3 +74,8 @@ python3 -m agent_workflow --home /path/to/observer watch --port 8878
 ## Codex 및 플러그인 확장
 
 2026-11-05부터 `/sessions`는 Codex 직접 훅과 세 도구 플러그인 등록도 지원합니다. 위 workflow 원장 연결과 별개이며 기존 기능은 유지합니다. [최신 플러그인 설치·진단](NATIVE_PLUGINS.ko.md).
+
+개발 중인 통합 화면의 단계 진단과 알림·세션 계층·결과 근거·북마크는
+[통합 관제실 사용 안내](OBSERVATORY_REL01_USAGE.ko.md)를 따른다.
+Codex는 설치·프로젝트 등록 후 `/hooks`에서 해당 관측 플러그인의 활성/신뢰 상태를 확인한다.
+첫 수신이 확인됐어도 현재 작업 중이라는 뜻은 아니며 이벤트 종류와 신선도를 함께 확인한다.

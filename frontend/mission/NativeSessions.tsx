@@ -1,4 +1,13 @@
-import { useEffect, useState } from "react";
+import { SessionMetrics } from "./SessionMetrics";
+import { SessionBookmarks } from "./SessionBookmarks";
+import { SessionEvidence } from "./SessionEvidence";
+import { activityLabel } from "./activity";
+import { SessionHierarchy } from "./SessionHierarchy";
+import { SessionReturn } from "./SessionReturn";
+import { SessionNotifications } from "./SessionNotifications";
+import { attentionFirst, isAttention } from "./attention";
+import { ConnectionDiagnostics } from "./ConnectionDiagnostics";
+import { useEffect, useState, useMemo } from "react";
 import { get, usePoll } from "./api";
 import { ConnectionDialog } from "./Connections";
 import { Room } from "./Room";
@@ -7,18 +16,25 @@ import type { Capabilities, Node } from "./types";
 type Session = {
   id: string;
   provider: string;
+  source: string;
   native_id: string;
   project: string;
+  project_id?: string;
   name: string;
   state: string;
   observed_state: string;
+  activity?: string;
   last_seen: number;
   tool: string;
   parent: string;
   model: string;
   fresh: boolean;
+  state_since?: number | null;
+  waiting_since?: number | null;
+  freshness_reason?: string;
 };
 type Snapshot = {
+  observed_at?: number;
   sessions: Session[];
   history: {
     seq: number;
@@ -40,14 +56,15 @@ const states: Record<string, string> = {
   attention: "확인 필요",
   retrying: "재시도 대기",
 };
-const needsAttention = (s: Session) =>
-  ["input", "approval", "attention"].includes(s.state);
+const needsAttention = isAttention;
 const time = (t: number) => new Date(t * 1000).toLocaleString();
 export default function NativeSessions() {
   const initial = new URLSearchParams(location.search);
+  const [initialBookmark] = useState({session: initial.get("session"), id: initial.get("bookmark")});
   const [selected, setSelected] = useState(initial.get("session") || "");
   const [search, setSearch] = useState(initial.get("q") || "");
   const [provider, setProvider] = useState(initial.get("provider") || "");
+  const [projectFilter, setProjectFilter] = useState(initial.get("project") || "");
   const [ended, setEnded] = useState(false),
     [inbox, setInbox] = useState(false);
   const [refresh, setRefresh] = useState(0),
@@ -64,10 +81,13 @@ export default function NativeSessions() {
   const [reduce, setReduce] = useState(false),
     [systemReduce, setSystemReduce] = useState(false),
     [visible, setVisible] = useState(!document.hidden);
+  const [notificationPolling, setNotificationPolling] = useState(false);
   const snapshot = usePoll<Snapshot>(
     "/api/native/sessions?" + new URLSearchParams({ session: selected }),
     4000,
     refresh,
+    undefined,
+    notificationPolling,
   );
   const capabilities = usePoll<Capabilities>(
     "/api/capabilities",
@@ -77,14 +97,16 @@ export default function NativeSessions() {
   useEffect(() => {
     const query = new URLSearchParams();
     if (selected) query.set("session", selected);
+    if (selected === initialBookmark.session && initialBookmark.id) query.set("bookmark", initialBookmark.id);
     if (search) query.set("q", search);
     if (provider) query.set("provider", provider);
+    if (projectFilter) query.set("project", projectFilter);
     history.replaceState(
       null,
       "",
       "/sessions" + (query.size ? "?" + query : ""),
     );
-  }, [selected, search, provider]);
+  }, [selected, search, provider, projectFilter, initialBookmark]);
   useEffect(() => {
     const media = matchMedia("(prefers-reduced-motion: reduce)");
     const change = () => {
@@ -99,23 +121,23 @@ export default function NativeSessions() {
       document.removeEventListener("visibilitychange", change);
     };
   }, []);
-  const sessions = (snapshot.data?.sessions || []).map((s) =>
+  const sessions = useMemo(() => (snapshot.data?.sessions || []).map((s) =>
     snapshot.error || !snapshot.fresh
       ? { ...s, state: s.state === "ended" ? "ended" : "unknown", fresh: false }
       : s,
+  ), [snapshot.data, snapshot.error, snapshot.fresh]);
+  const scoped = sessions.filter((s) =>
+    (!provider || s.provider === provider) &&
+    (!projectFilter || (s.project_id || s.project) === projectFilter) &&
+    (s.name + " " + s.project + " " + s.native_id).toLowerCase().includes(search.toLowerCase()),
   );
-  const filtered = sessions.filter(
-    (s) =>
-      (!provider || s.provider === provider) &&
-      (ended || s.state !== "ended") &&
-      (!inbox || needsAttention(s)) &&
-      (s.name + " " + s.project + " " + s.native_id)
-        .toLowerCase()
-        .includes(search.toLowerCase()),
+  const filtered = attentionFirst(scoped).filter((s) =>
+    (ended || s.state !== "ended") && (!inbox || needsAttention(s)),
   );
-  const chosen = sessions.find((s) => s.id === selected);
+  const projects = [...new Map(sessions.map(s=>[s.project_id || s.project, s.project])).entries()];
+  const summary = {working:filtered.filter(s=>s.state==="running").length, waiting:filtered.filter(s=>s.state==="idle").length, attention:filtered.filter(needsAttention).length, unknown:filtered.filter(s=>s.state==="unknown").length, ended:filtered.filter(s=>s.state==="ended").length, retrying:filtered.filter(s=>s.state==="retrying").length};
+  const chosen = sessions.find((s) => s.id === selected && (!projectFilter || (s.project_id || s.project) === projectFilter));
   const nodes: Node[] = filtered
-    .filter((s) => s.state !== "ended")
     .map((s) => ({
       id: s.id,
       actorId: s.id,
@@ -123,6 +145,7 @@ export default function NativeSessions() {
       label: s.name,
       role: s.provider,
       kind: "agent",
+      activity: s.fresh ? s.activity : "unknown",
       status:
         s.state === "input"
           ? "idle"
@@ -203,7 +226,7 @@ export default function NativeSessions() {
             checked={inbox}
             onChange={(e) => setInbox(e.target.checked)}
           />
-          확인 요청함 ({sessions.filter(needsAttention).length})
+          확인 요청함 ({scoped.filter(needsAttention).length})
         </label>
         <label>
           <input
@@ -215,6 +238,8 @@ export default function NativeSessions() {
           움직임 줄이기
         </label>
       </section>
+    <ConnectionDiagnostics />
+      <SessionNotifications sessions={sessions} fresh={snapshot.fresh && !snapshot.error} onEnabledChange={setNotificationPolling} observedAt={snapshot.data?.observed_at} />
       <details className="panel native-setup">
         <summary>Claude Code·Codex 처음 연결하기</summary>
         <label>연결 도구 <select aria-label="관측 훅 도구" value={setupProvider} onChange={e => {setSetupProvider(e.target.value); setSetup(null);}}>
@@ -301,6 +326,15 @@ export default function NativeSessions() {
           </button>
         </section>
       )}
+      <SessionHierarchy sessions={filtered} selected={selected} onSelect={setSelected} />
+      <section className="panel" aria-label="프로젝트 공간 요약">
+        <label>프로젝트 공간 <select aria-label="일상 세션 프로젝트" value={projectFilter} onChange={e=>{setProjectFilter(e.target.value);setSelected("")}}>
+          <option value="">전체 프로젝트</option>{projects.map(([id,path])=><option key={id} value={id}>{path}</option>)}
+        </select></label>
+        <p>필터 세션 {filtered.length} · 작업 중 {summary.working} · 유휴 {summary.waiting} · 확인 요청 {summary.attention} · 미확인 {summary.unknown} · 재시도 {summary.retrying} · 종료 {summary.ended}</p>
+        <p>목록과 3D 공간은 같은 프로젝트·도구·검색 조건을 사용합니다. 3D 표시 한도를 넘는 세션도 목록에서 선택할 수 있습니다.</p>
+      </section>
+      <SessionMetrics project={projectFilter} provider={provider} />
       <div className="native-columns">
         <section className="panel native-list" aria-label="일상 세션 목록">
           {filtered.map((s) => (
@@ -316,6 +350,7 @@ export default function NativeSessions() {
               </span>
               <small>{s.project}</small>
               <small>마지막 관측 {time(s.last_seen)}</small>
+              {needsAttention(s) && <small>{s.waiting_since == null ? "대기 시작 시각 미기록" : "대기 시작 " + time(s.waiting_since)}</small>}
             </button>
           ))}
         </section>
@@ -347,6 +382,13 @@ export default function NativeSessions() {
                 {states[chosen.state]} · 마지막 확인 상태:{" "}
                 {states[chosen.observed_state]}
               </p>
+              <p>마지막 수신: {time(chosen.last_seen)} · {
+                !snapshot.fresh ? "화면 데이터를 다시 확인해야 합니다." :
+                ({ observed: "최근 관측 기록", event_expired: "마지막 이벤트 이후 5분 경과",
+                   not_registered: "프로젝트 관측 등록 없음", source_unavailable: "소스 조회 미확인" })[chosen.freshness_reason || ""] || "관측 근거 미확인"
+              }</p>
+              {chosen.fresh && chosen.waiting_since != null && <p>대기 시작: {time(chosen.waiting_since)}</p>}
+              <p>관측 활동: {activityLabel(chosen.fresh ? chosen.activity : "unknown")}</p>
               <p>네이티브 세션: {chosen.native_id}</p>
               <p>프로젝트: {chosen.project}</p>
               <p>
@@ -354,10 +396,13 @@ export default function NativeSessions() {
                 {chosen.model || "미기록"}
               </p>
               {chosen.parent && <p>부모 세션: {chosen.parent}</p>}
+              <SessionReturn key={chosen.id} project={chosen.project} nativeId={chosen.native_id} provider={chosen.provider} />
               <p>
                 현재 주소를 복사하면 이 세션으로 다시 돌아올 수 있습니다.
                 승인·입력은 원래 도구에서 처리하세요.
               </p>
+              <SessionEvidence key={chosen.id+":evidence"} session={chosen.id} capabilities={capabilities.data} />
+              <SessionBookmarks key={chosen.id+":bookmarks"} initialBookmark={chosen.id === initialBookmark.session ? initialBookmark.id || "" : ""} session={chosen.id} history={snapshot.data?.history||[]} capabilities={capabilities.data} />
               <h3>관측 이력</h3>
               <ol className="native-history">
                 {snapshot.data?.history.map((e) => (
