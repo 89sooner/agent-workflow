@@ -202,7 +202,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertFalse(state["completion_is_current"])
         resume = (d / "resume.txt").read_text()
         self.assertIn(str(self.store.home), resume)
-        self.assertIn("재구현하지", resume)
+        self.assertIn("Do not implement this task again.", resume)
         self.assertNotIn("Return JSON", resume)
 
     def test_submodule_untracked_content_changes_fingerprint(self):

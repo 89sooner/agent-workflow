@@ -12,6 +12,7 @@ import subprocess
 import sys
 
 from . import __version__
+from .communication import AGENT_COMMUNICATION_POLICY
 from .core import (Store, WorkflowError, atomic_write, complete, create_task,
                    encode, now, reference_fingerprint, references_current, snapshot)
 from .runner import RESULT_SCHEMA, brief, execute, record_review, run_checks
@@ -38,36 +39,44 @@ def freshness(task, current):
 
 def continuation(store, task, current):
     command = shlex.join(["agent-workflow", "--home", str(store.home)])
-    text = f"""대화형 작업 인계: {task['id']}
-목표: {task['goal']}
-프로젝트: {task['project']}
-완료 조건: {encode(task['criteria'])}
-허용 범위: {task['scope']}
-참고 문서: {encode(task['refs'])}
-저장 상태: {task['status']}
-현재 증거 유효성: {encode(freshness(task, current))}
-체크포인트: {encode(task['checkpoint'])}
-차단 사유: {task.get('blocker') or '없음'}
-수동 보류: {encode(task.get('hold'))}
+    text = AGENT_COMMUNICATION_POLICY + f"""
+Interactive task handoff: {task['id']}
+Original task data:
+Goal: {task['goal']}
+Project: {task['project']}
+Acceptance criteria: {encode(task['criteria'])}
+Scope: {task['scope']}
+Reference documents: {encode(task['refs'])}
+Recorded status: {task['status']}
+Current evidence validity: {encode(freshness(task, current))}
+Checkpoint: {encode(task['checkpoint'])}
+Blocker: {task.get('blocker') or 'None'}
+Manual hold: {encode(task.get('hold'))}
 
-먼저 다음 명령으로 현재 상태를 다시 확인하고 관련 소스·문서와 대조하세요.
+Read the current task state with this command:
 {command} show {task['id']}
-과거 보고를 현재 완료·승인 증거로 복사하지 마세요.
+Compare the state with the relevant source and documents.
+Do not use historical reports as current evidence of completion or authorization.
 """
     if task["status"] == "completed":
-        text += "이 작업은 기록상 완료됐습니다. 재구현하지 말고 다음 WP/통합 단계를 확인하세요.\n"
+        text += "The ledger records this task as completed. Do not implement this task again.\n"
+        text += "Examine the next work package or integration step.\n"
         if task.get("release"):
-            text += f"릴리스 단계: {task['release']['stage']}. 이어가기: {command} release {task['id']}\n"
+            text += f"Release stage: {task['release']['stage']}.\n"
+            text += f"To resume the authorized release, use: {command} release {task['id']}\n"
         if not freshness(task, current)["completion_is_current"]:
-            text += "완료 이후 코드가 변경되어 현재 코드에는 과거 완료 증거가 유효하지 않습니다. 새 작업으로 검증하세요.\n"
+            text += "The previous completion evidence does not apply to the current code.\n"
+            text += "Create a new task to verify the current code.\n"
     else:
-        text += f"""다음 행동에서 이어서 작업하고, 의미 있는 진전이나 중단 시 checkpoint를 갱신하세요.
-필수 검증: {command} check {task['id']}
-독립 검토: {task['reviewer']}. 필요한 경우 brief --role review로 입력을 만들어 전달하세요.
-검사·지정 리뷰 완료 후: {command} finish {task['id']}
-인계 갱신: {command} handoff {task['id']}
-실제 실행 결과·미검증 범위·다음 행동을 사용자에게 보고하세요.
-자동 실행을 요청받은 경우에만 {command} run {task['id']}를 사용하세요.
+        text += f"""Continue from the recorded next action.
+After significant progress, update the checkpoint. Before a handoff, update the checkpoint.
+Run the required checks: {command} check {task['id']}
+Assigned independent reviewer: {task['reviewer']}.
+If a review is required, generate the review input with brief --role review.
+After the required checks and assigned review pass, use: {command} finish {task['id']}
+Update the handoff with: {command} handoff {task['id']}
+Report actual results, unverified scope, and the next action to the user.
+If the user requested automatic execution, use: {command} run {task['id']}
 """
     return text
 

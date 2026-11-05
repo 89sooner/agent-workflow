@@ -12,6 +12,10 @@ OpenCode는 로컬 서버와 프로젝트를 한 번 연결하면 이후 새 세
 
 기존 v0.4.0 화면: [3D 관제실과 SaaS형 화면](docs/SAAS_OBSERVATORY.ko.md) · [관측·업그레이드 안내](docs/OBSERVABILITY.ko.md) · [제품·연구 조사](docs/OBSERVABILITY_RESEARCH.ko.md)
 
+에이전트 지시·검토·재개 메시지에는 **ASD-STE100 기반 영어 정책**을 기본 적용합니다.
+사용자 원문·코드·로그는 보존하며, 관측만 연결한 외부 세션의 언어는 바꾸지 않습니다.
+[적용 범위와 사용 방법](docs/AGENT_COMMUNICATION.ko.md).
+
 프로젝트 설정·복구·연속 실행: [v0.3 자동화 안내](docs/AUTOMATION_V0.3.ko.md)
 
 [실제 v0.3 사용 결과와 남은 연결](docs/FOLLOWUP_STATUS.ko.md) · [Katakuri 프로젝트 설정](profiles/README.md)
