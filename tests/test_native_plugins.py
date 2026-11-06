@@ -108,6 +108,26 @@ class NativePluginTests(unittest.TestCase):
         self.assertFalse(native.ingest_opencode(self.home,str(self.project),self.payload('session.discovered')))
         self.assertEqual(native.snapshot(self.home,None,refresh=False)['sessions'][0]['state'],'running')
 
+    def test_opencode_v2_lifecycle_preserves_raw_events_and_parent(self):
+        native.register(self.home,self.project,'opencode')
+        for event,expected in [('session.execution.started','running'),
+                               ('session.execution.succeeded','idle'),
+                               ('session.execution.failed','attention'),
+                               ('session.execution.interrupted','input'),
+                               ('session.execution.succeeded','idle'),
+                               ('form.created','input'),('form.replied','unknown')]:
+            payload=self.payload(event,parent='actual-parent',prompt='PRIVATE')
+            self.assertTrue(native.ingest_opencode(self.home,str(self.project),payload))
+            data=native.snapshot(self.home,None,refresh=False)
+            session=data['sessions'][0]
+            self.assertEqual(session['state'],expected)
+            self.assertEqual(session['parent'],'actual-parent')
+            history=native.snapshot(self.home,None,session['id'],refresh=False)['history']
+            self.assertEqual(history[0]['event'],event)
+        connection=native.database(self.home)
+        try:self.assertNotIn('PRIVATE','\n'.join(connection.iterdump()))
+        finally:connection.close()
+
     def test_packaged_hook_empty_stdout_fail_open(self):
         root=Path(__file__).resolve().parents[1]
         env={**os.environ,'AGENT_WORKFLOW_HOME':str(self.home),'PYTHONPATH':str(root)}

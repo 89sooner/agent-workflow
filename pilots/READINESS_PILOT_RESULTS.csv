@@ -1,0 +1,4 @@
+slot,participant_alias,first_time_user,provider,test_source_sha,session_native_id,started_at,first_observed_at,connection_seconds,attention_shown_at,attention_found_at,attention_seconds,help_requests,status,notes
+P01,,,,,,,,,,,,,not_started,Participant and schedule are not set.
+P02,,,,,,,,,,,,,not_started,Participant and schedule are not set.
+P03,,,,,,,,,,,,,not_started,Participant and schedule are not set.

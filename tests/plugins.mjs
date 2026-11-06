@@ -3,11 +3,18 @@ import {mkdtemp, mkdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join, resolve} from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {AgentWorkflowObserver} from '../plugins/opencode/index.js';
+import {pathToFileURL} from 'node:url';
 const originalCwd=process.cwd();
 const root=await mkdtemp(join(tmpdir(),'workflow-plugin-'));
 try {
  const project=join(root,'project');await mkdir(project);
+ const plugins=join(project,'.opencode/plugins');await mkdir(plugins,{recursive:true});
+ await writeFile(join(project,'package.json'),JSON.stringify({type:'module'}));
+ const installed=join(plugins,'agent-workflow.js');
+ await writeFile(installed,await readFile(resolve('plugins/opencode/index.js')));
+ const module=await import(pathToFileURL(installed).href);
+ assert.deepEqual(Object.keys(module),['AgentWorkflowObserver']);
+ const {AgentWorkflowObserver}=module;
  const python=process.env.AGENT_WORKFLOW_PYTHON||'python3';
  process.env.AGENT_WORKFLOW_HOME=join(root,'state');
  process.env.PYTHONPATH=resolve('.');
@@ -54,5 +61,5 @@ try {
  process.env.AGENT_WORKFLOW_PYTHON='/does/not/exist';
  await hooks.event({event:{type:'session.idle',properties:{sessionID:'error'}}});
  await new Promise(r=>setTimeout(r,100));
- console.log('PASS OpenCode plugin FIFO, states, metadata privacy, unregister, missing runtime fail-open, hostile project module isolation');
+ console.log('PASS OpenCode standalone file installation, plugin FIFO, states, metadata privacy, unregister, missing runtime fail-open, hostile project module isolation');
 } finally {process.chdir(originalCwd);await rm(root,{recursive:true,force:true});}

@@ -105,7 +105,7 @@ try {
         );
       }
   }
-  for (const count of [1, 4, 12, 24]) {
+  for (const count of [1, 4, 12, 24, 32]) {
     await page.goto(
       "http://127.0.0.1:" + server.address().port + "/?count=" + count,
     );
@@ -113,7 +113,7 @@ try {
     await page.waitForTimeout(700);
     assert.equal(
       await page.locator(".room-nameplate").count(),
-      Math.min(count, 12),
+      Math.min(count, 24),
     );
     await labels();
     const nameplate = page.locator(".room-nameplate:visible").first();
@@ -183,7 +183,7 @@ try {
     }
     measurements.push({
       inputWorkers: count,
-      displayedWorkers: Math.min(count, 12),
+      displayedWorkers: Math.min(count, 24),
       ...sample,
     });
     assert(sample.drawCalls > 0 && sample.drawCalls < 700);
@@ -226,7 +226,7 @@ try {
     for (const [status, known, zone] of [["idle",true,"lounge"],["failed",true,"attention"],["running",false,"attention"],["running",true,"work"]]) {
       await page.evaluate(([status, known])=>window.setWorkerState(status,known),[status,known]);
       await page.waitForTimeout(250);
-      assert((await page.locator('[data-zone="'+zone+'"]').innerText()).endsWith(String(Math.min(count,12))));
+      assert((await page.locator('[data-zone="'+zone+'"]').innerText()).endsWith(String(Math.min(count,24))));
       await page.getByRole("button",{name:"선택한 작업자 가까이"}).click();
       await page.locator('.room-nameplate[aria-pressed="true"]').waitFor({state:"visible",timeout:5000});
       await labels();

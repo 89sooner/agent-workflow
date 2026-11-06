@@ -4,6 +4,7 @@
 
 | 문서 | 현재 역할 |
 |---|---|
+| [사내 준비 검증](READINESS_VALIDATION_2026-11-05.ko.md) | 실제 병렬 호스트·24명 성능·격리 복구와 파일럿 선택 전환 결정 |
 | [에이전트 통신 언어](AGENT_COMMUNICATION.ko.md) | ASD-STE100 기본 지시, 검토·피드백·인계, 원문 보존과 관측 전용 범위 |
 | [통합 관제실 사용 안내](OBSERVATORY_REL01_USAGE.ko.md) | 통합 화면·진단·대기 정렬·알림; 운영 모드와 파일럿 미완료 구분 |
 | [관제실 개선 구현 계획](OBSERVATORY_IMPLEMENTATION_PLAN.ko.md) | 조사 기반 REL-01~04, FR·WP·수용 기준·운영 보존; 검토 상태 |

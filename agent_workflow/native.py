@@ -309,7 +309,10 @@ def ingest_opencode(home, project, payload):
               "session.error": "attention", "permission.asked": "approval", "question.asked": "input",
               "permission.replied": "unknown", "question.replied": "unknown", "question.rejected": "unknown",
               "tool.execute.before": "running", "tool.execute.after": "running",
-              "session.discovered": "unknown"}
+              "session.discovered": "unknown", "session.moved": "unknown",
+              "session.execution.started": "running", "session.execution.succeeded": "idle",
+              "session.execution.failed": "attention", "session.execution.interrupted": "input",
+              "form.created": "input", "form.replied": "unknown", "form.cancelled": "unknown"}
     state = states.get(event)
     if event == "session.status":
         state = {"busy": "running", "idle": "idle", "retry": "retrying"}.get(payload.get("status"))

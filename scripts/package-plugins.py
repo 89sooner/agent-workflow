@@ -19,7 +19,7 @@ def package(output):
             z.write(p, p.relative_to(ROOT))
     npm = output / 'agent-workflow-observer-0.1.0.tgz'
     with tarfile.open(npm, 'w:gz') as tar:
-        for name in ['package.json', 'index.js', 'README.md']:
+        for name in ['package.json', 'index.js', 'bridge.js', 'v2.js', 'v2/index.js', 'README.md']:
             tar.add(ROOT/'plugins/opencode'/name, arcname='package/'+name)
     receipt = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in (archive,npm)}
     (output/'SHA256SUMS.json').write_text(json.dumps(receipt,indent=2)+'\n')
