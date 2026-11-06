@@ -2,6 +2,7 @@ import { activityLabel, activityPose } from "./activity";
 import {
   Component,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -16,6 +17,8 @@ import {
   MeshStandardMaterial,
   CanvasTexture,
 } from "three";
+import {RoomFurniture} from "./RoomFurniture";
+import {InstancedWorkers} from "./InstancedWorkers";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Node, Transfer } from "./types";
 import { color, label } from "./model";
@@ -224,63 +227,6 @@ function Nameplates({
   });
   return null;
 }
-function Furniture({ position, zone }: { position: Point; zone: RoomZone }) {
-  return (
-    <group position={position}>
-      {zone === "work" && (
-        <>
-          <mesh position={[0, 0.75, -0.2]}>
-            <boxGeometry args={[1.9, 0.12, 1]} />
-            <meshStandardMaterial color="#34475e" />
-          </mesh>
-          {[-0.75, 0.75].map((x) => (
-            <mesh key={x} position={[x, 0.38, -0.2]}>
-              <boxGeometry args={[0.08, 0.75, 0.65]} />
-              <meshStandardMaterial color="#26364a" />
-            </mesh>
-          ))}
-          <mesh position={[-0.5, 1.14, -0.5]}>
-            <boxGeometry args={[0.8, 0.56, 0.1]} />
-            <meshStandardMaterial color="#131d2d" />
-          </mesh>
-          <mesh position={[-0.5, 1.14, -0.435]}>
-            <planeGeometry args={[0.69, 0.43]} />
-            <meshStandardMaterial
-              color={"#557d91"}
-              emissive={"#557d91"}
-              emissiveIntensity={0.15}
-            />
-          </mesh>
-          <mesh position={[0, 0.816, 0.13]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[0.8, 0.26]} />
-            <meshStandardMaterial color="#7890aa" />
-          </mesh>
-        </>
-      )}
-      {zone !== "work" && (
-        <group>
-          <mesh position={[0, 0.43, 0.55]}>
-            <boxGeometry args={[0.85, 0.18, 0.65]} />
-            <meshStandardMaterial
-              color={zone === "lounge" ? "#57749a" : "#96724f"}
-              roughness={0.9}
-            />
-          </mesh>
-          {[-0.39, 0.39].map((x) => (
-            <mesh key={x} position={[x, 0.6, 0.55]}>
-              <boxGeometry args={[0.12, 0.3, 0.65]} />
-              <meshStandardMaterial color="#34465d" />
-            </mesh>
-          ))}
-        </group>
-      )}
-      <mesh position={[0, 0.4, 0.8]}>
-        <boxGeometry args={[0.65, 0.8, 0.12]} />
-        <meshStandardMaterial color="#22364b" />
-      </mesh>
-    </group>
-  );
-}
 function Workstation({
   node,
   position,
@@ -292,6 +238,7 @@ function Workstation({
   phases,
   corridor,
   livePositions,
+  actorGroups,
 }: {
   node: Node;
   position: [number, number, number];
@@ -303,7 +250,9 @@ function Workstation({
   phases: Map<string, string>;
   corridor: number;
   livePositions: Map<string, Point>;
+  actorGroups: Map<string, Group>;
 }) {
+  const actorRoot=useRef<Group>(null);
   const body = useRef<Group>(null),
     torso = useRef<Group>(null);
   const legs = useRef<Group>(null),
@@ -332,6 +281,15 @@ function Workstation({
     },
     [finger],
   );
+  useLayoutEffect(() => {
+    const group=actorRoot.current;
+    if(group)actorGroups.set(node.id,group);
+    return ()=>{actorGroups.delete(node.id)};
+  }, [actorGroups,node.id]);
+  useLayoutEffect(() => {if(actorRoot.current)actorRoot.current.userData.node=node}, [node]);
+  useLayoutEffect(() => {
+    if(actorRoot.current)actorRoot.current.userData.batchRevision=(actorRoot.current.userData.batchRevision||0)+1;
+  }, [detail,selected,node.activity,node.role,node.kind,node.status]);
   useEffect(
     () => () => {
       livePositions.delete(node.id);
@@ -414,6 +372,7 @@ function Workstation({
   }, [animate, node.activity, invalidate]);
   return (
     <group
+      ref={actorRoot}
       position={position}
       onClick={(e) => {
         e.stopPropagation();
@@ -440,7 +399,7 @@ function Workstation({
             </mesh>}
             {/* Rounded suit panels and exposed joints keep the seated silhouette readable. */}
             <mesh position={[0, 0.7, 0.55]} scale={[1, 1.15, 0.72]}>
-              <capsuleGeometry args={[0.24, 0.22, 4, 12]} />
+              <capsuleGeometry args={[0.24, 0.22, detail ? 4 : 2, detail ? 12 : 8]} />
               <meshStandardMaterial
                 color={
                   node.kind === "agent" || node.kind === "assignment"
@@ -461,7 +420,7 @@ function Workstation({
             </mesh>
             <group ref={head} position={[0, 1.23, 0.55]}>
               <mesh scale={[1, 1.06, 0.92]}>
-                <sphereGeometry args={[0.245, 20, 14]} />
+                <sphereGeometry args={[0.245, detail ? 20 : 10, detail ? 14 : 8]} />
                 <meshStandardMaterial
                   color="#c5d5df"
                   roughness={0.55}
@@ -469,7 +428,7 @@ function Workstation({
                 />
               </mesh>
               <mesh position={[0, 0.015, -0.195]} scale={[1, 0.55, 0.32]}>
-                <sphereGeometry args={[0.205, 16, 10]} />
+                <sphereGeometry args={[0.205, detail ? 16 : 8, detail ? 10 : 6]} />
                 <meshStandardMaterial
                   color="#14293b"
                   roughness={0.28}
@@ -508,7 +467,7 @@ function Workstation({
               {[-1, 1].map((side) => (
                 <group key={side} position={[side * 0.3, 0, 0.1]}>
                   <mesh>
-                    <sphereGeometry args={[0.11, 12, 8]} />
+                    <sphereGeometry args={[0.11, detail ? 12 : 8, detail ? 8 : 5]} />
                     <meshStandardMaterial
                       color="#8ea9ba"
                       roughness={0.4}
@@ -519,11 +478,11 @@ function Workstation({
                     position={[0, -0.13, -0.055]}
                     rotation={[0.4, 0, side * 0.12]}
                   >
-                    <capsuleGeometry args={[0.075, 0.15, 3, 10]} />
+                    <capsuleGeometry args={[0.075, 0.15, detail ? 3 : 2, detail ? 10 : 6]} />
                     <meshStandardMaterial color="#5f819b" roughness={0.6} />
                   </mesh>
                   <mesh position={[0, -0.24, -0.12]}>
-                    <sphereGeometry args={[0.073, 10, 8]} />
+                    <sphereGeometry args={[0.073, detail ? 10 : 6, detail ? 8 : 4]} />
                     <meshStandardMaterial
                       color="#25384a"
                       metalness={0.4}
@@ -531,11 +490,11 @@ function Workstation({
                     />
                   </mesh>
                   <mesh position={[0, -0.17, -0.23]} rotation={[1.1, 0, 0]}>
-                    <capsuleGeometry args={[0.063, 0.17, 3, 10]} />
+                    <capsuleGeometry args={[0.063, 0.17, detail ? 3 : 2, detail ? 10 : 6]} />
                     <meshStandardMaterial color="#8ea9ba" roughness={0.5} />
                   </mesh>
                   <mesh position={[0, -0.105, -0.35]} scale={[1, 0.48, 1.25]}>
-                    <sphereGeometry args={[0.075, 10, 8]} />
+                    <sphereGeometry args={[0.075, detail ? 10 : 6, detail ? 8 : 4]} />
                     <meshStandardMaterial color="#c5d5df" roughness={0.5} />
                   </mesh>
                   {detail &&
@@ -582,7 +541,7 @@ function Workstation({
                   position={[side * 0.14, 0.075, 0.15]}
                   scale={[0.9, 0.5, 1.6]}
                 >
-                  <sphereGeometry args={[0.12, 12, 8]} />
+                  <sphereGeometry args={[0.12, detail ? 12 : 8, detail ? 8 : 5]} />
                   <meshStandardMaterial color="#24364b" roughness={0.85} />
                 </mesh>
               </group>
@@ -617,6 +576,7 @@ function RenderMetrics({ phases }: { phases: Map<string, string> }) {
       host.dataset.travelPhases = JSON.stringify([...phases.values()]);
       host.dataset.drawCalls = String(gl.info.render.calls);
       host.dataset.triangles = String(gl.info.render.triangles);
+      host.dataset.renderFrame = String(gl.info.render.frame);
     }
   });
   return null;
@@ -747,6 +707,7 @@ export function Room({
 }) {
   const phases = useMemo(() => new Map<string, string>(), []);
   const livePositions = useMemo(() => new Map<string, Point>(), []);
+  const actorGroups = useMemo(() => new Map<string, Group>(), []);
   const [focus, setFocus] = useState<string | null>(null);
   const [listView, setListView] = useState(false);
   const [reset, setReset] = useState(0),
@@ -758,12 +719,12 @@ export function Room({
       Number(b.status === "running") - Number(a.status === "running") ||
       Number(b.kind === "agent") - Number(a.kind === "agent"),
   );
-  const shown = listView ? [...latest] : latest.slice(0, 12);
+  const shown = listView ? [...latest] : latest.slice(0, 24);
   if (selectedNode && !shown.some((n) => n.id === selectedNode.id)) {
     const sameActor = shown.findIndex(n=>n.actorId===selectedNode.actorId);
     if (sameActor>=0) shown[sameActor] = selectedNode;
-    else if (listView || shown.length<12) shown.push(selectedNode);
-    else shown[11] = selectedNode;
+    else if (listView || shown.length<24) shown.push(selectedNode);
+    else shown[shown.length-1] = selectedNode;
   }
   const zones = shown.map((n) => roomZone(n.status, activityKnown));
   const {
@@ -885,7 +846,7 @@ export function Room({
               frameloop={visible ? "demand" : "never"}
               dpr={[1, 1.5]}
               camera={{ position: [10, 9, -11], fov: 45 }}
-              gl={{ antialias: true, alpha: false }}
+              gl={{ antialias: false, alpha: false }}
               fallback={fallback}
               onCreated={({ gl }) => {
                 gl.domElement.setAttribute(
@@ -930,25 +891,7 @@ export function Room({
                 <octahedronGeometry args={[0.5, 0]} />
                 <meshStandardMaterial color="#73d9be" wireframe />
               </mesh>
-              {areas.flatMap((area) =>
-                Array.from(
-                  { length: Math.max(4, Math.ceil(shown.length / 2) * 2) },
-                  (_, i) => (
-                    <Furniture
-                      key={area.id + ":" + i}
-                      zone={area.id}
-                      position={[
-                        area.x + (i % 2 ? 1.5 : -1.5),
-                        0,
-                        area.center -
-                          area.depth / 2 +
-                          1.4 +
-                          Math.floor(i / 2) * 2.8,
-                      ]}
-                    />
-                  ),
-                ),
-              )}
+              <RoomFurniture areas={areas} />
               {shown.map((node, i) => (
                 <Workstation
                   key={
@@ -968,9 +911,11 @@ export function Room({
                   move={motion && activityKnown && !historical}
                   corridor={corridor}
                   livePositions={livePositions}
+                  actorGroups={actorGroups}
                   animate={motion && zones[i] === "work"}
                 />
               ))}
+              <InstancedWorkers actors={actorGroups} onSelect={onSelect} />
               {motion &&
                 activityKnown &&
                 transfers.map((t) => {

@@ -71,11 +71,13 @@ jobs:
           python tests/observability_integration.py
           python tests/saas_integration.py
           node tests/workers_browser.mjs
+          node tests/instanced_workers_browser.mjs
           python tests/mission_integration.py
           python tests/opencode_integration.py
           python tests/onboarding_integration.py
           python tests/native_integration.py
           node tests/plugins.mjs
+          node tests/plugins_v2.mjs
           python scripts/package-plugins.py
       - name: Keep browser evidence
         if: always()

@@ -2,11 +2,17 @@
   "name": "agent-workflow-observer",
   "version": "0.1.0",
   "type": "module",
-  "description": "Passive local agent-workflow session observation for OpenCode 1.x",
-  "exports": "./index.js",
+  "description": "Passive local agent-workflow session observation for OpenCode V1 and V2",
+  "exports": {
+    ".": "./index.js",
+    "./v2": "./v2/index.js"
+  },
   "files": [
     "index.js",
-    "README.md"
+    "bridge.js",
+    "v2.js",
+    "README.md",
+    "v2/index.js"
   ],
   "engines": {
     "node": ">=18"
