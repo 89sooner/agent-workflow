@@ -11,7 +11,7 @@ import uuid
 
 from .connections import project_key, state_home
 from .core import Store, WorkflowError, now, project_root
-from .profiles import identifier
+from .profiles import check_plan, identifier
 
 
 def _init(db):
@@ -112,12 +112,23 @@ def feedback(home, task_id, expected_groups):
         return {"task_id": task_id, "recommendation_id": rid, "expected_groups": expected}
 
 
-def _observed_groups(config, adopted, results):
+def _profile_results(config, adopted, results):
+    # Every group reuses the first matching slot in the frozen profile plan. Later
+    # check-add entries can repeat the argv, but those executions are independent.
+    planned = check_plan(config, adopted)["checks"]
+    observed = {}
+    for argv, result in zip(planned, results):
+        if argv == result.get("argv"):
+            observed.setdefault(tuple(argv), result)
+    return observed
+
+
+def _observed_groups(config, adopted, observed):
     """Per-group coverage of latest verification. Shared commands appear in both group totals."""
     output = {}
     for group in adopted:
         commands = {tuple(argv) for argv in config.get("check_groups", {}).get(group, [])}
-        matching = [r for r in results if tuple(r.get("argv", [])) in commands]
+        matching = [observed[cmd] for cmd in commands if cmd in observed]
         passed = sum(r.get("exit_code") == 0 and not r.get("timed_out") for r in matching)
         durations = [r.get("seconds") for r in matching]
         output[group] = {"planned_count": len(commands), "executed_count": len(matching), "passed_count": passed,
@@ -145,6 +156,7 @@ def task_summary(store, task):
         verification = json.loads(row[0]) if row else {}
     results = verification.get("results") or []
     cfg = task["project_config"]
+    observed = _profile_results(cfg, adopted, results)
     # Marginal work measured in the latest verification, excluding shared/base checks.
     unnecessary_seconds = None
     if expected is not None and receipt["reviewer"] is not None and results:
@@ -154,14 +166,13 @@ def task_summary(store, task):
         other_commands.update(tuple(argv) for argv in cfg.get("checks", []))
         other_commands.update(tuple(task["checks"][i]) for i in profile.get("individual_check_indexes", []))
         extra_commands = {tuple(argv) for name in extra for argv in groups[name]} - other_commands
-        durations = [r.get("seconds") for r in results if tuple(r["argv"]) in extra_commands]
-        observed = {tuple(r["argv"]) for r in results}
-        if extra_commands <= observed and all(type(n) in (float, int) for n in durations):
+        durations = [observed[cmd].get("seconds") for cmd in extra_commands if cmd in observed]
+        if extra_commands <= observed.keys() and all(type(n) in (float, int) for n in durations):
             unnecessary_seconds = round(sum(durations), 3)
     return {"task_id": task["id"], "recommendation_id": rid, "profile": receipt["profile"],
             "primary": receipt["primary"], "reviewer": receipt["reviewer"], "suggested_groups": receipt["suggested_groups"],
             "available_groups": receipt["available_groups"], "adopted_groups": adopted, "expected_groups": expected,
-            "checks_by_group": _observed_groups(cfg, adopted, results), "review_ms": receipt["review_ms"],
+            "checks_by_group": _observed_groups(cfg, adopted, observed), "review_ms": receipt["review_ms"],
             "verification_at": verification.get("at"),
             "unnecessary_review_check_seconds": unnecessary_seconds}
 

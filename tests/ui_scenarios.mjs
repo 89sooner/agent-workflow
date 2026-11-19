@@ -32,6 +32,8 @@ let tasks = [task, stale], jobs = [], fail = false;
 let projectExecutions = null, readOnly = false;
 let profiles = [{ name: 'fixture-project', config: { check_groups: { ui: [['node', '--version']], docs: [['python3', '--version']] }, project: '/fixture/project', owner: 'claude', reviewer: 'codex' } }];
 let expectedGroups = null;
+let finishStaleLookup;
+const delayedLookup = new Promise(resolve => { finishStaleLookup = resolve; });
 const requests = [];
 let events = [{ at: '2026-10-08T00:00:00Z', kind: 'created', data: { summary: '작업 등록됨', source: 'fixture' } }];
 await page.route('**/api/**', async (route) => {
@@ -41,6 +43,10 @@ await page.route('**/api/**', async (route) => {
   if (path === '/api/project-observability') return route.fulfill({ json: { schema_version: 1, tasks, agents: [], events: [], executions: projectExecutions ?? jobs } });
   if (path === '/api/state') return route.fulfill({ json: { tasks, jobs, profiles, notifications: [], daemon: { running: true }, version: 'fixture', csrf_token: 'fixture-token', read_only: readOnly } });
   if (path.startsWith('/api/job-log/')) return route.fulfill({ json: { text: '<script>window.unsafe=true</script>\nfixture log output', truncated: false } });
+  if (path === '/api/recommendations/REC-old') {
+    await delayedLookup;
+    return route.fulfill({status:400, json:{error:'expired lookup'}});
+  }
   if (path === '/api/recommendations/REC-demo') return route.fulfill({json: {
     id: 'REC-demo', profile: 'fixture-project', suggested_groups: ['ui'] }});
   if (path.startsWith('/api/tasks/')) {
@@ -174,9 +180,14 @@ try {
 
   await page.locator('#filter').selectOption('all');
   await page.locator('#new-task').click();
+  await page.locator('#create-recommendation').fill('REC-old');
+  await Promise.all([page.waitForRequest(req => req.url().includes('/REC-old')), page.locator('#load-recommendation').click()]);
   await page.locator('#create-recommendation').fill('REC-demo');
   await page.getByRole('button', {name:'추천 묶음 불러오기'}).click();
   await page.locator('#recommendation-hint').waitFor();
+  const staleResponse = page.waitForResponse(response => response.url().includes('/REC-old'));
+  finishStaleLookup();
+  await (await staleResponse).finished();
   assert.equal(await page.getByRole('checkbox', {name:'ui (1개 검사)'}).isChecked(), true);
   await page.locator('#create-id').fill('UI-NEW');
   await page.locator('#create-goal').fill('새 작업 등록과 실행 제어');
@@ -191,6 +202,11 @@ try {
   assert.equal(requests.at(-1).body.recommendation_id, 'REC-demo');
   await page.getByText('검사 추천과 실제 작업 결과', {exact:true}).click();
   await page.getByRole('group', {name:'실제로 필요했던 검사 묶음'}).getByRole('checkbox', {name:'ui', exact:true}).check();
+  events = [...events, {at:'2026-10-09T00:00:00Z',kind:'checkpoint',data:{summary:'updated while editing'}}];
+  await page.locator('#refresh').click();
+  await page.locator('#refresh:enabled').waitFor();
+  assert.equal(await page.locator('#recommendation-detail').evaluate(el => el.open), true);
+  assert.equal(await page.getByRole('group', {name:'실제로 필요했던 검사 묶음'}).getByRole('checkbox', {name:'ui', exact:true}).isChecked(), true);
   await page.getByRole('button', {name:'필요 묶음 저장'}).click();
   await page.waitForFunction(() => document.getElementById('action-message').textContent.includes('평가를 저장'));
   assert.deepEqual(requests.at(-1).body, {task_id:'UI-NEW', expected_groups:['ui']});

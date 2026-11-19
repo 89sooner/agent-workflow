@@ -242,8 +242,14 @@ function actionButton(title, glyph, key, disabled, callback, primary = false) {
   button.type = 'button'; button.dataset.focus = key; button.disabled = disabled || (state.readOnly && key !== 'task-view');
   button.append(icon(glyph), node('span', title)); button.addEventListener('click', callback); return button;
 }
+let feedbackDraft = null;
 function recommendationDetail(task, receipt) {
+  const identity = JSON.stringify([state.ledger, task.id, receipt.recommendation_id]);
+  const previous = document.getElementById('recommendation-detail');
   const panel = node('details', null, 'goal-details');
+  panel.id = 'recommendation-detail'; panel.dataset.identity = identity;
+  panel.open = previous?.dataset.identity === identity && previous.open;
+  if (feedbackDraft?.identity !== identity) feedbackDraft = null;
   panel.append(node('summary', '검사 추천과 실제 작업 결과'));
   for (const [label, groups] of [['첫 모델', receipt.primary], ['두 번째 모델', receipt.reviewer],
     ['채택', receipt.adopted_groups], ['사람이 필요하다고 판정', receipt.expected_groups]]) {
@@ -254,19 +260,30 @@ function recommendationDetail(task, receipt) {
     panel.append(node('p', name + ' · 실행 ' + result.executed_count + '/' + result.planned_count
       + ' · 통과 ' + result.passed_count + ' · 실패 ' + result.failed_count + ' · ' + seconds));
   }
+  if (receipt.verification_at) panel.append(node('p', '최근 완료된 검사 · ' + date(receipt.verification_at)));
+  if (typeof receipt.review_ms === 'number') {
+    panel.append(node('p', '두 번째 모델 응답 · ' + (receipt.review_ms / 1000).toFixed(2) + '초'));
+  }
+  if (typeof receipt.unnecessary_review_check_seconds === 'number') {
+    panel.append(node('p', '두 번째 모델만 추가한 불필요한 검사의 실행 시간 · ' + receipt.unnecessary_review_check_seconds.toFixed(2) + '초'));
+  }
   if (!state.readOnly) {
     const choices = node('fieldset');
+    choices.disabled = state.busy;
     choices.append(node('legend', '실제로 필요했던 검사 묶음'));
+    const values = feedbackDraft?.groups || receipt.expected_groups || [];
     for (const name of Object.keys(task.project_config?.check_groups || {})) {
       const option = node('label', null, 'checkbox-label'), input = node('input');
-      input.type = 'checkbox'; input.value = name; input.checked = (receipt.expected_groups || []).includes(name);
+      input.type = 'checkbox'; input.value = name; input.checked = values.includes(name);
       option.append(input, document.createTextNode(name)); choices.append(option);
     }
     const save = node('button', '필요 묶음 저장', 'button small');
     save.type = 'button'; save.disabled = state.busy;
-    save.addEventListener('click', () => {
-      const expected = Array.from(choices.querySelectorAll('input:checked'), input => input.value);
-      mutate('/api/recommendations/feedback', { task_id: task.id, expected_groups: expected }, '검사 추천 평가를 저장했습니다.');
+    const checkedNames = () => Array.from(choices.querySelectorAll('input:checked'), input => input.value);
+    choices.addEventListener('change', () => { feedbackDraft = {identity, groups: checkedNames()}; });
+    save.addEventListener('click', async () => {
+      const saved = await mutate('/api/recommendations/feedback', {task_id:task.id, expected_groups:checkedNames()}, '검사 추천 평가를 저장했습니다.');
+      if (saved && feedbackDraft?.identity === identity) feedbackDraft = null;
     });
     panel.append(choices, save);
   }
@@ -581,7 +598,9 @@ $('new-task').addEventListener('click', () => {
   closeSidebar(false); notice('create-error', ''); $('create-dialog').showModal();
 });
 let loadedRecommendation = null;
+let recommendationGeneration = 0;
 function clearRecommendation() {
+  recommendationGeneration++;
   loadedRecommendation = null;
   $('recommendation-hint').hidden = true;
   $('load-recommendation').hidden = !$('create-recommendation').value.trim();
@@ -589,17 +608,22 @@ function clearRecommendation() {
 $('create-recommendation').addEventListener('input', clearRecommendation);
 $('load-recommendation').addEventListener('click', async () => {
   const id = $('create-recommendation').value.trim(), profile = $('create-profile').value;
+  const generation = ++recommendationGeneration;
   try {
     const record = await request('/api/recommendations/' + encodeURIComponent(id));
-    if ($('create-recommendation').value.trim() !== id || $('create-profile').value !== profile) return;
+    if (generation !== recommendationGeneration || $('create-profile').value !== profile) return;
     if (record.profile !== profile) throw new Error('현재 선택한 프로젝트 프로필과 추천이 다릅니다.');
     loadedRecommendation = record;
     for (const box of $('check-group-options').querySelectorAll('input')) box.checked = record.suggested_groups.includes(box.value);
     $('recommendation-hint').textContent = '추천 묶음 · ' + (record.suggested_groups.join(', ') || '기본 검사만');
     $('recommendation-hint').hidden = false;
     notice('create-error', '');
-  } catch (error) { clearRecommendation(); notice('create-error', error.message); }
+  } catch (error) {
+    if (generation !== recommendationGeneration || $('create-profile').value !== profile) return;
+    clearRecommendation(); notice('create-error', error.message);
+  }
 });
+$('create-dialog').addEventListener('close', () => { recommendationGeneration++; });
 $('create-close').addEventListener('click', () => $('create-dialog').close());
 $('create-profile').addEventListener('change', () => {
   $('create-recommendation').value = ''; clearRecommendation();

@@ -1,3 +1,4 @@
+import shlex
 import sys
 import unittest
 from unittest.mock import patch
@@ -5,6 +6,7 @@ from unittest.mock import patch
 import test_workflow as fixtures
 from agent_workflow import connections, profiles, recommendation_records as records
 from agent_workflow.check_advisor import recommend
+from agent_workflow.cli import dispatch, parser
 from agent_workflow.core import WorkflowError, git
 from agent_workflow.runner import run_checks
 from agent_workflow.workspaces import create_from_profile
@@ -68,6 +70,25 @@ class RecordTests(unittest.TestCase):
         self.assertNotIn("worktree", records.show(self.store.home, rid))
         with self.assertRaises(WorkflowError):
             records.feedback(self.store.home, "TASK", ["bogus"])
+
+    def test_late_check_add_duplicate_and_repeated_baseline_have_separate_occurrences(self):
+        self.cfg["checks"].append(self.base)
+        self.profile = profiles.save(self.store, "demo", self.cfg)
+        rid = self.record()
+        self.create("TASK", rid)
+        dispatch(parser().parse_args(["--home", str(self.store.home), "check-add", "TASK", shlex.join(self.extra)]))
+        task = self.store.get("TASK")
+        self.assertEqual(task["checks"], [self.base, self.base, self.extra, self.extra])
+        with self.store.lock(task["project"]) as fd:
+            self.assertFalse(run_checks(self.store, task, 5, fd))
+        records.feedback(self.store.home, "TASK", ["data"])
+        actual = task["verification"]["results"]
+        detail = records.task_summary(self.store, task)
+        self.assertEqual(detail["checks_by_group"]["data"]["executed_count"], 1)
+        self.assertEqual(detail["checks_by_group"]["data"]["seconds"], actual[0]["seconds"])
+        self.assertEqual(detail["checks_by_group"]["ui"]["executed_count"], 2)
+        self.assertEqual(detail["checks_by_group"]["ui"]["failed_count"], 1)
+        self.assertEqual(detail["unnecessary_review_check_seconds"], actual[2]["seconds"])
 
     def test_reuse_overrides_conflicting_labels_and_deduplication(self):
         rid = self.record()
