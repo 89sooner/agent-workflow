@@ -62,7 +62,14 @@ See [the communication policy](../../docs/AGENT_COMMUNICATION.ko.md).
 
 For change-based check selection, run `recommend-checks PROFILE --criterion TEXT --preview`.
 Use a model call only when the user requests AI-assisted selection or authorizes sending the displayed input.
-Read both selections and their differences. Select trusted group names when registering a task.
+Read both selections and their differences. Use `--record` when the user wants to connect recommendations to actual tasks.
+Register with `--recommendation ID` in the same ledger. An explicit group selection overrides the proposed groups.
+Record human labels with `recommendation feedback TASK`. Use `recommendation report` for measured outcomes.
+Inspect `routing_decision` before interpreting automatic second-provider selection. Never invent field observations.
+
+When the user asks to measure a resumption, start `pickup --measure` or `resume-time start` for their usual method.
+When the user confirms the correct first action, run `resume-time finish` in that worktree, then proceed.
+Record reported wrong picks or re-explanations. Do not infer confirmation just because a timer is running.
 Use `evaluate-checks REPORT --expected-group GROUP` for a retrospective with human labels.
 Recommendation evidence and execution evidence have separate purposes.
 See the [current manual](../../docs/USER_GUIDE.ko.md) and [worked cases](../../docs/USE_CASES.ko.md).

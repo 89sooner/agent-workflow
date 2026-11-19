@@ -84,7 +84,7 @@ aw recommend-checks limit-demo --criterion '20이 허용 범위에 있고 표시
   --provider codex --reviewer none > "$lab/single.json"
 ```
 
-정상 응답에서 `primary.reason`, `suggested_groups`, `checks`를 읽는다. `checks`에는 기본 검사가 포함된다. 응답으로 표시된 명령이 이 단계에서 실행되지는 않는다. 아직 등록하지 않은 **새** 작업에 사용하려면 사례 1의 `create`처럼 필요한 묶음 이름을 직접 지정한다. 기존 작업의 검사 계약을 바꾸려면 해당 작업에서 `check-add`를 사용하고 새로운 검증 증거를 확보한다.
+정상 응답에서 `primary.reason`, `suggested_groups`, `checks`를 읽는다. `checks`에는 기본 검사가 포함된다. 실제 명령은 작업 등록 뒤 `check`가 실행한다. 추천을 원장에 연결하려면 사례 3의 `--record`와 사례 4의 `--recommendation`을 사용한다. 단발 JSON 출력만 필요한 경우에는 이 예제처럼 `--record`를 생략한다. 기존 작업의 검사 계약을 바꾸려면 해당 작업에서 `check-add`를 사용하고 새로운 검증 증거를 확보한다.
 
 **변형.** 브랜치에서 이미 커밋한 수정까지 포함하려면 `--base main` 또는 비교할 로컬 커밋 SHA를 쓴다. 연결된 별도 작업 트리는 `--project /path/to/worktree`로 지정한다. 다른 저장소를 가리키면 명령이 실패한다. 선택 가능한 묶음이 없는 프로필은 공통 검사만 반환하며 모델을 호출하지 않는다.
 
@@ -95,13 +95,15 @@ aw recommend-checks limit-demo --criterion '20이 허용 범위에 있고 표시
 ```bash
 aw recommend-checks limit-demo --criterion '범위와 화면 표시가 일치한다' --preview
 aw recommend-checks limit-demo --criterion '범위와 화면 표시가 일치한다' \
-  --provider codex --reviewer claude > "$lab/dual.json"
+  --provider codex --reviewer claude --record > "$lab/dual.json"
 ```
 
-두 공급자는 같은 입력을 받으며 첫 응답을 두 번째 모델에 전달하지 않는다. 기본 `--reviewer auto`는 보이는 경로가 두 개 이상의 최상위 영역에 걸치거나 입력이 잘렸을 때 다른 공급자를 호출한다. 루트의 파일들은 한 영역으로 센다. `--reviewer none`은 한 모델만 쓰며, `--reviewer claude`처럼 지정하면 검토를 명시적으로 요청한다. 호출당 제한은 `--timeout`으로 조절한다.
+두 공급자는 같은 입력을 받으며 첫 응답을 두 번째 모델에 전달하지 않는다. 기본 `--reviewer auto`는 같은 원장·프로필 설정·영역·공급자 순서의 기존 평가를 먼저 살핀다. 이 실습을 처음 실행하면 표본이 부족해서 두 최상위 영역을 보고 검토자를 고른다. 루트의 파일들은 한 영역으로 센다. 이번 입력이 잘린 경우 항상 독립 검토를 요청한다. `--reviewer none`은 한 모델만 쓰며, `--reviewer claude`처럼 지정하면 검토를 명시적으로 요청한다. 호출당 제한은 `--timeout`으로 조절한다.
 
 | 결과 필드 | 판단 예시 |
 |---|---|
+| `routing_decision` | 사용할 공급자와 선택 근거가 나온다. `--preview`로 실제 호출 전에 볼 수 있다. |
+| `recommendation_id` | `--record`를 붙여 완료한 추천의 원장 내 ID다. 다음 사례에 재사용한다. |
 | `comparison.agreed` | 두 모델이 함께 선택했다. 공통 검사와 중복되는지 확인한다. |
 | `primary_only`, `reviewer_only` | 한쪽만 선택했다. 화면 변경이 있는지 diff와 완료 조건을 대조한다. |
 | `suggested_groups` | 두 선택의 합집합이다. 불필요하면 작업 등록 시 해당 묶음을 생략한다. |
@@ -125,22 +127,43 @@ aw evaluate-checks "$lab/dual.json" --expected-group limits --expected-group vie
 agent-workflow evaluate-checks docs/examples/limit-demo-recommendation.json --expected-group limits --expected-group view
 ```
 
-정답 목록에는 그 추천 시점의 프로필에 있던 선택 묶음 이름을 쓴다. 필요한 검사가 등록 목록 자체에 없다면 프로필 보완 항목으로 따로 남긴다.
+### 추천을 다음 작업에 연결해 실측하기
 
-여러 작업을 비교할 때는 프로필·입력 지문과 함께 각 작업의 `missed_count`, `extra_count`를 기록한다. 같은 작업에서 누락을 줄인 횟수와 불필요한 묶음을 늘린 횟수를 나란히 본다. 이 수치는 사람의 기준에 대한 **선택 정확도**다. 실제 코드 결함 발견 여부는 이후 검사·리뷰 기록에서 따로 확인한다.
+사례 3에서 저장한 추천 ID를 읽는다. `--home`은 사례 1의 `aw` 함수가 가리키는 원장으로 유지하고, 동일한 저장소·프로필·완료 조건을 사용한다. 기존 추천 JSON만으로는 새 원장의 추천 ID를 만들 수 없다.
 
-### 내 작업에서 효과를 재는 간단한 기록표
+```bash
+rec_id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["recommendation_id"])' "$lab/dual.json")
+aw recommendation show "$rec_id"
+aw create LIMIT-REVIEW --profile limit-demo --recommendation "$rec_id" --no-isolate \
+  --goal '변경된 설정과 화면을 함께 검사' --criterion '범위와 화면 표시가 일치한다'
+aw check LIMIT-REVIEW
+aw recommendation feedback LIMIT-REVIEW --expected-group limits --expected-group view
+aw recommendation report --profile limit-demo
+```
 
-**재개 시간.** 같은 프로젝트에서 규모가 비슷한 다음 작업 재개 6회를 대상으로, 평소 방식과 `pickup`을 번갈아 3회씩 사용한다. 타이머는 새 세션을 연 순간에 시작하고, 올바른 브랜치에서 이전 작업에 필요한 첫 수정이나 검사를 시작한 순간에 멈춘다. `pickup` 자체의 실행 시간은 이 구간에 포함한다. 측정 때문에 같은 작업을 두 번 재개하면 두 번째 시도는 기억의 영향을 받는다.
+`--recommendation`만 전달하면 두 모델이 제안한 합집합이 작업에 저장된다. 제안 중 일부만 필요하다면 `create`에 `--check-group view`처럼 원하는 이름을 지정한다. 공통 검사만 채택할 때는 `--base-checks-only`를 붙인다. 추천 기록과 별도로 추가한 개별 `--check`는 작업의 검사 목록에 포함된다. 미커밋 변경이 있는 원본 작업 트리에서는 `--no-isolate`로 같은 파일을 검증한다. 작업을 등록하기 전에 완료 조건, 보이는 diff, 프로필이 바뀌어 지문이 어긋났으면 새 추천을 받는다.
 
-| 작업 | 재개 방식 | 첫 수정·검사까지 걸린 시간 | 맥락을 다시 설명한 횟수 |
-|---|---|---|---|
-| 예시 A | 평소 방식 | 4분 10초 | 2회 |
-| 예시 B | pickup | 2분 40초 | 0회 |
+프로젝트를 `connect`로 연 경우에는 같은 등록 원장에서 추천을 기록한 뒤 `start`에 연결할 수 있다. 예를 들어 아래는 LIMIT-REVIEW와 같은 추천으로 자동 ID 작업을 **별도로 하나 더** 등록하는 예다. 실제 실험에서는 필요한 작업만 등록한다.
 
-표의 값은 가상 예시다. 세 번씩 모으면 각 방식의 시간 중앙값과 재설명 횟수를 비교한다. `pickup`이 빨랐어도 잘못된 다음 작업을 시작했다면 해당 행에 표시한다.
+```bash
+aw connect . --ledger "$lab/ledger" --registration-home "$lab/ledger" --profile limit-demo \
+  --criterion '범위와 화면 표시가 일치한다'
+aw start '표시값 확인' --project . --recommendation "$rec_id" --no-isolate --check-group view
+```
 
-**두 번째 모델의 가치.** 변경 5건에서 모델을 보기 전에 필요한 선택 묶음을 적는다. 매번 독립 검토를 명시한 추천을 한 번 실행하고 그 JSON을 `evaluate-checks`로 평가한다. 한 파일에 첫 모델과 두 모델 합산 결과가 모두 있으므로 비교를 위한 단일 모델 재호출은 필요 없다. 작업마다 **첫 모델 누락 수 − 합산 누락 수**와 **합산 과잉 수 − 첫 모델 과잉 수**를 기록한다. 불완전한 호출은 따로 센다. 5건 동안 추가로 찾은 필수 묶음이 있었는지, 그 대신 불필요한 검사를 몇 개 더 골랐는지 보고 두 번째 호출을 사용할 작업 유형을 정한다. 이 정도 표본은 개인 설정을 고르기 위한 첫 관찰이다.
+**관리 화면 사용.** 새 작업 등록에서 해당 프로젝트 설정을 고르고 **저장한 추천 ID → 추천 묶음 불러오기**를 누른다. 제안된 묶음을 확인하고 체크 상태를 바꿀 수 있다. 추천 때의 완료 조건을 같은 순서로 입력한다. 미커밋 변경을 검사한다면 별도 작업 폴더 옵션을 해제한다. 등록·검사 후 작업 상세의 **검사 추천과 실제 작업 결과**에서 모델별 추천, 채택 여부, 묶음별 실제 검사 건수와 초를 읽는다. **실제로 필요했던 검사 묶음**을 체크하고 **필요 묶음 저장**을 누른다. 아무 항목도 체크하지 않고 저장하면 기본 검사로 충분했다는 판정이다. 읽기 전용 화면에서는 기존 판정만 볼 수 있다.
+
+**보고서 읽기.** `tasks[].expected_groups=null`은 아직 평가하지 않은 작업이고 빈 배열은 사람이 공통 검사만 필요하다고 판정한 결과다. 검사 성공·실패가 필요성의 정답을 만들지는 않는다. `quality.rescued_groups`는 2차 모델이 추가한 필수 묶음, `quality.extra_groups`는 불필요한 추가 묶음이다. `quality.unnecessary_review_check_seconds`에는 실제로 채택·실행한 과잉 묶음 중 다른 검사와 겹치지 않은 명령의 관측 시간만 들어간다. `null`은 필요한 시간 기록이 없다는 뜻이다. `median_review_ms`로 두 번째 모델을 기다린 시간도 함께 비교한다. 해당 프로필에 필요한 묶음 자체가 없으면 프로필 보완 항목으로 남긴다.
+
+### 실측이 다음 자동 호출에 반영되는 조건
+
+비슷한 실제 업무에서 두 공급자를 명시하고 `--record`로 기록·채택·평가한다. 다음 자동 추천의 미리보기에서 `routing_decision.evidence.labeled_inputs`를 확인한다. 원장·프로필 이름과 지문·최상위 영역 집합·공급자 순서가 같은 경우에만 비교한다. 입력 지문이 서로 다른 사람 평가 표본 중 최근 최대 10개를 사용하고, 같은 입력의 재시도나 추천 재사용으로 건수가 부풀지 않는다. 정답이 충돌하거나 입력이 잘린 비교는 제외한다.
+
+- 5건 미만이면 두 영역 이상에서 두 모델을 사용한다. 이번 입력이 잘리면 표본 수와 관계없이 두 모델을 사용한다.
+- 예를 들어 다중 영역 5건 모두에서 첫 모델이 필요한 검사를 전부 선택했다면 다음 유사 변경은 `measured_no_gain`으로 한 모델을 쓴다.
+- 반대로 단일 영역 5건 중 3건에서 2차 검토가 누락을 구제했고, 추가 필수 묶음 수가 과잉 묶음 수보다 많으면 `measured_rescue`로 독립 검토를 추가한다. 다른 경우에는 변경 영역 기준을 유지한다.
+
+자동으로 한 모델만 부르는 작업은 이중 검토의 효과를 관측할 수 없다. 필요한 업무 유형에서 검토자를 가끔 직접 지정해 비교 표본을 갱신한다. 초기 표본은 개인의 기준을 조정하는 용도로 쓰고 실제 결함 발견·전체 생산성 평가는 별도로 확인한다.
 
 ## 5. Claude에서 마감하고 다음 Codex 세션에서 재개하기
 
@@ -156,6 +179,38 @@ agent-workflow pickup
 
 등록 작업이 있는 경우 `registered_tasks[].evidence`를 읽는다. `current`는 현재 코드에 유효한 통과 기록, `failed`는 현재 입력에서 실패, `stale`은 입력 변경, `missing`은 증거 없음, `unavailable`은 비교 불가다. `rerun_checks=null`이면 이유를 먼저 읽는다. 가벼운 메모의 변경 경로 비교는 파일 내용을 보증하지 않는다. **등록된 작업의 검사 증거**는 내용 지문과 참조·보호 경로까지 확인한다. 완료된 작업 이후 코드가 바뀌었으면 새 작업으로 검증한다.
 
+### 재개 시간을 별도 기록표 없이 비교하기
+
+같은 작업 트리·브랜치의 비슷한 재개 6회를 대상으로 평소 방식과 `pickup` 방식을 3회씩 번갈아 사용한다. 비교 방식 한 가지를 선택해 시작하고 **올바른 첫 수정·검사에 착수할 때** 종료한다. 아래 블록은 두 번의 서로 다른 세션을 보여준다. 명령 사이에서 실제 맥락 확인과 작업 선택을 한다.
+
+```bash
+# 첫 번째 세션: 평소 방식. 원장 메모를 보여주지 않고 시계만 시작한다.
+agent-workflow resume-time start
+# 처음 올바른 작업을 시작할 때. 맥락 재설명이 1번 있었다고 가정한다.
+agent-workflow resume-time finish --reexplanations 1
+```
+
+```bash
+# 두 번째 세션: 인계 내용과 측정 ID를 함께 받는다.
+agent-workflow pickup --measure
+# 표시된 인계를 읽고 첫 수정·검사를 시작할 때 호출한다.
+agent-workflow resume-time finish
+agent-workflow resume-time report
+```
+
+처음 선택한 작업이 틀렸다면 `finish`에 `--wrong-pick`을 붙인다. 같은 작업 트리에서 브랜치를 바로잡았다면 처음 반환된 측정 ID를 명시해 `resume-time finish 측정ID --wrong-pick`으로 종료한다. 이 표식은 완료된 표본을 유지하면서 재선택 횟수를 더한다. 중간에 회의로 자리를 비웠거나 측정 방식을 바꾸면 `resume-time abandon 측정ID`로 해당 시행을 종료한다. 중단 표본은 중앙값에서 빠진다. 같은 브랜치에 진행 중인 시계는 명령을 다시 실행해도 원래 시작 시각을 유지한다. 같은 측정 동안 표시할 인계 근거가 바뀌면 기존 시계를 먼저 마무리한다.
+
+마감을 위한 **문구 작성**이 늘었는지도 측정하려면, 세션을 닫기로 결정한 순간부터 다음처럼 사용한다.
+
+```bash
+agent-workflow resume-time start-close
+# 여기서 요약·다음 행동을 작성한 뒤 마감한다.
+agent-workflow close-session --summary '표시값 일치 검사 통과' --next '좁은 화면에서 읽기 확인'
+agent-workflow resume-time report
+```
+
+보고서의 `manual`과 `pickup`에서 `finished`, `median_elapsed_ms`, `reexplanations`, `wrong_picks`를 비교한다. 예컨대 평소 100초, pickup 50초라면 `median_saved_ms=50000`이다. `close.median_elapsed_ms`는 초안 타이머를 켠 경우에만 나오며 `close.median_tool_ms`는 새 메모의 Git 조회와 Markdown 쓰기에 걸린 시간이다. 둘은 밀리초 단위다. 평소 방식에서도 마감 메모를 쓰던 사람이라면 실제로 더 들어간 준비 비용만 별도로 고려한다. 반복해 기억한 같은 작업·다른 규모의 작업·장시간 방치한 시계는 비교를 왜곡할 수 있다.
+
 ## 6. Katakuri 백테스트나 agent-workflow 화면을 바꿨을 때
 
 `agent-workflow` 소스 루트에서 다음 프로필 중 하나를 등록한다. `profile save`는 같은 이름의 저장 프로필을 갱신하므로 개인 프로필을 유지하려면 새 이름을 사용한다.
@@ -170,6 +225,8 @@ agent-workflow profile checks aw-dev --check-group dashboard
 **Katakuri.** 기본 명령은 합성 입력으로 백테스트 드라이버를 검사한다. `viewer`는 결과의 HTML·표시 데이터 투영을 검사한다. 외부 시세 파일이 필요한 두 시험은 해당 명령의 대상에서 빠진다. 이 프로필의 작업 범위는 회귀 테스트 두 파일이다. 다른 PC에서는 등록 전에 JSON의 프로젝트 경로를 맞춘다.
 
 **관제실.** 대시보드에서 새 작업을 등록할 때 `aw-dev`와 `dashboard`를 선택하면 공통 검사에 HTTP 및 브라우저 검사가 추가된다. 로컬 포트 사용과 Playwright Chromium이 필요하다. 에이전트의 세션 마감만 수정했다면 `handoff` 묶음을 선택할 수 있다. 독립 작업 트리는 커밋된 HEAD에서 시작한다. 작업 중인 미커밋 코드를 검증하려면 `create --no-isolate`로 현재 트리를 명시한다.
+
+GitHub의 `Workflow verification`을 확인할 때는 Chromium 설치 단계와 대시보드 수용 검사 단계를 각각 확인한다. 브라우저 작업은 Playwright 1.51.1이 지원하는 Ubuntu 24.04 러너를 사용한다. 실행 옵션을 고치고 있다면 로컬 새로고침이나 주기적인 상태 조회 뒤에도 잘못된 값의 오류가 표시되는지 확인한다.
 
 ## 7. 구현과 독립 코드 리뷰를 실제로 맡기기
 

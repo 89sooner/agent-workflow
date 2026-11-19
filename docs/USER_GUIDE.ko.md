@@ -53,6 +53,8 @@ agent-workflow --home "$trial_state" release-status DEMO-RELEASE
 | 상태 홈 또는 원장 | `--home PATH` → `AGENT_WORKFLOW_HOME` → `~/.local/state/agent-workflow` 순으로 정한다. 전역 옵션인 `--home`은 하위 명령 **앞**에 둔다. 홈이 다르면 같은 작업 ID도 다른 작업이다. |
 | 작업 ID | 목표·완료 조건·검사·리뷰를 묶는 원장의 ID. `create` 때 지정하거나 `start`로 생성한다. |
 | 실행 ID | `queue`가 반환하는 `id`. `jobs`에서 찾고 `stop`, `cancel`, `resume`에 전달한다. 작업 하나에 재시도 이력이 여러 개일 수 있다. |
+| 추천 ID | `recommend-checks --record`가 완료된 추천에 발급하는 `REC-…` 값. 추천 원장 안에서 작업에 연결한다. |
+| 측정 ID | `pickup --measure` 또는 `resume-time start/start-close`가 생성하는 `tm-…` 값. 같은 상태 홈에서 확인·중단한다. |
 | 프로젝트 프로필 | 상태 홈에 저장된 신뢰할 수 있는 설정. 저장소의 JSON은 `profile save`로 등록한 뒤 사용한다. |
 | 호스트 세션 ID | Claude Code·Codex·OpenCode가 생성한다. 세션 메타데이터 조회와 원래 도구로 복귀할 때 사용한다. |
 
@@ -72,6 +74,16 @@ Git 저장소 또는 하위 디렉터리에서 실행한다. 다른 위치에 �
 - **외부 일지 사본**은 `close-session`에 `--worklog-dir`과 기존 폴더를 지정하면 된다. 대상 파일시스템은 하드 링크를 지원해야 한다. 사용자 편집과 충돌하면 기존 사본을 보존한다. 내보내기 실패 시 오류에 표시된 로컬 일지가 복구 지점이다.
 - **재개**는 마지막 메모의 존재 여부 `found`, 현재 Git 상태, 기존 `agent-context` 인계 색인·요약·할 일 문서, 최근 등록 작업을 보여준다. 메모의 경로 상태 비교는 이름과 Git 상태 코드를 사용한다. 내용 차이는 `git diff`로 읽는다. 이에 비해 등록 작업의 검사 증거는 파일 내용과 참조 문서도 비교한다. [검증 결과 해석](#execution)
 - 이 경량 메모에는 직접 입력한 요약과 다음 행동이 들어간다. 호스트의 전체 대화 내보내기나 기존 프로젝트의 인계 패키지가 필요한 경우 해당 도구의 절차도 사용한다.
+
+### 재개와 마감의 소요 시간
+
+평소 방식으로 재개할 때는 `resume-time start`, 메모와 검사 근거를 읽을 때는 `pickup --measure`를 맨 먼저 실행한다. 후자는 조회가 시작된 시각과 표시한 작업 트리·브랜치, HEAD, 변경 상태 지문, 메모 번호 및 등록 작업 식별자를 연결한다. 같은 인계 근거로 반복 실행하면 진행 중인 측정 ID와 원래 시작 시각을 반환한다. 일반 `pickup`은 측정을 시작하지 않는다.
+
+올바른 첫 수정이나 검사를 **시작할 때** `resume-time finish`를 실행하면 현재 작업 트리·브랜치에서 진행 중인 재개 시계를 종료한다. 같은 결과를 다시 요청하려면 측정 ID를 붙인다. 먼저 다른 작업을 선택했다면 `--wrong-pick`, 맥락을 다시 설명한 횟수는 `--reexplanations N`으로 기록한다. 같은 작업 트리에서 다른 브랜치로 바로잡았다면 시작 때 받은 ID를 명시해 `resume-time finish 측정ID --wrong-pick`을 실행한다. 중간에 자리를 비우거나 다른 작업으로 넘어가면 `resume-time abandon 측정ID`로 제외한다. 실행을 다시 열어도 진행 중인 ID는 `resume-time report`의 `active`에서 확인할 수 있다.
+
+새 마감 메모에는 Git 조회부터 두 Markdown 파일을 쓰기까지의 도구 시간 `close_tool_ms`가 자동으로 남는다. 메모 문구 작성에 든 시간도 알고 싶으면 **내용을 작성하기 전에** `resume-time start-close`를 실행한다. 다음 `close-session`을 시작하면 초안 작성 구간을 끝내고 메모 저장 때 확정한다. 도구 시간은 JSON 게시·외부 폴더 내보내기를 제외하며, 이미 만든 메모의 동일 저장을 반복해도 도구 표본을 늘리지 않는다. 아직 작성할 내용이 없는 초안을 취소할 때도 `abandon`을 쓸 수 있다.
+
+`resume-time report`는 현재 작업 트리·브랜치(분리 HEAD는 해당 SHA)의 방식별 완료·진행·중단 건수, 완료 표본의 중앙값(ms), 잘못된 선택·재설명 합계를 반환한다. `median_saved_ms`는 평소 방식 중앙값에서 pickup 중앙값을 뺀 차이다. 두 방식의 완료 표본이 있어야 계산된다. `close.median_elapsed_ms`는 선택적으로 잰 초안 작성, `close.median_tool_ms`는 도구 처리 시간이다. 재개 시간은 호출부터 사용자의 확인까지의 벽시계 시간이며 첫 편집을 자동 감지한 값이나 마감 비용을 차감한 순절감이 아니다. [측정 실습](USE_CASES.ko.md)
 
 `patterns`는 로컬 CLI 입력 이력의 월별·주제별 빈도, 세션 수, 명령 조합을 집계한다. 기본 입력은 홈의 Codex·Claude 이력과 Claude 추가 프로필이며 설정된 별도 CLI 홈도 조사한다. `--source`를 지정하면 해당 `history.jsonl`들로 범위를 지정한다. 원문과 임의의 명령 인자는 출력하지 않는다.
 
@@ -103,25 +115,42 @@ agent-workflow profile checks aw-dev --check-group handoff
 작업에 필요한 검사를 사람이 고르기 어려울 때 `recommend-checks`가 Git 변경과 완료 조건을 비교한다. 모델은 프로필에 있는 선택 묶음의 이름과 근거를 반환한다. 기본 검사 수와 설명, 묶음 설명을 모델에 제공하고, 실행할 명령은 로컬 프로필에서 가져온다. 프로필에 `base_check_description`과 `check_group_descriptions`를 작성하면 각 검사가 어떤 동작을 다루는지 이름만으로 추측하는 일을 줄일 수 있다.
 
 1. **전송할 입력 확인.** `--preview`는 로컬에서 입력과 사용할 공급자를 출력한다. 기본 대상은 프로필 프로젝트의 HEAD 기준 변경이며, 스테이징 전후의 추적 파일 diff와 추적되지 않은 파일의 경로를 포함한다. 다른 기준 커밋은 `--base REF`, 같은 Git 저장소의 별도 worktree는 `--project PATH`로 지정한다. 알려진 비밀 경로·패턴과 프로필 금지 경로를 제외하지만 새 형식의 민감 정보나 완료 조건에 직접 적은 개인정보가 있을 수 있다. 미리보기의 `input.change`와 `change_summary`에서 패치, 제외된 경로 수, 잘림 여부를 확인한다.
-2. **추천 방식 선택.** 기본 제공자는 `codex`다. `--reviewer auto`는 보이는 변경이 둘 이상의 최상위 영역에 걸치거나 입력이 잘리면 다른 공급자를 호출한다. 루트 파일들은 한 영역으로 계산한다. `--reviewer none`은 한 모델만 사용한다. 검토자에 다른 공급자를 직접 지정하면 두 모델이 같은 입력을 독립적으로 선택한다. 선택 묶음이 없는 프로필은 모델 호출을 건너뛴다. `--timeout`은 모델 호출당 초 단위 한도이며 기본 90초, 허용 범위는 1~600초다.
-3. **결과 검토.** `primary`와 `review`에 각 모델의 설명, `comparison`에 일치한 이름 및 한쪽만 고른 이름이 나온다. `suggested_groups`는 합집합이다. 출력의 `checks`는 추천대로 선택했을 때 실행할 명령 목록이다. 필수 조건을 충족하는 이름만 다음 등록 명령에 `--check-group`으로 넣는다. 추천 자체는 원장 등록이나 검사를 실행하지 않는다.
+2. **추천 방식 선택.** 기본 제공자는 `codex`다. `--reviewer auto`가 반환하는 `routing_decision`에서 선택된 검토자, 판단 근거(`basis`), 표본과 추가 호출 지연시간을 확인한다. `--reviewer none`은 한 모델만 호출하고 다른 공급자를 지정하면 같은 입력을 독립적으로 검토한다. 선택 묶음이 없는 프로필은 기본 검사만 반환한다.
+3. **등록을 위한 기록.** `--record`를 붙이면 완전한 추천 결과에 `recommendation_id`가 추가된다. `--preview`는 입력과 예상 호출을 보여준다. 첫 호출 실패는 종료 코드 2, 두 번째만 실패하면 3과 `status=review_incomplete`다. 불완전한 결과는 등록용 추천 ID를 발급하지 않는다.
+4. **작업에 연결.** 추천과 같은 원장의 등록 프로필, 같은 원본 작업 트리의 변경과 같은 완료 조건으로 연결한다. 명령은 프로필에서 확정한다. 추천 ID만 전달하면 제안한 묶음의 합집합을 채택하고, `--check-group`을 반복하면 선택한 묶음으로 바꾸며, `--base-checks-only`는 공통 검사만 채택한다. `--check`로 따로 등록한 검사는 그대로 추가된다.
 
 ```bash
-agent-workflow recommend-checks aw-dev --criterion '재개 시 바뀐 코드의 검사 결과를 표시한다.' --preview
-report_dir=$(mktemp -d)
-agent-workflow recommend-checks aw-dev --criterion '재개 시 바뀐 코드의 검사 결과를 표시한다.' \
-  --provider codex --reviewer claude > "$report_dir/handoff.json"
+criterion='재개 시 바뀐 코드의 검사 결과를 표시한다.'
+agent-workflow recommend-checks aw-dev --criterion "$criterion" --preview
+rec_id=$(agent-workflow recommend-checks aw-dev --criterion "$criterion" --record | python3 -c 'import json,sys; print(json.load(sys.stdin)["recommendation_id"])')
+agent-workflow recommendation show "$rec_id"
+agent-workflow create HANDOFF-REC-01 --profile aw-dev --recommendation "$rec_id" --no-isolate \
+  --goal '재개 화면 수정' --criterion "$criterion"
+agent-workflow check HANDOFF-REC-01
 ```
 
-완료 조건이 여럿이면 `--criterion`을 반복한다. 실제 추천은 선택한 공급자의 CLI 로그인과 사용량을 이용한다. 첫 모델이 실패하면 CLI 오류와 종료 코드 2를 반환한다. 두 번째 호출만 실패하면 종료 코드 3과 `status=review_incomplete`, 첫 모델의 결과를 반환한다. 자동화에서는 종료 코드와 상태를 모두 읽는다. 두 번째 결과가 꼭 필요하면 해당 공급자 오류를 해결하고 다시 실행한다.
+`create --profile`은 추천이 바라본 원본 작업 트리의 입력을 다시 확인한다. 격리 폴더는 커밋된 HEAD에서 만들어지므로 미커밋 변경에 대한 추천을 연결할 때는 위와 같이 `--no-isolate`를 사용한다. `start`는 현재 연결의 등록 원장에 저장된 추천이어야 하며 프로필과 원본 작업 트리가 일치해야 한다. 프로필이나 기준 ref·완료 조건·추천에 보이는 Git 변경이 달라지면 현재 상태로 다시 추천받는다. 입력 지문은 모델이 실제로 본 제한된 자료를 기준으로 하므로 미추적 파일 본문과 생략된 패치까지 보증하지 않는다.
 
-**추천 품질 확인.** 개발자가 이번 변경에 실제로 필요하다고 판단한 **선택 묶음**을 완료된 추천 JSON과 대조한다. 예를 들어 인계 테스트만 추가하면 충분했다고 판단했다면 아래처럼 실행한다.
+**필요 여부와 실측.** 다음은 인계 묶음만 필요했다고 담당자가 판정한 예다. 가능한 경우 예상 묶음을 추천 보기 전에 정해 두고, 업무를 확인한 뒤 피드백을 남긴다.
 
 ```bash
-agent-workflow evaluate-checks "$report_dir/handoff.json" --expected-group handoff
+agent-workflow recommendation feedback HANDOFF-REC-01 --expected-group handoff
+agent-workflow recommendation report --profile aw-dev
 ```
 
-필요한 묶음이 여러 개이면 `--expected-group`을 반복한다. 기본 검사만으로 충분했다면 `--expected-none`을 사용한다. `primary`와 `combined`에서 빠뜨린 항목(`missed`), 불필요한 항목(`extra`), 정확히 일치했는지(`exact_match`)를 읽는다. 이 비교는 로컬에서 수행한다. 실제 코드의 통과 여부는 등록된 검사를 실행해 판정한다. 구현 완료 후의 독립 코드 리뷰는 별도 단계다. [검사 선택과 누락 검토 사례](USE_CASES.ko.md)
+필요한 묶음이 여러 개면 `--expected-group`을 반복하고, 공통 검사만 필요했으면 `--expected-none`을 쓴다. 피드백은 작업당 한 건이며 수정할 수 있다. `report`는 모델별 추천, 채택된 묶음, 사람의 판정, 최근 검증 영수증에서 본 묶음별 실제 명령 수·성공·실패·시간을 연결한다. 공유 명령은 여러 묶음에 표시될 수 있다. 전체 한계 비용 지표는 공통·공유·개별 검사와 겹친 명령을 제외한다. 측정이 없는 시간은 `null`이다. 채택 여부나 검사 성공을 정답으로 추정하지 않는다. 추천 기록에는 후보 이름·선택·입력 지문·원본 작업 트리·검토 지연 등이 남고 diff 원문은 저장하지 않는다.
+
+**자동 호출 규칙.** 같은 원장의 프로필 이름·설정 지문, 같은 최상위 변경 영역 집합, 같은 1차·2차 공급자 순서에서 두 모델이 완료하고 사람이 평가한 서로 다른 입력 중 최근 10개까지 본다. 같은 입력을 반복하거나 여러 작업에서 재사용해도 한 표본이며, 정답이 충돌한 입력과 잘린 입력은 제외한다.
+
+| `routing_decision.basis` | 조건과 결과 |
+|---|---|
+| `truncated` | 이번 입력이 잘려서 다른 공급자도 호출한다. |
+| `insufficient_samples` | 비교 가능한 입력 5개 미만. 둘 이상의 최상위 영역이 바뀌면 두 모델, 그 외에는 한 모델을 사용한다. 루트 파일은 한 영역이다. |
+| `measured_rescue` | 한 영역에서 표본의 절반 이상이 2차 추천으로 누락을 구제했고, 추가한 필수 묶음 총수가 과잉 묶음보다 많아 두 모델을 호출한다. |
+| `measured_no_gain` | 여러 영역에서 모든 표본의 첫 모델이 필요한 묶음을 전부 선택해 한 모델을 호출한다. |
+| `default_areas` | 5개 이상이지만 위 전환 조건을 채우지 않아 변경 영역 개수 기준을 유지한다. |
+
+`evidence`의 구제·과잉·잔여 누락 수와 측정 가능한 `median_review_ms`를 함께 본다. 모델 지연시간은 관찰 지표이며 현재 전환 기준은 검사 선택 결과다. 추천을 기록하지 않았거나 사람이 판정하지 않은 작업은 판단 표본이 되지 않는다. 단일 모델을 선택한 뒤에도 유사 변경에서 가끔 `--reviewer claude`처럼 명시적으로 두 모델을 비교해 쏠림을 점검할 수 있다. 기존 추천 JSON은 파일 기반 `evaluate-checks 파일 --expected-group 이름` 또는 `--expected-none`으로 계속 평가한다. 파일 평가는 원장의 판단 표본을 생성하지 않는다.
 
 ### 작업 공간과 등록 방식
 
@@ -261,7 +290,7 @@ GitHub 경로에서는 검증된 변경을 커밋하고 원격 작업 브랜치�
 
 | 화면 | 할 수 있는 일 |
 |---|---|
-| `/` 관리 | 현재 원장과 프로젝트 선택, 작업 생성, 검사 묶음 선택, 실행 옵션, 대기열·보류·로그·릴리스 결과 확인 |
+| `/` 관리 | 현재 원장과 프로젝트 선택, 추천 ID 불러오기와 채택 묶음 선택, 작업 등록, 연결된 추천의 실제 검사 결과 및 사람 피드백 저장, 실행 옵션·대기열·릴리스 조회 |
 | `/overview` 통합 | 프로젝트별 관리 작업과 네이티브 세션을 함께 찾고 연결 상태·진단·확인 요청을 탐색 |
 | `/mission` 실행 관제실 | 원장·프로젝트·작업·실행을 선택해 에이전트 활동, 단계 그래프, 이벤트, 상세 근거, 3D·목록과 과거 실행 재생 확인 |
 | `/sessions` 일상 세션 | 프로젝트·공급자·상태 필터, 부모/하위 세션, 마지막 수신 시각, 결과 근거, 북마크·기간별 통계 확인 |
@@ -291,7 +320,9 @@ GitHub 경로에서는 검증된 변경을 커밋하고 원격 작업 브랜치�
 
 `execution-config ID --file 정책.json`으로 열린 작업의 역할별 모델, 호출·시간 제한, 오류 복구 정책을 갱신할 수 있다. 이전 사용량이 이어진다. `--repairs`는 결함 수정의 추가 시도, `--recoveries`는 시간 초과·일시 오류 등에 적용할 복구 한도다. 공급자 요금은 해당 CLI가 보고한 범위에서 확인한다. 구현·리뷰에는 등록된 에이전트 통신 정책이 적용된다. [에이전트 통신 정책](AGENT_COMMUNICATION.ko.md)
 
-**저장과 이전.** 상태 홈의 `state.sqlite3`에는 작업·큐·이벤트 등 관리 상태가 있고, `tasks/ID/`에는 요청·응답·검사별 로그와 인계 파일, `jobs/`에는 큐 로그가 있다. `session-notes/`는 경량 마감 메모, `connections.json`, `opencode.json`은 관측 연결, `native-observation.sqlite3`는 일상 세션 관측에 사용한다. 로그에는 소스·프롬프트·명령 출력이 포함될 수 있다. 서버가 가동 중인 DB는 SQLite 온라인 백업으로 보존하고 상태 홈의 관련 파일도 함께 보관한다. 다른 컴퓨터로 이동하면 절대 경로, Git worktree 위치, 실행 파일, 로그인과 환경변수를 재확인한다.
+**브라우저 CI 확인.** 이 저장소의 GitHub Actions `Workflow verification`은 브라우저 작업에서 Ubuntu 24.04와 Playwright 1.51.1을 사용한다. CI 설치 오류가 나면 `Install browser test tools`의 OS·Chromium 조합을 확인한다. 설치가 통과한 뒤에는 `Existing dashboard and controller-backed observatory acceptance` 단계가 실제로 끝났는지도 확인한다. Python 컨트롤러 검사와 브라우저 작업은 별도 결과를 갖는다.
+
+**저장과 이전.** 상태 홈의 `state.sqlite3`에는 작업·큐·이벤트 등 관리 상태가 있고, `tasks/ID/`에는 요청·응답·검사별 로그와 인계 파일, `jobs/`에는 큐 로그가 있다. 원장의 추천·피드백은 해당 작업 원장과 함께 보관한다. `session-notes/`는 경량 마감 메모와 재개 시간 DB(`measurements.sqlite3`), `connections.json`, `opencode.json`은 관측 연결, `native-observation.sqlite3`는 일상 세션 관측에 사용한다. 로그에는 소스·프롬프트·명령 출력이 포함될 수 있다. 서버가 가동 중인 DB는 SQLite 온라인 백업으로 보존하고 상태 홈의 관련 파일도 함께 보관한다. 다른 컴퓨터로 이동하면 절대 경로, Git worktree 위치, 실행 파일, 로그인과 환경변수를 재확인한다.
 
 **업데이트.** 설치 방식을 확인한 뒤 소스 링크 또는 패키지를 갱신한다. 서버는 기존 Python 코드를 메모리에 유지할 수 있으므로 실제 반영 전에 대기·실행 중인 jobs, 활성 배치, 직접 실행 중인 프로세스를 확인한다. 운영 변경 시 해당 원장·모드·URL에서 상태와 관제 화면을 검증한다. `cleanup ID --remove-worktree`는 완료·깨끗함·원본 HEAD에 통합됐음을 확인한 도구 소유 작업 폴더만 제거한다. [원장 백업, 갱신과 복구](OPERATIONS.ko.md)
 
@@ -299,14 +330,14 @@ GitHub 경로에서는 검증된 변경을 커밋하고 원격 작업 브랜치�
 
 ## 9. CLI 찾아보기
 
-공통 형식은 `agent-workflow [--home PATH] 명령 …`이다. 명령의 필수 옵션·허용값은 설치본에서 `--help`로 확인한다.
+현재 CLI의 최상위 명령 51개를 용도별로 묶었다. 공통 형식은 `agent-workflow [--home PATH] 명령 …`이다. 명령의 필수 옵션·허용값은 설치본에서 `--help`로 확인한다.
 
 | 목적 | 명령과 용도 |
 |---|---|
 | 설치·시범 | `doctor` 실행 파일·버전 확인, `demo-setup` 로컬 시범 원격과 작업 준비 |
-| 경량 세션 | `close-session` 마감, `pickup` 인계·검증 결과 조회, `patterns` 입력 이력 집계 |
+| 경량 세션 | `close-session` 마감, `pickup` 인계·검증 결과 조회, `resume-time start/start-close/finish/abandon/report` 재개·마감 시간 측정, `patterns` 입력 이력 집계 |
 | 작업·연결 | `create` 명시 ID 등록, `connect` 프로젝트·원장·프로필 연결, `start` 자동 ID 등록, `list` 작업 목록, `show` 작업과 현재 증거 조회 |
-| 검사 계획 | `profile save/show/list/checks` 설정 저장·조회·검사 미리보기, `recommend-checks` 변경 기반 검사 묶음 추천, `evaluate-checks` 저장된 추천 품질 확인, `check-add` 열린 작업에 검사 추가 |
+| 검사 계획 | `profile save/show/list/checks` 설정 저장·조회·검사 미리보기, `recommend-checks` 변경 기반 검사 묶음 추천, `recommendation show/feedback/report` 추천·작업 연결 및 실측 집계, `evaluate-checks` 저장된 추천 품질 확인, `check-add` 열린 작업에 검사 추가 |
 | 준비·담당 | `prepare` 환경 준비, `assign` 구현·검토자 변경, `execution-config` 모델·한도 설정 |
 | 대화형 수행 | `brief` 역할별 입력, `checkpoint` 진행 기록·다음 행동, `check` 검사 실행, `result-schema` 리뷰 스키마, `review-import` 독립 검토 결과 등록, `finish` 로컬 완료 |
 | 자동 수행·인계 | `run`·`pipeline` 유한 자동 실행, `handoff` 인계 파일, `finalize` 작업일지와 설정된 내보내기, `cleanup` 환경 정리 |

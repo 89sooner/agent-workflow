@@ -98,7 +98,11 @@ agent-workflow evaluate-checks "$report_dir/check-report.json" --expected-group 
 ```
 
 Use a private output path outside the working tree. `--reviewer none` requests one model.
-The default reviewer policy asks the other provider for multi-area changes or truncated input.
+Use `--record` to save complete, group-only receipts. Link the returned ID with `create --recommendation ID`.
+For an existing profile connection use `start --recommendation ID`. The task ledger revalidates the bounded input.
+Record actual human labels with `recommendation feedback TASK --expected-group GROUP` or `--expected-none`.
+Read `recommendation report --profile PROJECT` to compare measured outcomes and check times.
+Auto routing uses prior comparable labels when the cohort is large enough. Inspect `routing_decision` for the decision.
 An incomplete second pass returns exit 3. See the [cases](../../../docs/USE_CASES.ko.md) for evaluation and selection.
 
 ## Project profiles and v0.3 operations

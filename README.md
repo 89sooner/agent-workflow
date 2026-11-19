@@ -82,7 +82,14 @@ Katakuri의 합성 백테스트·뷰어 테스트를 묶은 프로필도 제공�
 agent-workflow recommend-checks aw-dev --criterion '세션 재개 후 변경된 검사를 표시한다' --preview
 ```
 
-기본값은 Codex 1차 추천이며, 둘 이상의 최상위 영역이 바뀌거나 입력이 잘리면 Claude가 독립적으로 검토합니다. 한 번만 호출하려면 `--reviewer none`을 사용하세요. `evaluate-checks`는 사람이 필요하다고 판단한 묶음과 결과를 비교해 누락과 과잉 선택을 셉니다. [추천·독립 검토·품질 평가 실습](docs/USE_CASES.ko.md)
+기본값은 Codex 1차 추천입니다. 비교할 실측이 부족하면 최상위 영역 두 곳 이상의 변경을 Claude가 독립적으로 검토합니다. 입력이 잘린 경우에도 검토를 유지합니다. `routing_decision`에서 호출 이유와 사용한 표본 수를 확인할 수 있습니다. 한 번만 호출하려면 `--reviewer none`을 사용하세요. `evaluate-checks`는 사람이 필요하다고 판단한 묶음과 결과를 비교해 누락과 과잉 선택을 셉니다. [추천·독립 검토·품질 평가 실습](docs/USE_CASES.ko.md)
+
+## 사용 효과를 기록하기
+
+- **추천을 작업에 연결하려면** `recommend-checks … --record`가 반환한 ID를 `create --profile … --recommendation ID` 또는 연결된 프로젝트의 `start … --recommendation ID`에 넣습니다. 같은 원장의 작업 상세 화면에서 실제 채택, 실행 결과, 소요 시간과 사람이 남긴 평가를 함께 봅니다. `recommendation report --profile 이름`의 `quality`에는 누락을 보완한 수, 추가 과잉 수와 측정한 시간이 집계됩니다.
+- **내가 다시 일을 시작하기까지 걸리는 시간을 재려면** 다음 세션에서 `pickup --measure`로 시작해 첫 올바른 수정·검사를 시작할 때 **“이 작업으로 진행”**이라고 요청하거나 `resume-time finish`를 실행합니다. 비교할 평소 방식은 `resume-time start`로 시작합니다. `resume-time report`는 현재 작업 트리와 브랜치의 두 중앙값과 재설명 횟수를 보여줍니다. 초안 작성 시간까지 재려면 마감 내용을 작성하기 전에 `resume-time start-close`를 실행합니다.
+
+[측정과 독립 검토 사용 사례](docs/USE_CASES.ko.md)
 
 ## 통합 관제실
 
