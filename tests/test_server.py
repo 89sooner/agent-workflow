@@ -165,13 +165,19 @@ class DashboardTests(unittest.TestCase):
             tracked = self.root / "project/app.txt"
             tracked.write_text("changed since preview")
             self.assertEqual(self.request(run_path, run, headers)[0], 400)
-            tracked.write_text("fixture")
             ask.assert_not_called()
+            # Confirm the current packet after changing the worktree. Rewriting the old
+            # bytes need not restore the previous Git change listing on every runner.
+            code, raw, _ = self.request(preview_path, options, headers)
+            self.assertEqual(code, 200)
+            refreshed = json.loads(raw)
+            run = {**options, "input_digest":refreshed["input_digest"], "providers":refreshed["providers"]}
 
             with ThreadPoolExecutor(1) as pool:
                 future = pool.submit(self.request, run_path, run, headers)
                 try:
-                    self.assertTrue(started.wait(3))
+                    if not started.wait(3):
+                        self.fail(f"confirmed call did not reach the model: {future.result(timeout=5)[:2]}")
                     self.assertEqual(self.request(run_path, run, headers)[0], 409)
                     self.assertEqual(self.request(preview_path, options, headers)[0], 200)
                 finally:
