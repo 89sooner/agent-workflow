@@ -69,15 +69,20 @@ def recommend(home, profile, criteria, *, project=None, base=None, provider="cod
     packet = build_packet(config, criteria, root, base)
     change = packet["change"]
     areas = sorted({path.partition("/")[0] if "/" in path else "." for path in change["paths"]})
-    if reviewer == "auto":
-        second = ("claude" if provider == "codex" else "codex") if len(areas) >= 2 or change["truncated"] else None
+    if groups and reviewer == "auto":
+        from .reviewer_policy import decide
+        decision = decide(home, record["digest"], areas, provider, change["truncated"], profile=profile)
+    elif groups:
+        decision = {"reviewer": None if reviewer == "none" else reviewer, "basis": "explicit",
+                    "reason": "명시한 검토자 설정을 적용합니다.", "evidence": None}
     else:
-        second = None if reviewer == "none" else reviewer
+        decision = {"reviewer": None, "basis": "no_groups", "reason": "선택 가능한 검사 묶음이 없습니다.", "evidence": None}
+    second = decision["reviewer"]
     providers = [p for p in (provider, second) if p and groups]
     report = {
         "kind": REPORT_KIND, "version": 1, "profile": profile, "profile_digest": record["digest"],
         "input_digest": hashlib.sha256(json.dumps(packet, sort_keys=True).encode()).hexdigest(),
-        "available_groups": list(groups), "providers": providers,
+        "available_groups": list(groups), "providers": providers, "routing_decision": decision,
         "change_summary": {k: change[k] for k in ("base", "truncated", "omitted_sensitive", "omitted_diff_files")},
         "path_count": len(change["paths"]), "area_count": len(areas),
     }
