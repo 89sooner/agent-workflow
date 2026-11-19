@@ -253,7 +253,7 @@ try {
   assert.equal(await page.locator('#recommendation-detail').evaluate(el => el.open), true);
   assert.equal(await page.getByRole('group', {name:'실제로 필요했던 검사 묶음'}).getByRole('checkbox', {name:'ui', exact:true}).isChecked(), true);
   await page.getByRole('button', {name:'필요 묶음 저장'}).click();
-  await page.waitForFunction(() => document.getElementById('action-message').textContent.includes('평가를 저장'));
+  await page.locator('#action-message', {hasText:'평가를 저장'}).waitFor();
   assert.deepEqual(requests.at(-1).body, {task_id:'UI-NEW', expected_groups:['ui']});
   await page.locator('#nav-tasks').click();
   await page.locator('.execution-options summary').click();

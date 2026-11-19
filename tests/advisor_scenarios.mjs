@@ -76,7 +76,7 @@ export async function exerciseAdvisor(page) {
     const completed = page.waitForResponse(r => r.url().endsWith('/api/check-advisor/run'));
     delayed.open();
     await (await completed).finished();
-    await page.waitForFunction(() => !document.getElementById('advisor-preview').disabled);
+    await page.locator('#advisor-preview:enabled').waitFor();
     assert.ok(await $('advisor-apply').isHidden());
 
     if (!(await $('advisor-options').evaluate(el=>el.open))) await page.locator('#advisor-options summary').click();
