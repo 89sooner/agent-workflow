@@ -30,7 +30,7 @@ const stale = {
 };
 let tasks = [task, stale], jobs = [], fail = false;
 let projectExecutions = null, readOnly = false;
-let profiles = [{ name: 'fixture-project', config: { project: '/fixture/project', owner: 'claude', reviewer: 'codex' } }];
+let profiles = [{ name: 'fixture-project', config: { check_groups: { ui: [['node', '--version']], docs: [['python3', '--version']] }, project: '/fixture/project', owner: 'claude', reviewer: 'codex' } }];
 const requests = [];
 let events = [{ at: '2026-10-08T00:00:00Z', kind: 'created', data: { summary: '작업 등록됨', source: 'fixture' } }];
 await page.route('**/api/**', async (route) => {
@@ -42,7 +42,8 @@ await page.route('**/api/**', async (route) => {
   if (path.startsWith('/api/job-log/')) return route.fulfill({ json: { text: '<script>window.unsafe=true</script>\nfixture log output', truncated: false } });
   if (path.startsWith('/api/tasks/')) {
     const selected = tasks.find((t) => t.id === decodeURIComponent(path.split('/').pop()));
-    return route.fulfill({ json: { task: selected, jobs, events, observed_git: {}, freshness: {
+    return route.fulfill({ json: { task: selected, jobs, events, observed_git: {},
+      release_status: selected?.release ? { merge: 'succeeded', deployment: 'applied', health: 'failed' } : null, freshness: {
       verification_is_current: false, review_is_current: false, completion_is_current: false
     } } });
   }
@@ -148,7 +149,10 @@ try {
   await page.locator('.task-item').filter({ hasText: 'UI-STALE' }).click();
   await waitLoaded();
   assert.equal(await page.locator('.detail-title').textContent(), stale.goal);
-  console.log('PASS selection and event expansion through refresh, theme persistence, project overview on reload');
+  await page.getByText('원장에 기록된 릴리스 결과', { exact: true }).click();
+  assert.ok(await page.getByText('배포 적용 · 적용됨', { exact: true }).isVisible());
+  assert.ok(await page.getByText('배포 후 상태 검사 · 실패', { exact: true }).isVisible());
+  console.log('PASS independent deployment and health receipts, selection, theme and project overview');
 
   for (const width of [375, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
@@ -161,6 +165,7 @@ try {
 
   await page.locator('#filter').selectOption('all');
   await page.locator('#new-task').click();
+  await page.getByRole('checkbox', {name: 'ui (1개 검사)'}).check();
   await page.locator('#create-id').fill('UI-NEW');
   await page.locator('#create-goal').fill('새 작업 등록과 실행 제어');
   await page.locator('#create-criteria').fill('목표에 맞는 검사\n독립 리뷰 통과');
@@ -170,6 +175,7 @@ try {
   assert.equal(requests.at(-1).path, '/api/tasks');
   assert.deepEqual(requests.at(-1).body.criteria, ['목표에 맞는 검사', '독립 리뷰 통과']);
   assert.equal(requests.at(-1).body.isolate, true);
+  assert.deepEqual(requests.at(-1).body.check_groups, ['ui']);
   await page.locator('#nav-tasks').click();
   await page.locator('.execution-options summary').click();
   await page.locator('#option-timeout').fill('0');

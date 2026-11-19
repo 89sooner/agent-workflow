@@ -1,5 +1,7 @@
 # Agent Workflow
 
+Claude와 Codex가 같은 Git 작업을 등록·검증·리뷰하고 다른 세션에서 이어받는 로컬 도구입니다. 처음 사용하는 경우 [최신 사용·운영 매뉴얼](docs/USER_GUIDE.ko.md)을, 실제 절차를 따라 하려면 [11가지 상세 사용 사례](docs/USE_CASES.ko.md)를 읽으세요.
+
 [화면에서 프로젝트 연결](docs/CONNECTION_SETUP.ko.md) · [OpenCode 세션 자동 관측](docs/OPENCODE_OBSERVATION.ko.md) · [서비스 사용성 개선 계획](docs/USABILITY_SERVICE_PLAN.ko.html)
 
 OpenCode는 로컬 서버와 프로젝트를 한 번 연결하면 이후 새 세션을 별도 작업 등록 없이
@@ -20,7 +22,7 @@ OpenCode는 로컬 서버와 프로젝트를 한 번 연결하면 이후 새 세
 
 [실제 v0.3 사용 결과와 남은 연결](docs/FOLLOWUP_STATUS.ko.md) · [Katakuri 프로젝트 설정](profiles/README.md)
 
-[기본 개념과 Katakuri 파일럿 기록](docs/USER_GUIDE.ko.md)은 v0.2 시점 자료입니다.
+[초기 Katakuri 파일럿 기록](docs/USER_GUIDE_V0.2.ko.md)은 v0.2 시점 자료입니다.
 
 현재 사용·연결·운영 매뉴얼은 React 관제실 기준으로 갱신했습니다. 과거 버전 설명,
 설계 문서와 검증 로그·이미지는 당시 기록으로 보존하며, 현재 안내와의 구분은
@@ -37,6 +39,50 @@ Python 3.11 이상, Git이 필요하며 Python 외부 의존성은 없습니다.
 v0.3은 프로젝트 설정·별도 worktree 준비·파일 범위 예약·시간대 제한·유한 복구·검사 서버·
 브라우저 증거·관리 문서·작업일지 내보내기·개별 중단/재개·호출/시간 한도·연속 실행을 연결합니다.
 대시보드에서 등록된 프로젝트 설정으로 새 작업을 만들고 실행 옵션과 로그를 확인할 수 있습니다.
+
+## 작업 ID 없이 세션 마감하고 이어가기
+
+Git 프로젝트에서 Claude나 Codex에 **“세션 마감하고 다음 작업을 남겨줘”** 또는 **“지난 작업 이어서 진행해”**라고 요청할 수 있습니다. 공용 스킬이 다음 명령을 사용합니다.
+
+```bash
+agent-workflow close-session --summary '검색 결과 정렬을 수정하고 관련 테스트 8개 통과를 확인했다.' --next '빈 결과에서 정렬 버튼의 동작을 확인한다.'
+agent-workflow pickup
+agent-workflow patterns --since 2026-10-01 --until 2026-10-31
+```
+
+마감 시 Git 작업 트리·브랜치별로 로컬 상태 디렉터리에 작업일지와 재개 메모를 저장합니다. `--project PATH`로 다른 저장소를 선택하고, `--worklog-dir PATH`로 기존 폴더에 일지 사본을 저장할 수 있습니다. 내보낼 폴더의 파일시스템은 하드 링크를 지원해야 합니다. 실패 시 로컬 일지 경로를 표시합니다. 재개 시 다음 행동, HEAD·변경 경로 상태의 변화, 기존 `agent-context` 인계 문서 경로를 함께 확인합니다. 하위 모듈은 커밋 포인터를 비교하므로 내부 파일은 해당 모듈에서 확인하세요. 같은 경로가 같은 Git 상태로 남은 경우 세부 내용의 차이는 `git diff`에서 확인하세요. 저장소 안으로 일지를 내보내면 그 파일도 마감 이후 Git 변경으로 표시됩니다. 같은 작업 트리·브랜치의 등록 작업도 최근 5건까지 표시합니다. 각 작업의 `show` 명령으로 검사와 리뷰 증거가 현재 코드에도 유효한지 확인합니다.
+
+`patterns`는 현재 Codex·Claude CLI 및 홈의 Claude 추가 프로필에서 `history.jsonl`을 읽고 공급자별 입력·세션·월·명령 조합과 한국어·영어 키워드 빈도를 출력합니다. 직접 지정할 때는 `--source FILE`을 반복합니다. 날짜는 UTC이며 양끝을 포함합니다. 원문과 붙여넣기 본문, 임의 명령 인자는 출력하지 않습니다. 주제는 중복될 수 있고, 같은 세션의 두 명령은 순서나 성공 여부를 뜻하지 않습니다.
+
+## 반복 검사의 선택과 결과 조회
+
+`pickup`은 현재 작업 트리에서 찾은 등록 작업마다 `evidence`를 반환합니다. `verification`이 `current`이면 기록된 검사가 현재 코드와 참조 문서에서 유효합니다. `stale`은 입력이 달라진 경우, `failed`는 현재 입력에서 검사가 실패한 경우입니다. `missing`은 기록 없음, `unavailable`은 현재 증거를 확인할 수 없음을 뜻합니다. `rerun_checks`와 `reason`을 함께 확인하세요. 변경 경로의 이름과 상태 코드가 같아도 파일 내용이 바뀌면 검사 증거는 만료됩니다. 이미 마감한 작업의 새 코드를 검증할 때는 새 작업을 등록합니다.
+
+프로필의 `checks`에는 공통 검사를, `check_groups`에는 UI·인계·릴리스처럼 업무별로 추가할 검사 명령을 넣습니다. 이 저장소에는 [개발용 프로필](profiles/agent-workflow-development.json)이 있습니다. **agent-workflow 저장소 루트에서** 다음 명령으로 등록하고 실제 실행될 검사 목록을 미리 확인할 수 있습니다.
+
+```bash
+agent-workflow profile save aw-dev --file profiles/agent-workflow-development.json
+agent-workflow profile checks aw-dev --check-group handoff
+agent-workflow create HANDOFF-01 --profile aw-dev --no-isolate --check-group handoff \
+  --goal '재개 화면에서 검사 상태 확인' --criterion '현재 코드와 오래된 검사 결과를 구분'
+agent-workflow release-status HANDOFF-01
+```
+
+`--check-group`은 여러 번 지정할 수 있습니다. 연결된 프로필은 `start`에서도 선택할 수 있고 대시보드의 **새 작업 등록**에는 선택한 프로필의 검사 묶음이 표시됩니다. 기본 검사는 항상 포함되며 작업에 등록한 명령 목록은 이후 프로필을 수정해도 유지됩니다. 예제 프로필의 기본 설정은 커밋된 HEAD에서 별도 작업 트리를 만듭니다. 현재의 미커밋 변경을 검증할 때는 `create --no-isolate`를 선택하세요. `dashboard` 묶음은 로컬 HTTP와 Playwright Chromium을 사용합니다.
+
+Katakuri의 합성 백테스트·뷰어 테스트를 묶은 프로필도 제공합니다. [프로젝트별 검사와 등록 예제](profiles/README.md)
+
+`release-status ID`는 원장에서 확인한 로컬 검사·완료, 병합 커밋, 통합 검사, 배포 적용, 배포 후 상태 점검을 각각 반환합니다. 작업 폴더가 삭제된 뒤에도 원장이 있으면 조회할 수 있습니다. 예를 들어 `deployment=applied`, `health=failed`이면 배포 명령은 성공했고 이어진 상태 점검은 실패했습니다. 표시 시점의 원격 서비스 상태를 확인하려면 해당 서비스의 관측 기록을 사용하세요.
+
+## 변경에 맞는 검사 추천
+
+`recommend-checks`는 Git 변경과 완료 조건을 바탕으로 등록한 프로필의 검사 묶음을 고릅니다. `--preview`로 공급자와 전달할 입력을 확인할 수 있습니다. 출력에는 두 모델의 공통 선택, 각 모델만 고른 묶음, 실제 등록 가능한 검사 목록이 담깁니다. 추천을 작업에 적용할 때는 `create` 또는 `start`에서 `--check-group`을 지정합니다.
+
+```bash
+agent-workflow recommend-checks aw-dev --criterion '세션 재개 후 변경된 검사를 표시한다' --preview
+```
+
+기본값은 Codex 1차 추천이며, 둘 이상의 최상위 영역이 바뀌거나 입력이 잘리면 Claude가 독립적으로 검토합니다. 한 번만 호출하려면 `--reviewer none`을 사용하세요. `evaluate-checks`는 사람이 필요하다고 판단한 묶음과 결과를 비교해 누락과 과잉 선택을 셉니다. [추천·독립 검토·품질 평가 실습](docs/USE_CASES.ko.md)
 
 ## 통합 관제실
 

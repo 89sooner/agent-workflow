@@ -9,13 +9,22 @@ from . import profiles
 
 
 def create_from_profile(store, task_id, name, goal, criteria, refs=(), checks=(), owner=None,
-                        reviewer=None, scope="지정 목표의 로컬 구현·검증", isolate=None):
-    store.directory(task_id)
+                        reviewer=None, scope="지정 목표의 로컬 구현·검증", isolate=None, *, check_groups=(),
+                        expected_project=None):
     if store.db.execute("SELECT 1 FROM tasks WHERE id=?", (task_id,)).fetchone():
         raise WorkflowError("이미 존재하는 작업 ID: " + task_id)
     record = profiles.get(store, name)
     cfg = profiles.validate(record["config"])
     original = Path(cfg["project"])
+    if expected_project is not None:
+        from .connections import project_key
+        if project_key(original) != project_key(expected_project):
+            raise WorkflowError("프로필이 다른 프로젝트를 가리킵니다.")
+    plan = profiles.check_plan(cfg, check_groups, checks)
+    profile = {"name": name, "digest": record["digest"]}
+    if plan["check_groups"]:
+        profile["check_groups"] = plan["check_groups"]
+    store.directory(task_id)
     isolated = cfg["workspace"]["isolate"] if isolate is None else isolate
     owner, reviewer = owner or cfg["owner"], reviewer or cfg["reviewer"]
     if owner == reviewer:
@@ -40,8 +49,8 @@ def create_from_profile(store, task_id, name, goal, criteria, refs=(), checks=()
                      "branch": branch, "base_head": before["head"], "source_dirty": before["dirty"], "prepared": False}
     try:
         task = create_task(store, task_id, project, goal, criteria,
-                           [*cfg["refs"], *refs], [*cfg["checks"], *checks], owner, reviewer, scope,
-                           metadata={"profile": {"name": name, "digest": record["digest"]},
+                           [*cfg["refs"], *refs], plan["checks"], owner, reviewer, scope,
+                           metadata={"profile": profile,
                                      "project_config": copy.deepcopy(cfg), "execution": cfg["execution"], "workspace": workspace})
     except BaseException:
         # This tree was created by this call and has not run setup or an agent.

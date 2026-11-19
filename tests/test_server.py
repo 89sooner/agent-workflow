@@ -104,16 +104,22 @@ class DashboardTests(unittest.TestCase):
         with_store = Store(self.home)
         try:
             save(with_store, "fixture", {"project": str(self.root / "project"), "checks": [[sys.executable, "-c", "pass"]],
+                                         "check_groups": {"syntax": [[sys.executable, "--version"]]},
                                          "execution": {"timeout": 1200, "recoveries": 2}})
         finally:
             with_store.close()
         headers = {"X-Workflow-Token": "test-token"}
         payload = {"id": "WEB-NEW", "profile": "fixture", "goal": "new goal", "criteria": ["criterion"], "isolate": True}
+        payload["check_groups"] = ["syntax"]
         self.assertEqual(self.request("/api/tasks", payload)[0], 403)
+        self.assertEqual(self.request("/api/tasks", {**payload, "check_groups": ["missing"]}, headers)[0], 400)
         code, body, _ = self.request("/api/tasks", payload, headers)
         self.assertEqual(code, 201)
         task = json.loads(body)["task"]
         self.assertNotEqual(task["project"], str(self.root / "project"))
+        self.assertEqual(task["checks"][-1], [sys.executable, "--version"])
+        details = json.loads(self.request("/api/tasks/WEB-NEW")[1])
+        self.assertEqual(details["release_status"]["source"], "local_ledger")
         code, body, _ = self.request("/api/queue", {"task_id": "WEB-NEW", "timeout": 123, "repairs": 0, "recoveries": 0}, headers)
         self.assertEqual(code, 200)
         job = json.loads(body)["job"]

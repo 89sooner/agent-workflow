@@ -3,6 +3,22 @@
 프로필은 프로젝트의 검사, 변경 범위, 역할, 작업 폴더, 실행 한도를 묶는다.
 파일을 저장소에 추가하는 것만으로 실행되지는 않는다. 사용할 파일을 명시적으로 등록한다.
 
+## 업무별 검사 묶음
+
+| 프로필 파일 | 공통 검사 | 선택할 수 있는 묶음 |
+|---|---|---|
+| [agent-workflow-development.json](agent-workflow-development.json) | 작업 등록·실행 회귀 테스트 | `handoff`, `release`, `dashboard` |
+| [katakuri-backtest-tests.json](katakuri-backtest-tests.json) | Katakuri 백테스트 드라이버의 합성 입력 검사 | `viewer`로 같은 데이터의 뷰어 표현도 검사 |
+
+다음 명령은 이 저장소 루트에서 실행합니다. Katakuri 프로필은 현재 WSL의 프로젝트 경로를 사용합니다. 작업 범위는 두 회귀 테스트 파일의 정비로 지정했으며, 뷰어 묶음은 외부 시세 파일이 필요한 시험을 제외합니다. 이 프로필은 주문 전송과 서비스 배포를 수행하지 않습니다.
+
+```bash
+agent-workflow profile save kb-backtest-tests --file profiles/katakuri-backtest-tests.json
+agent-workflow profile checks kb-backtest-tests --check-group viewer
+```
+
+`profile checks`는 선택된 명령과 순서를 보여줍니다. `create --profile kb-backtest-tests --check-group viewer`로 등록된 작업에서 `check ID`를 실행하면 백테스트와 뷰어 검사가 모두 실행됩니다.
+
 ## Katakuri 웹 fixture
 
 `katakuri-web-fixtures.json`은 이 WSL의 Katakuri 웹 시험 데이터 정비에 사용한다.

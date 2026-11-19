@@ -59,17 +59,17 @@ def project_root(path):
     return root
 
 
-def snapshot(project):
+def snapshot(project, *, read_git=git):
     """Hash HEAD, index, and every nonignored worktree file, including untracked files.
 
     Ignored build outputs are not code identity. Submodule dirtiness participates too.
     Evidence is tied to content rather than modification times.
     """
     project = Path(project)
-    head = git(project, "rev-parse", "HEAD")
-    names = git(project, "ls-files", "-z", "--cached", "--others", "--exclude-standard", binary=True)
+    head = read_git(project, "rev-parse", "HEAD")
+    names = read_git(project, "ls-files", "-z", "--cached", "--others", "--exclude-standard", binary=True)
     h = hashlib.sha256(head.encode())
-    h.update(git(project, "ls-files", "--stage", "-z", binary=True))
+    h.update(read_git(project, "ls-files", "--stage", "-z", binary=True))
     for raw in sorted(set(names.split(b"\0")) - {b""}):
         p = project / os.fsdecode(raw)
         h.update(raw + b"\0")
@@ -85,12 +85,12 @@ def snapshot(project):
                     h.update(chunk)
         elif p.is_dir():
             # Gitlinks require separate handling; never silently ignore nested changes.
-            h.update(snapshot(p)["fingerprint"].encode())
+            h.update(snapshot(p, read_git=read_git)["fingerprint"].encode())
         else:
             h.update(b"missing")
-    status = git(project, "status", "--porcelain=v1", "--untracked-files=all")
+    status = read_git(project, "status", "--porcelain=v1", "--untracked-files=all")
     h.update(status.encode())
-    return {"head": head, "branch": git(project, "branch", "--show-current"),
+    return {"head": head, "branch": read_git(project, "branch", "--show-current"),
             "fingerprint": h.hexdigest(), "dirty": bool(status), "status": status}
 
 

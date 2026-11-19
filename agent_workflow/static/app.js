@@ -277,11 +277,25 @@ function renderDetail() {
   const evidenceText = observationError ? '현재 상태 관찰 불가' : stale ? '코드·입력 또는 보호 경로 변경 · 재검증 필요' : task.status === 'completed' && current === true ? '현재 코드의 완료 증거 확인됨' : task.status === 'completed' ? (detail ? '현재 완료 증거를 판정할 수 없습니다' : '완료 증거 확인 중') : '실제 검사 결과를 기준으로 진행';
   const evidence = node('span', null, `evidence-note${observationError ? ' unobservable' : stale ? ' stale' : current ? '' : ' neutral'}`); evidence.append(icon(observationError || stale ? 'alert' : current ? 'shield' : 'clock'), node('span', evidenceText)); meta.append(evidence);
   if (release?.merge_commit) {
-    const receipt = release.integration_verification;
-    const verified = receipt?.passed && receipt.revision === release.merge_commit;
-    meta.append(node('span', verified ? '통합 검증 통과' : receipt?.passed === false ? '통합 검증 실패' : '통합 검증 미확인', `badge ${verified ? 'good' : receipt?.passed === false ? 'bad' : 'warn'}`));
+    const result = detail?.release_status?.integration_check;
+    const [text, tone] = result === 'succeeded' ? ['통합 검증 통과', 'good']
+      : result === 'failed' ? ['통합 검증 실패', 'bad'] : ['통합 검증 미확인', 'warn'];
+    meta.append(node('span', text, 'badge ' + tone));
   }
-  head.append(meta); contextFragment.append(head);
+  head.append(meta);
+  if (release && detail?.release_status) {
+    const report = detail.release_status;
+    const statuses = { not_configured: '미설정', not_attempted: '시도 전', not_recorded: '기록 없음',
+      not_completed: '미완료', uncertain: '결과 미확인', succeeded: '성공', applied: '적용됨', failed: '실패' };
+    const details = node('details', null, 'goal-details');
+    details.append(node('summary', '원장에 기록된 릴리스 결과'));
+    for (const [key, name] of Object.entries({ local_verification: '로컬 검사', local_completion: '로컬 완료',
+      merge: '병합', integration_check: '통합 검사', deployment: '배포 적용', health: '배포 후 상태 검사' })) {
+      details.append(node('p', name + ' · ' + (statuses[report[key]] || '미확인')));
+    }
+    head.append(details);
+  }
+  contextFragment.append(head);
   if (observationError) contextFragment.append(node('div', `작업 폴더 상태를 확인하지 못했습니다: ${textValue(observationError)} 저장된 완료 이력은 유지되며, 작업 폴더를 복구한 뒤 새로고침하면 최신 증거를 다시 확인합니다.`, 'notice evidence-error'));
   if (held) {
     const hold = node('div', null, 'notice hold-notice');
@@ -475,8 +489,28 @@ $('theme-toggle').addEventListener('click', () => {
   const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; applyTheme(theme);
   try { localStorage.setItem('agent-workflow-theme', theme); } catch (_) { /* optional persistence */ }
 });
+function renderCheckGroups(profile) {
+  const options = $('check-group-options');
+  const selected = new Set();
+  if (options.dataset.profile === profile?.name) {
+    for (const input of options.querySelectorAll('input:checked')) selected.add(input.value);
+  }
+  options.dataset.profile = profile?.name || '';
+  const groups = Object.entries(profile?.config?.check_groups || {});
+  const fragment = document.createDocumentFragment();
+  for (const [name, commands] of groups) {
+    const choice = node('label', null, 'checkbox-label');
+    const input = document.createElement('input');
+    input.type = 'checkbox'; input.value = name; input.checked = selected.has(name);
+    choice.append(input, document.createTextNode(name + ' (' + commands.length + '개 검사)'));
+    fragment.append(choice);
+  }
+  options.replaceChildren(fragment);
+  $('create-check-groups').hidden = !groups.length;
+}
 function profileHint() {
   const profile = state.profiles.find(item => item.name === $('create-profile').value);
+  renderCheckGroups(profile);
   $('profile-hint').textContent = profile ? `${profile.config.project} · 구현 ${profile.config.owner} / 리뷰 ${profile.config.reviewer}` : 'CLI의 profile save로 프로젝트 설정을 먼저 등록하세요.';
 }
 function renderProfiles() {
@@ -524,6 +558,7 @@ $('create-form').addEventListener('submit', async event => {
   try {
     if (!state.token) throw new Error('서버 연결 후 다시 시도하세요.');
     const payload = { id: $('create-id').value.trim(), agent_names: { implement: $('create-agent-name').value.trim(), review: $('create-reviewer-name').value.trim() }, profile: $('create-profile').value,
+      check_groups: Array.from($('check-group-options').querySelectorAll('input:checked'), input => input.value),
       goal: $('create-goal').value.trim(), criteria: $('create-criteria').value.split('\n').map(line => line.trim()).filter(Boolean), isolate: $('create-isolate').checked };
     const result = await request('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Workflow-Token': state.token }, body: JSON.stringify(payload) });
     state.selected = result.task.id; state.detail = null; state.detailKey = '';

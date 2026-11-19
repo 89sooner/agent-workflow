@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import date
 import json
 import os
 from pathlib import Path
@@ -145,6 +146,31 @@ def parser():
     commands = p.add_subparsers(dest="command", required=True)
     commands.add_parser("doctor", help="설치된 도구 확인; 모델 호출 없음")
     commands.add_parser("list", help="등록된 작업 목록")
+    c = commands.add_parser("patterns", help="Claude·Codex 입력 이력의 반복 업무와 세션별 동시 사용 집계")
+    c.add_argument("--source", action="append", type=Path, help="history.jsonl 경로. 여러 번 지정할 수 있습니다.")
+    c.add_argument("--since", type=date.fromisoformat, help="집계 시작일 (UTC, YYYY-MM-DD)")
+    c.add_argument("--until", type=date.fromisoformat, help="집계 종료일 (UTC, 해당일 포함)")
+    c = commands.add_parser("recommend-checks", help="Git 변경과 완료 조건으로 등록된 검사 묶음 추천")
+    c.add_argument("profile")
+    c.add_argument("--criterion", action="append", required=True)
+    c.add_argument("--project", help="등록 프로젝트 또는 연결된 Git 작업 트리")
+    c.add_argument("--base", help="비교 기준 Git 커밋 또는 ref (기본 HEAD)")
+    c.add_argument("--provider", choices=["codex", "claude"], default="codex")
+    c.add_argument("--reviewer", choices=["auto", "none", "codex", "claude"], default="auto")
+    c.add_argument("--timeout", type=int, default=90, help="모델 호출당 최대 초 (1~600)")
+    c.add_argument("--preview", action="store_true", help="모델에 보낼 입력과 공급자만 출력")
+    c = commands.add_parser("evaluate-checks", help="저장한 추천과 필요한 검사 묶음 대조")
+    c.add_argument("report", type=Path)
+    labels = c.add_mutually_exclusive_group(required=True)
+    labels.add_argument("--expected-group", action="append", metavar="GROUP")
+    labels.add_argument("--expected-none", action="store_true")
+    c = commands.add_parser("close-session", help="작업 ID 없이 현재 Git 상태, 작업일지와 다음 행동 저장")
+    c.add_argument("--project", default=".")
+    c.add_argument("--summary", required=True, help="이번 세션에서 수행한 작업과 확인 결과")
+    c.add_argument("--next", dest="next_action", required=True, help="다음 세션이 이어받을 행동")
+    c.add_argument("--worklog-dir", type=Path, help="작업일지를 함께 저장할 기존 폴더")
+    c = commands.add_parser("pickup", help="현재 브랜치의 마지막 인계 및 저장 후 Git 상태 변화 확인")
+    c.add_argument("--project", default=".")
     c = commands.add_parser("opencode", help="OpenCode 서버 읽기 전용 관측 연결; 모델 실행 없음")
     oc = c.add_subparsers(dest="opencode_command", required=True)
     o = oc.add_parser("connect", help="로컬 OpenCode 서버를 한 번 연결하면 새 세션 자동 관측")
@@ -172,6 +198,8 @@ def parser():
     c.add_argument("--project", default=".")
     c.add_argument("--criterion", action="append")
     c.add_argument("--check", action="append", default=[])
+    c.add_argument("--check-group", action="append", default=[], metavar="GROUP",
+                   help="등록 프로필에서 추가할 검사 묶음. 여러 번 지정할 수 있습니다.")
     c.add_argument("--owner", choices=["codex", "claude"])
     c.add_argument("--reviewer", choices=["codex", "claude", "codex-session", "none"])
     c.add_argument("--name", help="구현 에이전트에게 실제 할당한 이름")
@@ -189,11 +217,15 @@ def parser():
     c.add_argument("--criterion", action="append", required=True)
     c.add_argument("--ref", action="append", default=[])
     c.add_argument("--check", action="append", default=[])
+    c.add_argument("--check-group", action="append", default=[], metavar="GROUP",
+                   help="등록 프로필에서 추가할 검사 묶음. 여러 번 지정할 수 있습니다.")
     c.add_argument("--owner", choices=["codex", "claude"])
     c.add_argument("--reviewer", choices=["codex", "claude", "codex-session", "none"])
     c.add_argument("--scope", default="지정 목표의 로컬 구현·검증. 커밋·푸시·병합·배포 제외.")
     c = commands.add_parser("profile", help="프로젝트 실행 설정 저장·조회")
-    c.add_argument("operation", choices=["save", "show", "list"])
+    c.add_argument("operation", choices=["save", "show", "list", "checks"])
+    c.add_argument("--check-group", action="append", default=[], metavar="GROUP",
+                   help="profile checks에서 미리 볼 검사 묶음")
     c.add_argument("name", nargs="?")
     c.add_argument("--file", type=Path)
     c = commands.add_parser("prepare", help="작업 환경 준비; 실패한 명령은 확인 후 재시도")
@@ -249,6 +281,8 @@ def parser():
     c.add_argument("--owner", choices=["codex", "claude"], required=True)
     c.add_argument("--reviewer", choices=["codex", "claude", "codex-session", "none"], required=True)
     commands.add_parser("result-schema", help="리뷰 결과 JSON Schema 출력")
+    c = commands.add_parser("release-status", help="원장에 기록된 로컬 검증·병합·배포·상태 검사 결과 조회")
+    c.add_argument("id")
     c = commands.add_parser("release-config", help="자동 커밋·푸시·병합·배포 대상 등록")
     c.add_argument("id")
     c.add_argument("--remote", default="origin")
@@ -311,6 +345,40 @@ def parser():
 
 
 def dispatch(args):
+    if args.command == "recommend-checks":
+        from .check_advisor import recommend
+        return recommend(args.home, args.profile, args.criterion, project=args.project, base=args.base,
+                         provider=args.provider, reviewer=args.reviewer, preview=args.preview, timeout=args.timeout)
+    if args.command == "evaluate-checks":
+        from .check_advisor import evaluate
+        return evaluate(args.report, args.expected_group or [])
+    if args.command == "release-status":
+        from .release_status import status
+        return status(args.home, args.id)
+    if args.command == "create" and args.check_group and not args.profile:
+        raise WorkflowError("--check-group에는 --profile이 필요합니다.")
+    if args.command == "profile":
+        if args.operation == "checks":
+            from . import profiles
+            if not args.name:
+                raise WorkflowError("검사 계획을 조회할 프로필 이름이 필요합니다.")
+            store = Store(args.home, read_only=True)
+            try:
+                config = profiles.get(store, args.name)["config"]
+                return {"profile": args.name, "available_groups": sorted(config.get("check_groups", {})),
+                        **profiles.check_plan(config, args.check_group)}
+            finally:
+                store.close()
+        if args.check_group:
+            raise WorkflowError("profile --check-group은 checks에서 사용하세요.")
+    if args.command == "patterns":
+        from .history_patterns import summarize
+        return summarize(args.source, since=args.since, until=args.until)
+    if args.command in {"close-session", "pickup"}:
+        from .session_notes import close_note, pickup
+        if args.command == "close-session":
+            return close_note(args.home, args.project, args.summary, args.next_action, args.worklog_dir)
+        return pickup(args.home, args.project)
     if args.command == "browser-check":
         command = ["node", str(Path(__file__).with_name("browser-check.mjs")), str(args.file.resolve())]
         result = subprocess.run(command)
@@ -343,7 +411,8 @@ def dispatch(args):
         from .connections import start_registered
         return start_registered(args.home, args.goal, args.project, args.criterion,
                                 checks=[argv_from(x) for x in args.check], owner=args.owner,
-                                reviewer=args.reviewer, name=args.name, reviewer_name=args.reviewer_name)
+                                reviewer=args.reviewer, name=args.name, reviewer_name=args.reviewer_name,
+                                check_groups=args.check_group)
     if args.command == "watch":
         from .connections import state_home
         from .server import serve
@@ -418,7 +487,7 @@ def dispatch(args):
                 from .workspaces import create_from_profile
                 return create_from_profile(store, args.id, args.profile, args.goal, args.criterion,
                                            args.ref, [argv_from(x) for x in args.check], args.owner,
-                                           args.reviewer, args.scope, args.isolate)
+                                           args.reviewer, args.scope, args.isolate, check_groups=args.check_group)
             if args.isolate:
                 raise WorkflowError("자동 worktree는 --profile과 함께 사용하세요.")
             return create_task(store, args.id, args.project or ".", args.goal, args.criterion,
@@ -567,6 +636,8 @@ def main():
     try:
         result = dispatch(args)
         print(result if isinstance(result, str) else encode(result))
+        if args.command == "recommend-checks" and result["status"] == "review_incomplete":
+            raise SystemExit(3)
     except (WorkflowError, OSError, ValueError, subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
         print(f"agent-workflow: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc

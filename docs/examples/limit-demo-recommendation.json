@@ -1,0 +1,70 @@
+{
+  "kind": "agent-workflow.check-recommendation",
+  "version": 1,
+  "profile": "limit-demo",
+  "profile_digest": "2dbe1a8efe08f66369bee4905514d58947ba87d7f5b8bcba5fa3140db8a06c8c",
+  "input_digest": "459c08c5e55663a7d09eef08d7a2fc6cbd4d00fa8c137c43de343d62794bd881",
+  "available_groups": [
+    "limits",
+    "view"
+  ],
+  "providers": [
+    "codex",
+    "claude"
+  ],
+  "change_summary": {
+    "base": "5b292b6a0277838b897a91e156a78347de46f557",
+    "truncated": false,
+    "omitted_sensitive": 0,
+    "omitted_diff_files": 0
+  },
+  "path_count": 2,
+  "area_count": 2,
+  "status": "complete",
+  "primary": {
+    "provider": "codex",
+    "groups": [
+      "limits",
+      "view"
+    ],
+    "reason": "설정값이 허용 범위에 있는지와 화면 표시값이 설정값과 일치하는지를 확인합니다. 기본 검사는 JSON 구문만 확인하며, 제공된 정보만으로는 실제 화면 렌더링까지 검증하는지 알 수 없습니다."
+  },
+  "review": {
+    "provider": "claude",
+    "groups": [
+      "limits",
+      "view"
+    ],
+    "reason": "core/limits.json의 limit 값이 10에서 20으로 바뀌어 허용 범위 검사(limits)를 골랐습니다. web/limit.txt의 표시값도 20으로 함께 바뀌어 설정과 표시가 맞는지 보는 검사(view)도 골랐습니다. 두 그룹 모두 '범위와 화면 표시가 일치한다'는 기준과 직접 관련됩니다. JSON 구문은 기본 검사가 항상 확인합니다. 20이 실제 허용 범위 안에 드는지는 이 자료만으로 알 수 없어 limits 검사로 확인해야 합니다."
+  },
+  "comparison": {
+    "agreed": [
+      "limits",
+      "view"
+    ],
+    "primary_only": [],
+    "reviewer_only": []
+  },
+  "suggested_groups": [
+    "limits",
+    "view"
+  ],
+  "checks": [
+    [
+      "python3",
+      "-m",
+      "json.tool",
+      "core/limits.json"
+    ],
+    [
+      "python3",
+      "-c",
+      "import json; assert 1 <= json.load(open('core/limits.json'))['limit'] <= 100"
+    ],
+    [
+      "python3",
+      "-c",
+      "import json; from pathlib import Path; assert int(Path('web/limit.txt').read_text()) == json.load(open('core/limits.json'))['limit']"
+    ]
+  ]
+}

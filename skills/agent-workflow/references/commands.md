@@ -88,6 +88,19 @@ only for a repository intentionally lacking CI; normal CI failure blocks merge.
 `--mode local` supports a local bare Git remote for test releases, not a GitHub PR.
 Git identity must already be configured in the project for automatic commit/merge.
 
+## Check recommendations
+
+```bash
+report_dir=$(mktemp -d)
+agent-workflow recommend-checks PROJECT --criterion '화면에서 변경한 값을 표시한다' --preview
+agent-workflow recommend-checks PROJECT --criterion '화면에서 변경한 값을 표시한다' --provider codex --reviewer claude > "$report_dir/check-report.json"
+agent-workflow evaluate-checks "$report_dir/check-report.json" --expected-group dashboard
+```
+
+Use a private output path outside the working tree. `--reviewer none` requests one model.
+The default reviewer policy asks the other provider for multi-area changes or truncated input.
+An incomplete second pass returns exit 3. See the [cases](../../../docs/USE_CASES.ko.md) for evaluation and selection.
+
 ## Project profiles and v0.3 operations
 
 See [the current usage guide](../../../docs/AUTOMATION_V0.3.ko.md) for the JSON schema,
@@ -95,6 +108,11 @@ managed document blocks, service/browser fixtures, export boundaries, and model 
 
 ```bash
 agent-workflow profile save PROJECT --file workflow.profile.json
+agent-workflow profile checks PROJECT
+# For profiles with a named check group:
+agent-workflow profile checks PROJECT --check-group dashboard
+agent-workflow create UI-WP --profile PROJECT --check-group dashboard --goal '화면 수정' --criterion '브라우저 검사 통과'
+agent-workflow release-status UI-WP
 agent-workflow create TASK_ID --profile PROJECT --goal '실제 목표' --criterion '실제 완료 조건'
 agent-workflow prepare TASK_ID
 agent-workflow run TASK_ID --recoveries 1

@@ -1,406 +1,320 @@
-# Agent Workflow 사용 안내서
+# Agent Workflow 사용·운영 매뉴얼
 
-> 현재 시작점은 [화면에서 프로젝트 연결](CONNECTION_SETUP.ko.md), [문서 목록](README.md), [React 관제실](REACT_MISSION_CONTROL.ko.md), [프로젝트 연결](PROJECT_OBSERVATORY.ko.md)이다. 아래 v0.2 내용은 당시 기록이며 현재 명령 지원 범위로 오해하지 않는다.
+**어제 하던 일을 이어갈 때는 Git 저장소에서 `agent-workflow pickup`을 실행한다.** 작업 요약과 다음 행동을 확인할 수 있고, 같은 작업 트리·브랜치의 등록 작업이 있으면 현재 코드에서 검사가 여전히 유효한지도 확인할 수 있다. 새 기능을 구현부터 검사·독립 리뷰까지 맡길 때는 목표와 검사를 작업으로 등록한다.
 
-> 작성일: 2026-10-08 · 대상: v0.2.0 당시 구현과 파일럿 기록
->
-> **이 도구는 AI에게 맡긴 작은 개발 작업의 진행 순서와 기록을 관리한다.**
-> 목표와 완료 조건을 등록하면 구현 → 검사 → 다른 AI의 리뷰 → 필요한 수정 → 인계까지 연결한다. 릴리스 대상을 설정한 작업은 커밋·푸시·병합·배포도 이어서 수행한다.
+2026-11-19 로컬 소스 기준. 패키지 버전은 `agent-workflow --version`, 설치본의 실제 옵션은 `agent-workflow 명령 --help`에서 확인한다. 기존 릴리스에 같은 버전 문자열이 있을 수 있으므로 새 명령의 제공 여부는 도움말로 확인한다. 이 문서는 개발자·프로젝트 담당자·로컬 관제실 운영자를 위한 안내서다. 업무별로 준비물, 실행 순서, 기대 결과와 실패 후 조치가 필요한 경우 [상세 사용 사례](USE_CASES.ko.md)를 사용한다. 당시 파일럿과 제약은 [v0.2 기록](USER_GUIDE_V0.2.ko.md)에 보존했다.
 
-처음에는 **한 프로젝트의 작은 작업 하나**에 사용한다. 프로젝트 전체를 알아서 계획하고 계속 개발하는 기능은 아직 없다.
-
-**이 문서는 v0.2 시점 기록이다. 현재 기능·명령·설치 방법은 [v0.3 자동화 사용 안내](AUTOMATION_V0.3.ko.md)를 읽는다.** 아래의 미지원 항목 중 복구·환경 준비·웹 작업 등록·개별 중단·자동 시작은 v0.3에서 확장됐다.
-
-추가 자동화를 구현했을 때의 형태는 [완성형 구성과 작업 흐름](workflow-blueprint.html)에서 볼 수 있다. 현재 구현과 미래 구성안을 구분한 시뮬레이션이며 실제 작업을 실행하지 않는다.
-
-## 목차
-
-1. [어떤 일을 맡길 수 있나](#1-어떤-일을-맡길-수-있나)
-2. [어떤 구성으로 움직이나](#2-어떤-구성으로-움직이나)
-3. [처음 사용하는 순서](#3-처음-사용하는-순서)
-4. [대시보드에서 할 수 있는 일](#4-대시보드에서-할-수-있는-일)
-5. [명령어 찾아보기](#5-명령어-찾아보기)
-6. [막히거나 중단됐을 때](#6-막히거나-중단됐을-때)
-7. [푸시·병합·배포까지 연결하기](#7-푸시병합배포까지-연결하기)
-8. [완료 표시와 검증을 읽는 법](#8-완료-표시와-검증을-읽는-법)
-9. [실제 Katakuri 작업에서 확인한 결과](#9-실제-katakuri-작업에서-확인한-결과)
-10. [사내 반입과 다른 PC에서 사용하기](#10-사내-반입과-다른-pc에서-사용하기)
-11. [현재 한계와 역할 분담](#11-현재-한계와-역할-분담)
-12. [파일 위치와 근거](#12-파일-위치와-근거)
-
-## 1. 어떤 일을 맡길 수 있나
-
-예를 들어 다음과 같은 일을 맡길 수 있다.
-
-- 화면에 빠진 조회 링크를 추가하고, 기존 버튼 동작이 유지되는지 검사한다.
-- 재현 가능한 버그를 수정하고 관련 회귀 시험을 실행한다.
-- 명확한 완료 조건이 있는 작은 WP를 구현하고 다른 에이전트의 리뷰를 받는다.
-- 중단된 작업의 현재 코드와 인계 기록을 읽어 다음 세션에서 이어간다.
-- 검증된 변경을 지정한 GitHub 저장소에 PR로 올리고, CI 확인 후 병합·배포한다.
-
-WP는 **목표와 완료 조건이 정해진 작업 묶음**이다. 기존 WP 문서가 없어도 작업을 등록할 수 있다. 다만 무엇을 만들지, 무엇으로 확인할지는 정해야 한다.
-
-| 하고 싶은 일 | 현재 지원 | 준비하거나 알아야 할 것 |
-|---|---|---|
-| 작업 등록·상태 조회 | 가능 | 프로젝트 경로, 목표, 완료 조건 |
-| Claude 또는 Codex에 구현 맡기기 | 가능 | 선택한 CLI의 설치·로그인·사용 가능량 |
-| 다른 에이전트에게 독립 리뷰 맡기기 | 가능 | 구현 담당과 다른 검토자 지정 |
-| 실제 검사 실행 | 가능 | 프로젝트에 맞는 검사 명령 등록 |
-| 지적받은 결함 수정 | 가능 | 설정한 추가 수정 횟수 안에서 진행 |
-| 작업을 백그라운드로 실행 | 가능 | 데몬 기동 후 큐 등록 |
-| 실패·중단 기록과 재개 | 부분 자동화 | 원인 확인과 재개 지시는 필요할 수 있음 |
-| 다음 세션용 인계·worklog 초안 | 가능 | 전체 대화 export나 Obsidian 저장은 별도 |
-| 자동 PR·병합·배포 | 조건부 가능 | 작업별 릴리스 설정, 원격 권한, 배포·상태 확인 명령 |
-| 전체 프로젝트의 다음 일을 스스로 선정 | 전용 기능 없음 | 사용자나 대화 중인 에이전트가 선정 |
-| 여러 에이전트의 병렬 작업을 자동 조율 | 전용 기능 없음 | 현재 기본 데몬은 한 번에 한 작업씩 처리 |
-| 사용량 소진 시 계정·모델 자동 전환 | 없음 | 원인 해결 또는 담당자 변경 후 재개 |
-
-## 2. 어떤 구성으로 움직이나
-
-| 구성 | 쉬운 설명 | 실제 역할 |
-|---|---|---|
-| `agent-workflow` 스킬 | AI가 읽는 작업 안내서 | 현재 작업 확인, 등록, 검사, 리뷰, 인계 순서를 안내 |
-| CLI | 작업 관리 명령 | 상태 저장, 검사 실행, 에이전트 호출, 릴리스 수행 |
-| 작업 원장 | 작업 기록장 | 목표·진행 상태·검사·리뷰·중단 사유를 SQLite에 저장 |
-| 데몬 | 계속 켜 두는 실행 프로그램 | 대기열에서 작업을 하나씩 꺼내 실행 |
-| 대시보드 | 진행 상황을 보는 화면 | 등록된 작업 조회, 실행 요청, 대기 취소 |
-| Codex·Claude CLI | 실제 일을 하는 에이전트 | 소스 읽기·수정 또는 독립 검토 |
-
-```mermaid
-flowchart LR
-    A[사용자 또는 대화 중인 AI\n목표·범위·검사 정하기] --> B[작업 등록]
-    B --> C[구현 담당]
-    C --> D[등록된 실제 검사]
-    D --> E[독립 검토]
-    E -->|차단 결함·수정 한도 안| C
-    E -->|통과| F[로컬 완료·인계]
-    F -->|릴리스 설정 있음| G[푸시·CI·병합·배포]
-```
-
-이 도구에 AI 모델이 들어 있는 것은 아니다. 설치된 `codex`, `claude` 명령을 호출한다. 모델 사용량은 해당 CLI의 계정에서 발생한다.
-
-스킬 자체는 상주 프로그램이 아니다. 에이전트가 스킬을 읽고 명령을 실행하거나, 사용자가 CLI·대시보드에서 실행을 요청해야 작업이 시작된다.
-
-## 3. 처음 사용하는 순서
-
-### 3.1 먼저 준비할 것
-
-1. **작업할 Git 저장소**: 최소 한 개의 커밋이 있어야 한다.
-2. **작업할 위치**: 다른 세션과 겹칠 수 있으면 별도 worktree를 준비한다. worktree는 같은 저장소를 별도 폴더·브랜치에서 작업하는 Git 기능이다.
-3. **작은 목표와 완료 조건**: 예를 들어 “감사 ID가 있으면 기록 보기 링크를 표시하고, 없으면 링크를 만들지 않는다”.
-4. **실제 검사 명령**: 목표와 관련된 테스트·타입 검사·린트 등.
-5. **구현 담당과 검토자**: 기본은 Claude 구현, Codex 리뷰다.
-
-현재 `create` 명령은 구현용 worktree를 자동으로 만들지 않는다. 이미 있는 작업 위치를 지정한다. 릴리스 과정에서 만드는 병합·배포용 checkout과는 별개다.
-
-### 3.2 가장 쉬운 시작: 평소 대화에서 요청하기
-
-작업할 프로젝트에서 Codex 또는 Claude를 열고 다음처럼 요청한다.
-
-> agent-workflow 스킬을 사용해. 이 프로젝트에서 작업할 작은 항목 하나의 목표와 완료 조건을 확인하고 등록해.
-> 구현은 Claude, 독립 리뷰는 Codex가 맡도록 해.
-> 관련 검사와 작업 범위를 구체적으로 정해.
-> 이번에는 로컬 구현·검증·인계까지 진행하고 release-config는 등록하지 마.
-
-이 과정에서 작업을 고르고 검사 명령을 정하는 것은 **대화 중인 에이전트의 작업**이다. 데몬이 모든 프로젝트를 자동 탐색해 일감을 만드는 것은 아니다.
-
-이미 등록된 작업을 이어갈 때는 ID를 지정한다.
-
-> agent-workflow 스킬로 `작업ID`의 현재 상태와 인계를 확인하고 이어서 진행해.
-
-### 3.3 직접 등록하는 예시
-
-아래는 **웹 코드 작업용 템플릿**이다. 프로젝트 경로·목표·검사 파일을 실제 작업에 맞게 바꾼 뒤 실행한다. 예시에 있는 검사 하나만으로 모든 작업의 완료를 보장할 수는 없다.
-
-```bash
-agent-workflow create KB-NEXT-001 \
-  --project /path/to/isolated-worktree \
-  --goal '현재 상태의 기록 번호에서 기록 목록으로 이동할 수 있다' \
-  --criterion '번호가 있으면 정확한 링크를 표시한다' \
-  --criterion '번호가 없으면 링크를 만들지 않는다' \
-  --check 'npm --prefix web test -- tests/risk.render.test.tsx --maxWorkers=2' \
-  --owner claude --reviewer codex
-```
-
-- 작업 ID는 원장 전체에서 고유해야 한다. `KB-…`처럼 프로젝트 접두어를 붙이면 구분하기 쉽다.
-- `--criterion`, `--check`, `--ref`는 여러 번 지정할 수 있다. `--ref`는 실제로 존재하는 파일 경로다.
-- 검사 명령은 **저장소 루트에서** 실행된다. 하위 폴더 명령은 예시의 `--prefix web` 또는 별도 스크립트로 경로를 정한다.
-- 검사 명령은 셸 없이 실행한다. `&&`, 파이프, 리다이렉션이 필요하면 검사 스크립트로 묶는다.
-- `--owner codex`로 바꿀 때는 `--reviewer claude`도 지정한다. 같은 에이전트를 구현자와 독립 검토자로 지정할 수 없다.
-- 작은 작업에서 독립 리뷰를 생략하려면 등록 시 `--reviewer none`을 명시한다.
-
-### 3.4 계획 확인 후 실행
-
-```bash
-agent-workflow run KB-NEXT-001 --dry-run
-agent-workflow run KB-NEXT-001 --timeout 1800 --repairs 1
-```
-
-`--dry-run`은 실행 계획을 출력한다. 실제 검사나 로그인·CI·배포 준비 상태를 검증한 결과는 아니다.
-
-`run`과 `pipeline`은 현재 같은 실행 경로를 사용한다. **어느 명령이든 release-config가 있으면 릴리스까지 이어진다.** 로컬 작업에서 끝내려면 릴리스 설정을 등록하지 않는다.
-
-| 옵션 | 기본값 | 뜻 |
-|---|---|---|
-| `--timeout` | 900초 | 에이전트·검사 프로세스별 시간 제한. 작업 전체의 총시간 제한은 아님 |
-| `--repairs` | 1회 | 최초 시도 뒤 허용할 추가 수정 횟수. 0~3 지정 가능 |
-
-예시의 1800초는 독해·구현 시간이 필요한 작업을 위한 선택이다. 시간을 늘려도 성공을 보장하지 않으며, 토큰·금액 예산을 제한하는 옵션도 아니다.
-
-### 3.5 백그라운드로 맡기기
-
-```bash
-agent-workflow daemon start --port 8776
-agent-workflow queue KB-NEXT-001 --timeout 1800 --repairs 1
-agent-workflow jobs
-```
-
-브라우저에서 <http://127.0.0.1:8776>을 연다. 이 프로젝트에서는 다른 서비스와의 충돌을 피하기 위해 8776을 사용한다. 프로그램 기본 포트는 8765이므로 예시처럼 포트를 명시한다.
-
-브라우저를 닫아도 데몬은 계속 실행된다. WSL이나 컴퓨터를 종료하면 프로세스도 종료된다. 다음 시작 때 `daemon start`가 필요하며, 재부팅 자동 시작 설정은 포함돼 있지 않다.
-
-## 4. 대시보드에서 할 수 있는 일
-
-| 화면 요소 | 할 수 있는 일 |
+| 하려는 일 | 시작할 곳 |
 |---|---|
-| 작업 목록·검색·상태 필터 | 등록된 작업 선택. `/` 키로 검색창 이동 |
-| 단계 표시 | 구현·검증·리뷰·병합·배포 상태 확인. 생략·미설정·재확인 필요를 구분 |
-| 체크포인트 | 마지막 작업과 다음 행동 확인 |
-| 실행 기록 | 검사·리뷰·릴리스 사건과 필요한 상세 정보 확인 |
-| 워크플로 실행 | 선택한 기존 작업을 큐에 등록 |
-| 통합·배포 실행 | release-config가 있는 작업의 릴리스를 큐에 등록 |
-| 대기 취소 | 아직 시작하지 않은 큐 항목 취소 |
-| 테마 버튼 | 다크·라이트 전환. 브라우저에 선택 저장 |
+| 오늘 작업을 닫고 다른 에이전트로 이어가기 | [등록 없는 세션](#sessions) |
+| 어떤 검사를 붙일지 결정하고 작업 등록 | [프로필과 추천](#profiles) |
+| 대화형으로 진행하거나 두 에이전트에게 맡기기 | [구현·검사·리뷰](#execution) |
+| 여러 작업을 순서대로 처리하거나 중단한 실행 복구 | [큐·보류·배치](#queue) |
+| 프로젝트·세션을 한 화면에서 보기 | [관제실과 연결](#observe) |
+| 로컬 완료와 배포 확인을 구별하고 재개 | [릴리스](#release) |
+| 오류·누락된 기록을 진단하거나 새 설치로 이전 | [운영·복구](#ops) |
+| 기억나는 명령 이름으로 동작 찾기 | [CLI 찾아보기](#commands) |
 
-**v0.2 당시 대시보드에는 새 목표를 입력하는 채팅창이나 작업 등록 폼이 없었다.** 현재 관리 UI의 프로필 기반 등록 폼과 `/mission`의 연결 설정은 각각 [자동화 안내](AUTOMATION_V0.3.ko.md), [화면 연결 안내](CONNECTION_SETUP.ko.md)를 참고한다. 아래는 당시 절차다. 등록·검사 명령·담당자·릴리스 대상 설정은 CLI 또는 에이전트와의 대화에서 한다. 로그 파일 전체를 탐색하는 화면도 없다. 필요한 경로는 `show`나 원장 기록에서 확인한다.
+<a id="setup"></a>
 
-대시보드 실행 버튼은 현재 기본 시간 제한 900초·추가 수정 1회를 사용한다. 값을 조정하려면 CLI의 `queue` 명령을 사용한다.
+## 1. 설치와 첫 확인
 
-## 5. 명령어 찾아보기
+Linux 또는 WSL의 Python 3.11 이상과 Git이 필요하다. Python 코어는 표준 라이브러리를 사용한다. 일반 관리 화면과 관제실의 빌드 자산은 패키지에 들어 있다. 모델을 호출할 때는 선택한 Codex·Claude CLI와 로그인, 사용 가능량이 필요하다. GitHub 릴리스에는 해당 원격의 Git 접근과 인증된 `gh`가 필요하다. 브라우저 수용 검사에는 Node.js, Playwright, Chromium을 준비한다.
 
-아래 `TASK_ID`, `JOB_ID`, 파일 경로는 자신의 값으로 바꾼다. TASK_ID는 **일감의 이름**, JOB_ID는 **그 일감을 실행한 한 번의 시도 번호**다. 한 작업에 실패·재개 이력이 여러 개 있을 수 있다.
-
-| 목적 | 명령 | 실제 효과 |
-|---|---|---|
-| 설치 확인 | `agent-workflow doctor` | Git·CLI 경로와 버전 확인. 인증·사용량·모델 응답 성공까지 검사하지 않음 |
-| 작업 목록 | `agent-workflow list` | 등록된 작업 요약 |
-| 상세 확인 | `agent-workflow show TASK_ID` | 현재 Git 상태와 저장된 검사·리뷰·인계 정보 |
-| 실행 입력 보기 | `agent-workflow brief TASK_ID` | 대화형 재개 지시문 출력 |
-| 리뷰 입력 보기 | `agent-workflow brief TASK_ID --role review` | 독립 검토 입력과 결과 JSON 형식 출력 |
-| 다음 행동 기록 | `agent-workflow checkpoint TASK_ID --summary '진행 내용' --next '다음 행동'` | 체크포인트 갱신. 검사 통과나 완료를 뜻하지 않음 |
-| 검사 추가 | `agent-workflow check-add TASK_ID '실제 검사 명령'` | 검사 추가 및 기존 검사·리뷰 증거 무효화 |
-| 검사만 실행 | `agent-workflow check TASK_ID` | 구현 모델 호출 없이 등록된 검사 실행. 기존 리뷰 판정은 초기화 |
-| 전경 실행·재개 | `agent-workflow run TASK_ID` | 필요한 구현·검사·리뷰, 설정된 경우 릴리스까지 수행 |
-| 대기열 등록 | `agent-workflow queue TASK_ID` | 데몬에 실행 요청. 데몬이 꺼져 있으면 대기 |
-| 실행 이력 | `agent-workflow jobs` | JOB_ID, 대기·실행·종료 상태, 로그 경로 |
-| 대기 취소 | `agent-workflow cancel JOB_ID` | queued 상태만 취소 |
-| 담당 변경 | `agent-workflow assign TASK_ID --owner codex --reviewer claude` | 새 담당 지정. 실행 중인 같은 worktree의 잠금을 얻을 수 없으면 거부 |
-| 완료 판정 | `agent-workflow finish TASK_ID` | 등록된 검사·지정 리뷰와 현재 코드가 일치하는지 확인 후 로컬 완료 |
-| 인계 생성 | `agent-workflow handoff TASK_ID` | 재개문·상태 JSON·worklog 초안 생성 |
-| 데몬 조회·종료 | `agent-workflow daemon status` / `agent-workflow daemon stop` | 서비스 조회 또는 종료 |
-
-대화형 독립 검토 결과를 수동 등록할 때는 `result-schema`와 `review-import`를 사용한다. [스킬 명령 참고](../skills/agent-workflow/references/commands.md)에 형식이 있다. 다른 검토자의 실제 결과를 등록해야 하며, 구현 담당자가 예시 JSON을 복사해 독립 리뷰 통과로 처리하면 안 된다.
-
-## 6. 막히거나 중단됐을 때
-
-### 6.1 먼저 상태와 이유를 확인한다
-
-```bash
-agent-workflow show TASK_ID
-agent-workflow jobs
-```
-
-`blocker`, `last_run.directory`, 검사 결과의 `stdout`·`stderr`, 작업 이력의 `log_path`를 확인한다. 상태는 마지막 기록이므로, 강제 종료 뒤에는 실제 프로세스와 Git 변경도 함께 확인한다.
-
-### 6.2 코드가 남아 있다면 검사부터 이어갈 수 있다
-
-시간 초과는 코드가 하나도 작성되지 않았다는 뜻이 아니다. **남아 있는 변경이 작업 범위에 맞는지, 등록된 검사가 완료 조건을 충분히 확인하는지 먼저 확인한다.** 아직 유효한 검사 통과 증거가 없다면 다음 순서로 재개할 수 있다.
-
-```bash
-agent-workflow check TASK_ID
-agent-workflow run TASK_ID --timeout 1800 --repairs 1
-```
-
-`check`는 검사를 다시 수행하며 기존 리뷰 판정을 초기화한다. **현재 코드의 검사·리뷰가 이미 통과했다면 `check`를 반복하지 않고 `run`으로 재개한다.** 유효한 검사 통과 증거가 있고 차단 수정이 필요한 리뷰가 없으면 구현을 건너뛴다. 리뷰까지 유효하게 통과했다면 리뷰도 반복하지 않는다. 미완료 작업의 검사가 실패하거나 코드가 바뀌면 필요한 구현·검증 단계로 돌아간다.
-
-**복구 경로는 있지만, 중단된 일을 항상 알아서 진단·재개하는 기능은 아니다.** Katakuri 파일럿도 부모 에이전트가 이 복구 순서를 선택해 실행했다.
-
-### 6.3 계정 한도나 사용 가능한 에이전트가 달라졌다면
-
-원인을 해결한 뒤 재개하거나, 작업이 더 이상 실행 중이 아님을 확인하고 `assign`으로 담당자를 바꾼다. 도구가 계정을 자동 전환하거나 한도 해제 시각까지 기다렸다가 자동 재시작하지는 않는다.
-
-### 6.4 실행 중인 일을 멈추려면
-
-`cancel JOB_ID`는 대기 중인 작업에만 적용된다. 현재 버전에는 실행 중인 작업 하나만 중단하는 전용 명령이 없다.
-
-터미널에서 전경으로 실행한 `run`·`pipeline`은 해당 터미널의 **Ctrl+C**로 중단한다. 도구가 관리하는 하위 프로세스도 종료한다. 중단 뒤에는 `show`와 Git 변경·로그를 확인하고 6.2의 순서로 재개한다. 원격 푸시·병합·배포 도중이었다면 실제 원격 결과도 확인한다. 이 전경 실행은 큐 작업이 아니므로 `jobs`에 별도 실행 항목이 생기지 않는다.
-
-`daemon stop`은 대시보드와 큐 worker를 종료하고, worker가 수행 중인 관리 작업도 중단한다. 이미 수행된 파일 변경·원격 작업을 되돌리지는 않는다. 재시작하면 대기열은 남고, 실행 중이던 작업은 중단 상태로 기록되며 자동 재실행되지 않는다.
-
-## 7. 푸시·병합·배포까지 연결하기
-
-이 기능은 작업마다 목적지를 지정해야 한다. 다음 예시는 **이미 승인된 실제 대상**으로 값을 바꿔 사용할 때의 형태다.
-
-```bash
-agent-workflow release-config TASK_ID \
-  --repo OWNER/REPO \
-  --remote origin --base main --branch workflow/task-branch \
-  --path src --path tests \
-  --deploy 'python3 scripts/deploy.py' \
-  --health 'python3 scripts/health.py'
-
-agent-workflow pipeline TASK_ID --dry-run
-agent-workflow pipeline TASK_ID
-```
-
-배포 스크립트와 health 스크립트는 해당 프로젝트에 실제로 있어야 한다. 이 도구가 호스팅 계정·배포 구성을 자동으로 만들어 주지는 않는다. 배포 없이 푸시·병합까지만 하려면 `--deploy`와 `--health`를 둘 다 생략한다.
-
-실행 순서는 다음과 같다.
-
-1. 현재 코드에 대한 검사·리뷰와 로컬 완료 상태를 확인한다.
-2. 등록된 파일 경로 안의 변경만 커밋한다. 경로 밖 변경이 있으면 멈춘다.
-3. 지정한 작업 브랜치를 강제 덮어쓰기 없이 푸시한다.
-4. GitHub PR을 생성하거나 같은 후보 커밋의 PR을 이어간다.
-5. 원격 CI와 병합 가능 상태를 확인하고, 후보 커밋 SHA를 지정해 병합한다.
-6. 배포가 설정됐다면 병합된 커밋의 별도 checkout에서 필수 검사를 다시 실행한다.
-7. 배포 명령과 health 명령을 실행해 결과·배포 revision을 기록한다.
-
-적용 조건과 제한:
-
-- 자동 커밋 대상 작업은 **깨끗한 Git 기준선에서 등록**해야 한다.
-- 원격 URL과 지정한 저장소가 일치해야 한다. 현재 GitHub 모드는 `github.com`만 지원한다.
-- `--path`는 자동 커밋 경계다. 구현 에이전트의 모든 파일 쓰기를 강제로 제한하는 장치는 아니다. 세부 변경 범위는 별도 검사와 CLI 권한 설정으로 확인한다.
-- `scope`는 에이전트에게 전달하는 범위 지시다. “배포 금지”라는 문장만으로 이미 설정된 release-config가 꺼지지는 않는다.
-- CI가 없는 저장소는 `--allow-no-ci`를 명시해야 한다. 실패한 CI를 통과로 바꾸는 옵션이 아니다.
-- 배포 프로그램은 `WORKFLOW_REVISION`·`WORKFLOW_TASK_ID`를 받는다. health 프로그램은 기대한 버전이 실제로 적용됐는지 확인하도록 프로젝트에서 작성해야 한다.
-- 성공한 배포를 같은 작업으로 다시 호출해도 반복 적용하지 않는다. 배포 성공 후 health만 실패하면 다음 호출은 health부터 재개한다.
-- 배포 결과가 실패·불명확하면 실제 적용 상태를 확인한 후에만 `release TASK_ID --retry-deploy`로 재시도한다.
-
-**이미 등록한 릴리스 설정을 해제하는 전용 명령은 없다.** 기존 작업을 로컬 실행으로 전환하려면 같은 프로젝트에 새 작업 ID를 등록하고, 필요한 목표·완료 조건·검사·참조 문서를 옮기되 release-config는 등록하지 않는다. 기존 파일 변경은 남아 있지만 새 작업의 검사·리뷰 증거는 다시 확보해야 한다. 기존 작업이 실행 중이거나 큐에 대기 중이라면 먼저 해당 실행을 정리한다.
-
-현재 검증된 실제 푸시·병합·배포는 **로컬 bare Git 원격을 사용하는 시범 환경**이다. GitHub API 요청의 경계는 시험했지만 외부 운영 저장소의 실제 배포까지 검증했다고 보지는 않는다.
-
-## 8. 완료 표시와 검증을 읽는 법
-
-세 가지 기록을 따로 본다.
-
-| 기록 | 예 | 의미 |
-|---|---|---|
-| 작업 상태 | `ready`, `implementing`, `checking`, `reviewing`, `blocked`, `completed` | 일감의 로컬 진행 상태 |
-| 실행 시도 상태 | `queued`, `running`, `failed`, `interrupted`, `succeeded` | 특정 JOB_ID의 실행 결과 |
-| 릴리스 상태 | `committed`, `pushed`, `merged`, `deploying`, `deployed` | 저장소 통합·배포의 실제 진행 상태 |
-
-**`completed`는 등록된 로컬 검사와 지정 리뷰가 통과했다는 뜻이다.** 병합·배포·실사용 환경의 확인은 별도다. 테스트 명령을 부족하게 등록하면 목표에 비해 약한 완료 판정이 될 수 있다.
-
-`show`의 `verification_is_current`, `review_is_current`, `completion_is_current`는 저장된 증거와 현재 코드가 일치하는지 보여준다. 릴리스가 같은 내용을 커밋한 경우에는 `evidence_bound_via_release`로 그 연결을 표시한다.
-
-검사에 사용한 코드가 바뀌면 재확인이 필요하다. **이미 `completed`인 작업에서 코드를 추가로 바꿨다면 새 작업 ID로 등록해 검증한다.** 완료된 작업은 `check`나 계약 변경을 받지 않는다.
-
-Git이 무시한 파일, 환경변수, 외부 데이터까지 모두 코드 지문으로 묶는 것은 아니다. 그런 입력이 결과를 좌우하면 작업별 검사에서 별도로 확인해야 한다.
-
-## 9. 실제 Katakuri 작업에서 확인한 결과
-
-2026-10-08에 `KB-O-CURRENT-AUDIT`로 **A-002 현재 감사 ID → 기존 감사 목록 링크**를 구현했다.
-
-| 항목 | 실제 결과 |
-|---|---|
-| 제품 코드 | 컴포넌트 한 파일 수정 |
-| 관련 시험 | 기존 68개 + 추가 12개, 총 80개 통과 |
-| 다른 검사 | 독립 수용 검사, 타입 검사, 린트, 변경 범위 검사 통과 |
-| 리뷰 | Codex 독립 리뷰 PASS |
-| 브라우저 | 격리 화면에서 실제 컴포넌트·합성 API로 새 탭과 상태 보존 확인 |
-| 중단 | Claude가 파일 작성 후 최종 JSON 응답 전에 900초 제한으로 종료 |
-| 복구 | 부모 에이전트가 변경을 확인·검사하고 기록을 정정한 뒤 재개. 구현 재호출 없이 리뷰로 연결 |
-| 최종 적용 범위 | 전용 브랜치에서 로컬 완료. 커밋·푸시·병합·운영 배포는 하지 않음 |
-
-이 사례는 **실제 작업을 도구로 처리할 수 있음**을 보여준다. 복구 개입 1회가 있었으므로 무감독 자동 성공으로 세지 않는다. 검사·리뷰 연결은 도구가 했지만, 파일럿 선정·작업 계약·맞춤 검사·브라우저 확인 준비는 부모 에이전트가 했다.
-
-개발 환경의 증거: [파일럿 설명](../pilots/KB-O-CURRENT-AUDIT/README.md), [실행 결과](../pilots/KB-O-CURRENT-AUDIT/result.json), [검토용 패치](../pilots/KB-O-CURRENT-AUDIT/changes.patch). 이 링크는 별도 보관된 파일럿 자료가 있어야 열린다.
-
-## 10. 사내 반입과 다른 PC에서 사용하기
-
-### 환경별 사용 가능 범위
-
-| 환경 | 현재 판단 |
-|---|---|
-| Linux/WSL2, 필요한 CLI 호출 가능 | 현재 도구를 설치해 사용할 수 있는 대상 |
-| Windows 네이티브 | 지원 대상으로 검증하지 않음. Linux의 `fcntl`·`/proc` 사용 |
-| 완전 폐쇄망 | 원장·대시보드·로컬 검사·인계는 사용 가능. 현재 AI 호출 경로는 그대로 사용하기 어려움 |
-| github.com | 현재 자동 릴리스 연결 대상 |
-| 사내 GitHub Enterprise·GitLab·Bitbucket | 현재 원격 릴리스 어댑터에 추가 구현 필요 |
-| 여러 직원이 공동 접속하는 서버 | 현재는 loopback 개인용. 팀 인증·권한·원격 공개 기능 없음 |
-
-### 설치 순서
-
-소스와 스킬을 가져간 폴더에서 실행한다. 설치기는 이 폴더를 가리키는 심볼릭 링크를 만들므로 설치 후에도 원본 폴더를 유지한다.
+소스에서 설치할 때는 **agent-workflow 저장소 루트**에서 실행한다.
 
 ```bash
 python3 install.py
-~/.local/bin/agent-workflow doctor
-~/.local/bin/agent-workflow daemon start --port 8776
+export PATH="$HOME/.local/bin:$PATH"
+agent-workflow --version
+agent-workflow doctor
+agent-workflow --help
 ```
 
-이미 설치한 뒤 소스 폴더를 옮기면 기존 링크가 자동으로 갱신되지는 않는다. 다음 순서로 이전 설치를 정리한다.
+설치기는 `~/.local/bin/agent-workflow`를 소스의 실행 파일에 연결한다. 이미 존재하는 `.codex`, `.claude`, `.claude-soonho`, `.claude-alex` 홈에는 공용 스킬을 연결한다. 같은 이름의 다른 대상과 충돌하면 경로를 출력하고 중단한다. 이 방식은 연결한 소스 디렉터리를 계속 사용한다. 별도 Python 환경에서는 빌드한 wheel을 설치하거나 저장소 루트에서 `python3 -m agent_workflow --help`로 CLI를 시험할 수 있다. `doctor`의 `available`은 실행 파일을 찾았다는 의미다. 계정 인증·한도·모델 응답은 실제 호출에서 확인한다.
 
-1. 진행 중인 작업의 상태와 로그를 확인하고 데몬을 종료한다.
-2. 새 폴더에서 `python3 install.py`를 실행한다. 기존 링크가 이전 위치를 가리키면 설치기가 충돌 경로를 알려 준다.
-3. 해당 경로가 **이 도구의 이전 설치를 가리키는 심볼릭 링크**인지 확인하고 그 링크를 제거한다. CLI 링크와 이미 설치된 프로필의 스킬 링크 모두 확인한다.
-4. 새 폴더에서 설치기를 다시 실행하고 `doctor`로 확인한다. 실제 파일이나 다른 설치의 폴더가 충돌한다면 그 항목의 용도를 먼저 확인한다.
-
-Python 3.11 이상과 Git이 필요하다. 도구 자체는 외부 Python 패키지 없이 설치된다. AI 작업에는 사용할 Codex·Claude CLI와 로그인, GitHub 릴리스에는 `gh`, 프로젝트 검사에는 해당 프로젝트의 빌드·시험 도구가 별도로 필요하다.
-
-설치기는 이미 있는 `.codex`, `.claude`, `.claude-soonho`, `.claude-alex` 프로필의 스킬 폴더에 같은 원본을 연결한다. 해당 프로필이 없으면 그 연결은 만들지 않는다. `agent-workflow`가 PATH에서 보이지 않으면 위처럼 전체 명령 경로를 사용한다.
-
-현재 개발 환경에서 확인한 CLI 버전은 Codex 0.160.1, Claude Code 2.1.292다. 다른 환경은 실행 옵션 호환성을 확인해야 한다. `doctor` 성공만으로 실제 모델 호출까지 검증됐다고 보지 않는다.
-
-### 무엇을 옮기나
-
-- 실행에 필요한 소스: `agent_workflow/`, `bin/`, `skills/`, `install.py`, `pyproject.toml`, README와 사용 안내서.
-- 선택 항목: 시험 소스 `tests/`. 브라우저 회귀 검사는 별도로 Playwright가 필요하다.
-- 개인 상태·로그·원본 대화·인증 정보·테스트용 `artifacts/`는 기본 반입 묶음에서 제외한다. 개발용 `pilots/`도 대상 환경 경로에 맞춘 별도 자료이므로 그대로 실행하지 않는다.
-- 작업 원장에는 절대 프로젝트 경로가 들어 있다. 다른 PC에 원장을 통째로 복사하면 그대로 재개된다고 보장하지 않는다. 새 환경의 경로로 작업을 다시 등록하고 필요한 인계 내용만 검토해 옮긴다.
-
-사내에서 AI 자동 실행을 하려면 허용된 모델 연결·계정을 사용해야 한다. 소스와 도구 출력이 선택한 CLI의 모델 서비스로 전달될 수 있다. 사내 프록시·모델 게이트웨이에서의 실제 동작은 아직 검증하지 않았다.
-
-## 11. 현재 한계와 역할 분담
-
-**사람 또는 감독하는 에이전트가 정할 것:** 다음 작업, 우선순위, 완료 조건, 검사 명령, 소유 파일, 모델 역할, 외부 작업 대상과 범위, 불명확한 결과의 처리.
-
-**도구가 반복 처리할 것:** 등록된 실행 순서, 검사 실행, 결과 전달, 제한된 수정 반복, 코드와 증거의 연결 확인, 큐·진행 기록, 인계 생성, 설정된 릴리스.
-
-현재 자동화하지 않는 일은 다음과 같다.
-
-- 전체 대화 이력을 계속 읽고 새 작업을 스스로 발굴하는 일
-- 프로젝트별 규약을 완전히 이해해 모든 문서·원장을 자동 동기화하는 일
-- 작업 난도에 따라 모델을 자동 선택하거나 계정·사용량을 자동 관리하는 일
-- 구현용 worktree 자동 배정, 여러 트랙의 소유권 예약·병합 충돌 자동 조율
-- 중단 원인을 모두 분류해 무조건 자동 복구하는 일
-- 문제 발생 시 메신저로 능동 알림을 보내는 일
-- 전체 대화 export, Obsidian worklog 저장, 기존 handoff 팩 갱신의 완전 자동 연결
-
-Claude 자동 구현은 현재 `--safe-mode`와 파일 읽기·편집 도구를 사용한다. 평소 대화형 세션의 플러그인·훅·메모리·모든 도구가 그대로 이어지는 것은 아니다. 필요한 검사와 검증 환경은 실행 계획에 연결해야 한다.
-
-같은 worktree의 관리 실행은 파일 잠금으로 겹침을 막지만, 도구 밖의 에디터나 다른 에이전트까지 막지는 못한다. 종료된 작업의 임시 자원·worktree를 자동으로 모두 정리하는 기능도 없다.
-
-## 12. 파일 위치와 근거
-
-| 위치 | 내용 |
-|---|---|
-| 프로젝트 폴더 `/home/roqkf/agent-workflow` | 도구 소스·스킬·사용 안내 |
-| `~/.local/bin/agent-workflow` | 설치된 명령 링크 |
-| `~/.local/state/agent-workflow/state.sqlite3` | 기본 작업·이벤트·큐 원장 |
-| 상태 폴더의 `tasks/TASK_ID/runs/` | 모델 실행 입력·출력·오류·결과 |
-| 상태 폴더의 `tasks/TASK_ID/checks/` | 검사별 실제 명령·종료 코드·로그 |
-| 상태 폴더의 `tasks/TASK_ID/handoff/` | `state.json`, `resume.txt`, `worklog.md` |
-| 상태 폴더의 `tasks/TASK_ID/release/` | 릴리스 작업 사본과 명령 로그 |
-| 상태 폴더의 `jobs/`, `server.log` | 큐 작업 로그와 서버 로그 |
-
-상태 폴더는 `AGENT_WORKFLOW_HOME` 또는 전역 옵션 `--home`으로 바꿀 수 있다. `--home`은 명령 앞에 둔다.
+**처음부터 끝까지 시험하기.** 아래 예시는 새 임시 상태 폴더에 Git 저장소, 로컬 bare 원격, 시범 사이트를 만든다. 모델 로그인이나 GitHub 계정이 없어도 된다. 명령은 같은 셸에서 순서대로 실행한다.
 
 ```bash
-agent-workflow --home /path/to/separate-state list
+trial_state=$(mktemp -d)
+agent-workflow --home "$trial_state" demo-setup
+agent-workflow --home "$trial_state" release-status DEMO-RELEASE
+agent-workflow --home "$trial_state" release DEMO-RELEASE
+agent-workflow --home "$trial_state" release-status DEMO-RELEASE
 ```
 
-이 안내서는 [CLI](../agent_workflow/cli.py), [실행기](../agent_workflow/runner.py), [완료 판정·저장](../agent_workflow/core.py), [큐](../agent_workflow/daemon.py), [릴리스](../agent_workflow/release.py), [서버](../agent_workflow/server.py), [설치기](../install.py)를 대조해 작성했다.
+첫 조회에서 `local_completion=succeeded`, `merge=not_attempted`를 확인한다. 릴리스가 끝나면 `merge=succeeded`, `deployment=applied`, `health=succeeded`를 확인한다. 모든 Git·배포 효과가 해당 시범 폴더에 남는다. 일반 프로젝트는 상태 폴더 **밖에 있는 커밋된 Git 저장소**를 사용한다.
 
-기존 검증 기록: [v0.2 검사·로컬 릴리스](verification-v0.2.json), [대시보드 검사](verification-ui-redesign.json). 테스트가 확인한 범위와 실제 운영에서 확인하지 못한 범위를 함께 읽는다.
+### 경로와 식별자
+
+| 항목 | 의미와 위치 |
+|---|---|
+| 프로젝트 | 대상 Git 작업 트리. `--project`는 작업 내용을 읽거나 검사할 위치다. 격리 작업은 생성된 worktree 경로를 사용한다. |
+| 상태 홈 또는 원장 | `--home PATH` → `AGENT_WORKFLOW_HOME` → `~/.local/state/agent-workflow` 순으로 정한다. 전역 옵션인 `--home`은 하위 명령 **앞**에 둔다. 홈이 다르면 같은 작업 ID도 다른 작업이다. |
+| 작업 ID | 목표·완료 조건·검사·리뷰를 묶는 원장의 ID. `create` 때 지정하거나 `start`로 생성한다. |
+| 실행 ID | `queue`가 반환하는 `id`. `jobs`에서 찾고 `stop`, `cancel`, `resume`에 전달한다. 작업 하나에 재시도 이력이 여러 개일 수 있다. |
+| 프로젝트 프로필 | 상태 홈에 저장된 신뢰할 수 있는 설정. 저장소의 JSON은 `profile save`로 등록한 뒤 사용한다. |
+| 호스트 세션 ID | Claude Code·Codex·OpenCode가 생성한다. 세션 메타데이터 조회와 원래 도구로 복귀할 때 사용한다. |
+
+<a id="sessions"></a>
+
+## 2. 등록 없는 세션과 사용 이력
+
+```bash
+agent-workflow close-session --summary '모바일 검색 결과 정렬을 수정하고 관련 테스트를 통과했다.' \
+  --next '좁은 화면에서 정렬 버튼의 접근성 이름을 확인한다.'
+agent-workflow pickup
+```
+
+Git 저장소 또는 하위 디렉터리에서 실행한다. 다른 위치에 있으면 두 명령에 `--project /경로/저장소`를 붙인다. 공용 스킬을 사용하는 세션에서는 “세션 마감하고 다음 작업을 남겨줘”, “지난 작업 이어서 진행해”로 요청할 수 있다.
+
+- **마감**은 작업 트리와 브랜치별로 요약, 다음 행동, 당시 HEAD와 변경 경로를 담은 작업일지와 재개 메모를 저장한다. 반환된 `worklog`, `resume`은 실제 파일 경로다. 같은 상태·문구로 바로 재시도하면 기존 메모를 재사용한다.
+- **외부 일지 사본**은 `close-session`에 `--worklog-dir`과 기존 폴더를 지정하면 된다. 대상 파일시스템은 하드 링크를 지원해야 한다. 사용자 편집과 충돌하면 기존 사본을 보존한다. 내보내기 실패 시 오류에 표시된 로컬 일지가 복구 지점이다.
+- **재개**는 마지막 메모의 존재 여부 `found`, 현재 Git 상태, 기존 `agent-context` 인계 색인·요약·할 일 문서, 최근 등록 작업을 보여준다. 메모의 경로 상태 비교는 이름과 Git 상태 코드를 사용한다. 내용 차이는 `git diff`로 읽는다. 이에 비해 등록 작업의 검사 증거는 파일 내용과 참조 문서도 비교한다. [검증 결과 해석](#execution)
+- 이 경량 메모에는 직접 입력한 요약과 다음 행동이 들어간다. 호스트의 전체 대화 내보내기나 기존 프로젝트의 인계 패키지가 필요한 경우 해당 도구의 절차도 사용한다.
+
+`patterns`는 로컬 CLI 입력 이력의 월별·주제별 빈도, 세션 수, 명령 조합을 집계한다. 기본 입력은 홈의 Codex·Claude 이력과 Claude 추가 프로필이며 설정된 별도 CLI 홈도 조사한다. `--source`를 지정하면 해당 `history.jsonl`들로 범위를 지정한다. 원문과 임의의 명령 인자는 출력하지 않는다.
+
+```bash
+agent-workflow patterns --since 2026-10-01 --until 2026-10-31
+```
+
+날짜 양끝은 UTC 기준으로 포함한다. 여러 주제가 한 입력에 동시에 잡힐 수 있다. 같은 세션에서 두 명령을 사용한 횟수는 실행 순서나 실제 완료의 증거와 구별한다.
+
+<a id="profiles"></a>
+
+## 3. 프로필·검사 선택·작업 등록
+
+**프로필**은 반복 사용할 기본 검사를 담는다. **검사 묶음**은 특정 업무에 추가할 검사다. 다음 예시는 agent-workflow 저장소 루트에서 개발용 프로필을 등록한다. `aw-dev`가 다른 설정에 사용 중이라면 별도 이름을 선택한다. `save`는 같은 이름의 설정을 갱신한다.
+
+```bash
+agent-workflow profile save aw-dev --file profiles/agent-workflow-development.json
+agent-workflow profile list
+agent-workflow profile show aw-dev
+agent-workflow profile checks aw-dev --check-group handoff
+```
+
+`profile checks` 결과의 `available_groups`는 선택 가능한 이름, `check_groups`는 선택 결과, `checks`는 실행될 인자 배열이다. 기본 검사를 먼저 실행하고 선택한 묶음과 개별 검사를 추가한다. 묶음을 고른 경우 이미 포함된 명령을 추가로 중복 실행하지 않으며 기본 목록에 의도적으로 넣은 반복은 유지한다. 이름이 틀리면 등록 전에 오류가 난다. Katakuri용 프로필에는 합성 백테스트와 선택 가능한 뷰어 검사가 있다. [예제 프로필과 등록 위치](../profiles/README.md)
+
+### 변경에 맞는 검사 추천
+
+추천은 설치된 모델 CLI의 로그인을 사용하며 실제 호출 시 공급자 사용량이 발생할 수 있다. Codex 추천 호출에는 사용자 설정·규칙을 무시하는 옵션이 적용되고, Claude 추천 호출은 제한 모드를 사용한다. 일반 대화의 사용자 지정 공급자·모델 라우팅 설정과 다를 수 있다. 이 설치에서 실측한 버전은 Codex 0.170.0과 Claude 2.1.325이다. 이전 CLI가 제한 옵션을 지원하지 않으면 추천 호출은 실패한다.
+
+작업에 필요한 검사를 사람이 고르기 어려울 때 `recommend-checks`가 Git 변경과 완료 조건을 비교한다. 모델은 프로필에 있는 선택 묶음의 이름과 근거를 반환한다. 기본 검사 수와 설명, 묶음 설명을 모델에 제공하고, 실행할 명령은 로컬 프로필에서 가져온다. 프로필에 `base_check_description`과 `check_group_descriptions`를 작성하면 각 검사가 어떤 동작을 다루는지 이름만으로 추측하는 일을 줄일 수 있다.
+
+1. **전송할 입력 확인.** `--preview`는 로컬에서 입력과 사용할 공급자를 출력한다. 기본 대상은 프로필 프로젝트의 HEAD 기준 변경이며, 스테이징 전후의 추적 파일 diff와 추적되지 않은 파일의 경로를 포함한다. 다른 기준 커밋은 `--base REF`, 같은 Git 저장소의 별도 worktree는 `--project PATH`로 지정한다. 알려진 비밀 경로·패턴과 프로필 금지 경로를 제외하지만 새 형식의 민감 정보나 완료 조건에 직접 적은 개인정보가 있을 수 있다. 미리보기의 `input.change`와 `change_summary`에서 패치, 제외된 경로 수, 잘림 여부를 확인한다.
+2. **추천 방식 선택.** 기본 제공자는 `codex`다. `--reviewer auto`는 보이는 변경이 둘 이상의 최상위 영역에 걸치거나 입력이 잘리면 다른 공급자를 호출한다. 루트 파일들은 한 영역으로 계산한다. `--reviewer none`은 한 모델만 사용한다. 검토자에 다른 공급자를 직접 지정하면 두 모델이 같은 입력을 독립적으로 선택한다. 선택 묶음이 없는 프로필은 모델 호출을 건너뛴다. `--timeout`은 모델 호출당 초 단위 한도이며 기본 90초, 허용 범위는 1~600초다.
+3. **결과 검토.** `primary`와 `review`에 각 모델의 설명, `comparison`에 일치한 이름 및 한쪽만 고른 이름이 나온다. `suggested_groups`는 합집합이다. 출력의 `checks`는 추천대로 선택했을 때 실행할 명령 목록이다. 필수 조건을 충족하는 이름만 다음 등록 명령에 `--check-group`으로 넣는다. 추천 자체는 원장 등록이나 검사를 실행하지 않는다.
+
+```bash
+agent-workflow recommend-checks aw-dev --criterion '재개 시 바뀐 코드의 검사 결과를 표시한다.' --preview
+report_dir=$(mktemp -d)
+agent-workflow recommend-checks aw-dev --criterion '재개 시 바뀐 코드의 검사 결과를 표시한다.' \
+  --provider codex --reviewer claude > "$report_dir/handoff.json"
+```
+
+완료 조건이 여럿이면 `--criterion`을 반복한다. 실제 추천은 선택한 공급자의 CLI 로그인과 사용량을 이용한다. 첫 모델이 실패하면 CLI 오류와 종료 코드 2를 반환한다. 두 번째 호출만 실패하면 종료 코드 3과 `status=review_incomplete`, 첫 모델의 결과를 반환한다. 자동화에서는 종료 코드와 상태를 모두 읽는다. 두 번째 결과가 꼭 필요하면 해당 공급자 오류를 해결하고 다시 실행한다.
+
+**추천 품질 확인.** 개발자가 이번 변경에 실제로 필요하다고 판단한 **선택 묶음**을 완료된 추천 JSON과 대조한다. 예를 들어 인계 테스트만 추가하면 충분했다고 판단했다면 아래처럼 실행한다.
+
+```bash
+agent-workflow evaluate-checks "$report_dir/handoff.json" --expected-group handoff
+```
+
+필요한 묶음이 여러 개이면 `--expected-group`을 반복한다. 기본 검사만으로 충분했다면 `--expected-none`을 사용한다. `primary`와 `combined`에서 빠뜨린 항목(`missed`), 불필요한 항목(`extra`), 정확히 일치했는지(`exact_match`)를 읽는다. 이 비교는 로컬에서 수행한다. 실제 코드의 통과 여부는 등록된 검사를 실행해 판정한다. 구현 완료 후의 독립 코드 리뷰는 별도 단계다. [검사 선택과 누락 검토 사례](USE_CASES.ko.md)
+
+### 작업 공간과 등록 방식
+
+```bash
+agent-workflow create HANDOFF-01 --profile aw-dev --no-isolate --check-group handoff \
+  --goal '재개 시 변경된 코드의 검사 상태를 표시한다.' \
+  --criterion '검사 이후 파일 내용을 고치면 이전 결과에 재검사 필요가 표시된다.'
+agent-workflow show HANDOFF-01
+agent-workflow run HANDOFF-01 --dry-run
+```
+
+위 예시는 **현재 작업 트리**와 미커밋 변경을 포함한다. 프로필의 기본 격리 모드에서는 커밋된 HEAD로 새 worktree·브랜치를 만들고, 실제 작업 위치는 `task.project`에 표시한다. 이미 등록된 작업은 프로필 설정과 검사 목록의 사본을 갖는다. 프로필을 수정한 뒤 새 작업을 생성하면 변경된 설정을 적용한다.
+
+프로필 없이 등록할 때는 `create ID --project 경로 --goal … --criterion … --check '명령 인자'`를 사용한다. `--criterion`, `--ref`, `--check`는 반복할 수 있다. 저장소에서 이미 사용하는 검사를 지정한다. 명령은 shell을 거치지 않는 argv이므로 파이프와 리다이렉션이 필요한 기존 절차는 프로젝트 스크립트로 등록한다. refs는 구현·리뷰·검증에서 고려할 문서 경로다. WP·SRS가 있으면 완료 조건과 함께 참조한다.
+
+반복 등록할 프로젝트는 한 번 연결해 둘 수 있다. 아래 예제는 현재 프로젝트에 사용하려는 프로필이 이미 등록된 원장 경로를 사용한다.
+
+```bash
+agent-workflow connect . --ledger "$HOME/.local/state/agent-workflow" --profile aw-dev \
+  --criterion '등록한 필수 검사 통과'
+agent-workflow start '인계 문서의 링크를 확인한다.' --project . --check-group handoff
+```
+
+`start`가 반환한 `state_home`과 `task.id`로 조회·실행한다. 등록 후보 원장이 여러 개면 `connect --registration-home PATH`로 선택한다. `start`는 등록까지 수행한다. 실행은 등록된 상태를 확인한 뒤 `run` 또는 `queue`로 시작한다.
+
+### 프로필에서 구성할 수 있는 항목
+
+| 설정 | 적용 시점과 용도 |
+|---|---|
+| `project`, `owner`, `reviewer`, `refs` | 대상 저장소와 구현·검토 담당, 참조할 파일을 등록한다. 상대 프로젝트 경로는 등록할 때의 작업 디렉터리에서 해석한다. |
+| `checks`, `check_groups`, `setup` | 각각 공통 검사, 이름 붙인 추가 검사, 작업 환경 준비 argv를 둔다. 추천 입력에는 선택 항목인 `base_check_description`과 `check_group_descriptions`로 각 검사의 범위를 설명할 수 있다. `prepare`가 이미 성공한 준비 단계를 재사용한다. |
+| `workspace`, `allowed_paths`, `forbidden_paths` | 격리 여부·브랜치 접두사·작업 폴더와 변경 범위를 정한다. 격리 환경에서 필요한 의존성도 준비해야 한다. |
+| `services`, `blocked_windows` | 검사 동안 띄울 로컬 서비스와 준비 URL을 지정하고, 실행 제한 시간대를 구성한다. |
+| `execution` | 역할별 모델, 일시 오류 대체 모델, 호출 횟수·누적 시간·수정/복구 한도를 설정한다. 금액 제한은 CLI가 보고한 비용을 이용한다. |
+| `documents`, `exports`, `notifications` | 관리할 Markdown 블록, 작업일지 내보내기 디렉터리와 시간대, 외부 알림 명령을 선택한다. |
+
+필드별 JSON과 로컬 서버의 준비 상태, 포트 충돌, 문서 관리 예제는 [프로필·자동화 설정](AUTOMATION_V0.3.ko.md)을 참조한다.
+
+<a id="execution"></a>
+
+## 4. 구현·검사·리뷰와 증거 해석
+
+| 단계 | 대화형 진행 | 자동 진행 |
+|---|---|---|
+| 작업 이해 | `show ID`, `brief ID --role implement`에서 목표·완료 조건·참조 문서·다음 행동 확인 | `run ID --dry-run`으로 검사, 역할, 한도, 릴리스 설정 확인 |
+| 구현 | 요청된 범위를 수정하고 `checkpoint ID --summary '내용' --next '다음 행동'` | `run ID` 또는 `pipeline ID`로 지정한 구현 CLI 실행 |
+| 검증 | `check ID`가 실제 검사 프로세스를 실행하고 종료 코드와 코드·참조 지문 보관 | 실패 원인을 다음 수정 시도에 전달하고 설정된 한도까지 반복 |
+| 독립 검토 | `brief ID --role review`, `result-schema`로 실제 검토자에게 검토 요청. 결과를 `review-import`로 등록 | 지정한 검토자가 별도 세션에서 검토 |
+| 마감·인계 | `finish ID`로 증거 확인 후 완료 처리, `handoff ID`로 재개 자료 생성, `finalize ID`로 내보내기 | 실제 검사와 지정 리뷰 통과 후 마감. 릴리스가 설정되어 있으면 다음 단계까지 수행 |
+
+검토에 사용할 수 있는 담당은 `claude`, `codex`, `codex-session`, `none`이다. 구현과 검토는 서로 다른 담당으로 지정한다. `codex-session`은 구현 대화를 물려받지 않는 새 Codex 검토 세션이며 실제 호출 영수증을 확인한다. `none`을 선택한 작업도 실제 검사를 통과해야 완료 처리할 수 있다.
+
+수동 검토는 검토 **시작 시점**의 `show` 결과에서 `observed_git.fingerprint`와 참조 문서가 있을 때 `refs_fingerprint`를 기록한다. 실제 독립 검토자가 돌려준 JSON의 `outcome`, `summary`, `next_action`, `findings`를 확인하고 해당 지문·검토자 이름과 함께 `review-import`에 넘긴다. 검사 재실행은 예전 리뷰를 초기화한다. 유효한 검사·리뷰가 이미 있다면 `run`의 재개 경로가 이를 재사용한다. [수동 검토 명령과 JSON 예제](../skills/agent-workflow/references/commands.md)
+
+**상태 읽기.** 일반적인 작업은 `ready` → `implementing` → `checking` → `needs_review`/`reviewing` → `ready_to_finish` → `completed`를 거친다. 독립 리뷰를 생략한 작업은 검사 뒤 바로 마감할 수 있다. `blocked`이면 `show`의 `blocker`, 마지막 검사 결과·리뷰 지적을 읽는다. 현재 코드가 바뀌면 원장에 과거 `completed`가 남아도 그때의 완료 증거는 만료될 수 있다. `show` 등 조회는 JSON을 출력한다. `check`·`run`처럼 실제 실행하는 명령은 결과 앞에 진행 로그도 출력하므로, 다른 도구에서 결과를 읽을 때는 후속 조회 명령을 사용한다.
+
+| `pickup`의 등록 작업 `evidence` | 판단과 다음 행동 |
+|---|---|
+| `verification=current` | 코드 내용·인덱스·참조·보호 경로와 검사 통과 기록이 맞는다. 지정된 리뷰 상태를 이어서 확인한다. |
+| `stale` | 기준 코드 또는 참조가 달라졌다. `reason`에서 원인을 읽고 열린 작업은 다시 검사한다. 마감된 작업의 새 코드에는 새 작업을 등록한다. |
+| `failed` 또는 `missing` | 현재 입력에서 검사가 실패했거나 결과가 없다. 실패 로그를 보거나 유효한 검사 명령을 등록하고 실행한다. |
+| `unavailable` | 지문을 확인할 수 없다. 참조 파일, 접근 권한, 외부 Git 필터 사용 여부를 확인한다. |
+| `review=not_required` | 해당 작업이 리뷰 생략으로 등록됐다. 검사·완료 증거는 개별 필드에서 확인한다. |
+
+`rerun_checks`와 `reason`을 함께 읽는다. 검사 명령이 없거나 결과를 판단할 수 없을 때 `null`이 나올 수 있다. `check-add ID '명령'`으로 필수 검사를 보태면 이전 검사·리뷰의 근거가 무효화된다. 현재 작업을 다른 세션에 전달할 때 `handoff ID`가 반환한 디렉터리의 `resume.txt`, `state.json`, `worklog.md`를 사용한다. `finalize`의 외부 내보내기에서는 사용자가 편집한 작업일지를 보존한다.
+
+<a id="queue"></a>
+
+## 5. 백그라운드 실행, 보류와 의존성
+
+등록된 작업 ID가 있고 사용할 원장과 실행 범위를 확인했다면 아래 경로를 사용한다. 포트는 해당 컴퓨터에서 비어 있는 번호를 고른다.
+
+```bash
+agent-workflow daemon start --port 8879
+agent-workflow queue HANDOFF-01
+agent-workflow jobs
+agent-workflow notifications
+agent-workflow daemon status
+```
+
+- `queue`의 기본 액션은 `pipeline`이며 릴리스 설정이 있으면 릴리스까지 이어진다. 이미 로컬 마감한 작업의 릴리스만 대기시키려면 `--action release`를 선택한다. 같은 작업을 중복 대기·실행할 수 없다.
+- 대기 중인 실행은 `cancel JOB_ID`, 실행 중인 큐 작업은 `stop JOB_ID`로 제어한다. `stop`은 중단을 요청하므로 `jobs`의 최종 상태를 확인한다. 재개 가능한 `failed`·`interrupted`·`cancelled` 실행에는 `resume JOB_ID`를 사용한다. 원래 작업·실행 옵션에 연결된 새 큐 항목이 만들어진다.
+- `hold ID --reason '사유'`는 작업의 큐 시작·다음 단계를 보류한다. 현재 실행 단계는 종료될 때까지 진행될 수 있다. `unhold ID`로 해제하면 대기 상태의 실행이 다시 진행될 수 있다. 직접 포그라운드에서 실행한 프로세스는 해당 터미널에서 제어한다.
+- `daemon stop`은 서버 전체에 적용한다. 개별 실행을 제어할 때는 작업 ID와 실행 ID를 구별한다. WSL 종료 등으로 실행이 끊겼다면 같은 원장에서 `jobs`로 중단된 항목을 찾고 로그·작업 폴더를 확인한 뒤 재개한다.
+- `service-install --backend auto --port 8879`로 systemd 사용자 서비스 또는 Bash 로그인 방식 설치 파일을 준비한다. 자동 시작을 활성화하려는 경우 `--enable`을 추가한다. Bash 방식은 해당 셸 로그인에 의존한다.
+
+여러 작업을 차례로 처리할 때는 같은 원장에 **먼저 등록된 ID**만 선택한다. 예를 들어 A의 병합 결과를 B가 사용해야 한다면 실행 전에 `depends B --on A --require merged`를 지정한다. `completed` 조건은 로컬 완료 증거를 요구한다. 격리 worktree가 선행 변경을 상속해야 하는 경우 병합 조건과 소스 브랜치를 확인한다.
+
+```bash
+agent-workflow depends B --on A --require merged
+agent-workflow batch create delivery --task A --task B --max-jobs 2 --max-seconds 3600
+agent-workflow batch start delivery
+agent-workflow batch show delivery
+```
+
+데몬 worker가 준비된 항목을 처리한다. `batch list`로 묶음을 찾고, `batch pause delivery`로 후속 실행 등록을 보류한다. 이미 큐에 들어간 실행은 `jobs`에서 따로 확인한다. 순환 의존성이나 기한 초과는 등록·진행 오류로 출력된다.
+
+<a id="release"></a>
+
+## 6. 커밋·병합·배포와 상태 조회
+
+자동 릴리스할 작업은 **깨끗한 기준선**에서 등록한다. 대상 원격, 병합할 기본 브랜치와 별도 작업 브랜치, 자동 커밋할 상대 경로, 사용할 CI, 배포 명령·상태 검사 명령을 결정한다. GitHub 모드는 `--repo OWNER/REPO`와 실제 원격 URL을 대조한다. 사내 GitHub Enterprise는 `--hostname`으로 해당 호스트를 지정한다. `--mode local`은 절대 경로로 지정한 로컬 Git 원격을 사용하는 시범·검증에 쓴다.
+
+```bash
+agent-workflow release-config SITE-01 --mode github --repo OWNER/REPO --remote origin \
+  --base main --branch workflow/site-01 --path src --path tests \
+  --deploy 'python3 scripts/deploy.py' --health 'python3 scripts/health.py'
+agent-workflow pipeline SITE-01 --dry-run
+agent-workflow release-status SITE-01
+```
+
+위 명령의 ID·저장소·경로·배포 및 상태 스크립트를 실제 프로젝트 값으로 바꾼다. 배포가 필요 없으면 `--deploy`, `--health`를 모두 생략한다. `release-config` 자체는 설정을 기록한다. `run`·`pipeline`은 설정된 릴리스를 실행할 수 있고, 이미 로컬 완료한 작업은 `release ID`로 이어간다. 설정을 취소하려면 릴리스가 시작되기 전에 `release-clear ID`를 사용한다.
+
+GitHub 경로에서는 검증된 변경을 커밋하고 원격 작업 브랜치에 푸시한 뒤 PR과 후보 SHA의 CI를 확인한다. 병합된 리비전에서도 등록된 필수 검사를 수행한다. CI가 의도적으로 없는 저장소에만 `--allow-no-ci`를 선택한다. 배포·상태 확인 명령은 병합 리비전의 checkout에서 실행되며 `WORKFLOW_REVISION`, `WORKFLOW_TASK_ID`를 사용할 수 있다. 상태 스크립트는 해당 버전이 실제 제공되는지 확인하는 내용을 구현해야 한다.
+
+| `release-status ID`의 필드 | 읽는 법 |
+|---|---|
+| `local_verification`, `local_completion` | 원장에 남은 검사와 마감 결과다. 현재 코드에서 재사용할 수 있는지는 `pickup` 또는 `show`로 조사한다. |
+| `merge`, `merge_commit`, `pull_request` | 병합 영수증의 존재, 병합 SHA와 PR 번호를 읽는다. `uncertain`은 완료 여부를 단정할 증거가 부족하다는 뜻이다. |
+| `integration_check`, `integration_revision` | 통합 검사의 결과와 검사한 SHA를 확인한다. 로컬 후보 검사와 원격 기본 브랜치 병합을 각각 판독한다. |
+| `deployment`, `health`, `deployment_revision` | `applied`와 `failed`가 함께 나오면 배포 적용은 끝났고 후속 상태 검사가 실패했다. 최종 상태 확인을 마친 리비전을 따로 표시한다. |
+| `error`, `updated_at` | 마지막 릴리스 오류와 기록 시각이다. 조회는 로컬 원장을 읽으므로 과거 기록은 현재 서비스 생존 여부와 구별한다. |
+
+적용 성공 후 상태 검사만 실패했다면 원인을 고치고 `release ID`로 상태 검사부터 재개한다. 적용 자체가 실패했거나 결과가 불명확하면 실제 배포 대상에 반영된 버전을 먼저 확인한다. 다시 적용해야 할 때만 `release ID --retry-deploy`를 사용한다.
+
+<a id="observe"></a>
+
+## 7. 관제실, 세션 관측과 결과 연결
+
+| 실행 모드 | 용도 | 가능한 변경 |
+|---|---|---|
+| `serve --port PORT`, `daemon start --port PORT` | 단일 기본 원장의 관리 화면과 worker 운영 | 기본 원장 작업 등록·큐·중단·재개와 관측 설정. 연결된 다른 원장은 조회용이다. |
+| `watch --port PORT` | 여러 원장과 프로젝트의 기록을 모으는 관측 서버 | 관측용 연결·근거·북마크 등 자체 메타데이터를 저장한다. worker는 시작하지 않는다. |
+| `serve --read-only --port PORT` | 이미 있는 DB와 연결을 읽기 전용으로 제공 | 변경 API가 차단되고 worker는 시작하지 않는다. |
+
+셋 모두 루프백에 노출된다. 예를 들어 관측만 시작하려면 `agent-workflow --home "$HOME/.local/state/aw-observer" watch --port 8878`을 실행하고 같은 컴퓨터에서 `http://127.0.0.1:8878/overview`를 연다. 원래 관리 서버와 관측 서버를 같이 띄울 때 상태 홈과 포트를 분리한다. 이 WSL의 기존 운영 포트와 수신 프로세스 확인 방법은 [운영 절차](OPERATIONS.ko.md)에 있다.
+
+| 화면 | 할 수 있는 일 |
+|---|---|
+| `/` 관리 | 현재 원장과 프로젝트 선택, 작업 생성, 검사 묶음 선택, 실행 옵션, 대기열·보류·로그·릴리스 결과 확인 |
+| `/overview` 통합 | 프로젝트별 관리 작업과 네이티브 세션을 함께 찾고 연결 상태·진단·확인 요청을 탐색 |
+| `/mission` 실행 관제실 | 원장·프로젝트·작업·실행을 선택해 에이전트 활동, 단계 그래프, 이벤트, 상세 근거, 3D·목록과 과거 실행 재생 확인 |
+| `/sessions` 일상 세션 | 프로젝트·공급자·상태 필터, 부모/하위 세션, 마지막 수신 시각, 결과 근거, 북마크·기간별 통계 확인 |
+
+**관리 작업 연결**은 화면의 프로젝트 연결이나 CLI `connect`를 사용한다. **작업 ID가 없는 일상 세션**에는 다음 중 환경에 맞는 관측 경로를 설정한다.
+
+- **Claude Code·Codex 직접 훅.** 관측 홈을 지정해 `native install --provider claude --project /프로젝트` 또는 `--provider codex`를 실행한다. Codex는 호스트의 프로젝트·훅 신뢰 설정을 확인하고 새 세션을 시작한다. `native status`로 최근 수신과 등록을 확인하고 직접 훅 해제는 `native uninstall`로 수행한다.
+- **세 공급자 플러그인.** 호스트에 플러그인을 설치한다. 예를 들어 Claude는 `native register --provider claude --project /프로젝트`로 등록한다. Codex는 `codex`, OpenCode는 `opencode`를 공급자로 선택한다. `native unregister`가 프로젝트 등록을 해제한다. 한 공급자·프로젝트에서 직접 훅과 플러그인 사용이 겹치면 이벤트가 중복될 수 있다. [호스트별 설치·신뢰·진단](NATIVE_PLUGINS.ko.md)
+- **OpenCode HTTP 연결.** 이미 실행 중인 로컬 OpenCode 서버의 URL을 `opencode connect URL --project /프로젝트`에 넣는다. 비밀번호가 있으면 `--password-env`에 환경변수 **이름**을 지정하고 관측 서버 프로세스에도 값을 전달한다. `opencode list`로 출처 ID를 확인하고 `opencode disconnect ID`로 연결을 해제한다. [OpenCode 연결 방법](OPENCODE_OBSERVATION.ko.md)
+
+워크플로 홈이 다른 서버에서 사건을 찾고 있으면 목록이 비어 보일 수 있다. 필터와 선택한 프로젝트, 연결 소스·훅, 최근 수신 시각 순으로 확인한다. 호스트 측의 실제 사용자 승인이나 응답은 해당 도구에서 한다. 세션 상세에서는 원래 세션 ID·프로젝트 경로를 복사하거나, 특정 원장 작업·GitHub PR 주소를 결과 근거로 연결할 수 있다. 북마크는 저장된 이벤트 구간을 내보낸다. 명시적 결과가 없는 호출과 보존 기간을 지난 이벤트는 미확인으로 해석한다. [관측 화면·알림·통계](OBSERVATORY_REL01_USAGE.ko.md) · [그래프·3D와 실행 재생](REACT_MISSION_CONTROL.ko.md)
+
+<a id="ops"></a>
+
+## 8. 실패 복구와 운영
+
+| 증상 | 확인할 기록 | 다음 행동 |
+|---|---|---|
+| 작업이나 세션이 보이지 않는다 | 사용한 `--home`, `list`, `start`가 반환한 홈, 프로젝트·브랜치, 관측 소스 | 같은 원장을 지정한다. 일상 세션은 `native status`나 `opencode list`, UI의 수신 시각을 확인한다. |
+| 검사가 실패하거나 실행 중 소스가 바뀌었다 | `show ID`의 검사별 종료 코드·출력, 현재 지문, `blocker` | 실패를 수정한다. 되살릴 미완료 작업은 같은 ID로 재개한다. 기존 완료 뒤의 새 목표에는 새 ID를 사용한다. |
+| 환경 준비나 로컬 서비스가 실패한다 | setup·service 로그, 실제 포트 점유, 준비 URL, 실행 제한 시간대 | 원인을 고친 뒤 실패한 준비는 `prepare ID --retry-setup`으로 재개한다. 작업이 남긴 검사 서비스는 `cleanup ID --stop-services`로 확인·정리한다. |
+| 모델 호출 시간 초과, 일시 오류, 남은 수정이 있다 | 작업의 `failure`, `recoveries`, 사용 한도, 실제 Git 변경 | 유한 복구 안에서 재시도한다. 남은 구현은 실제 검사와 지정 리뷰로 확인한다. 한도 밖이면 원인 해결 후 `run ID`로 재개한다. |
+| 인증·권한·quota·계약에 맞지 않는 응답 | 실행 로그, 공급자 오류 종류, `show ID`의 담당과 사용량 | 로그인·권한·가용량을 점검한다. 담당을 변경할 경우 `assign ID --owner … --reviewer …`로 명시한다. |
+| 배치나 큐가 움직이지 않는다 | `jobs`, `batch show NAME`, `daemon status`, 보류·선행 조건·시간 한도 | worker·원장을 확인한다. 선행 작업이 필요한 상태까지 마감/병합됐는지 보고 재개한다. |
+| 검사·리뷰의 현재성을 확인할 수 없다 | `pickup`의 `evidence.reason`, `show`의 참조·보호 경로, Git 작업 트리 | 파일·경로를 복구한 뒤 다시 조회한다. 마지막 원장 기록과 현재 검증을 구별한다. |
+| 배포 도중 중단됐다 | `release-status ID`, 실제 대상의 버전과 상태 | 적용과 상태 검사를 독립적으로 확인한 뒤 [릴리스 복구](#release) 절차를 따른다. |
+
+`execution-config ID --file 정책.json`으로 열린 작업의 역할별 모델, 호출·시간 제한, 오류 복구 정책을 갱신할 수 있다. 이전 사용량이 이어진다. `--repairs`는 결함 수정의 추가 시도, `--recoveries`는 시간 초과·일시 오류 등에 적용할 복구 한도다. 공급자 요금은 해당 CLI가 보고한 범위에서 확인한다. 구현·리뷰에는 등록된 에이전트 통신 정책이 적용된다. [에이전트 통신 정책](AGENT_COMMUNICATION.ko.md)
+
+**저장과 이전.** 상태 홈의 `state.sqlite3`에는 작업·큐·이벤트 등 관리 상태가 있고, `tasks/ID/`에는 요청·응답·검사별 로그와 인계 파일, `jobs/`에는 큐 로그가 있다. `session-notes/`는 경량 마감 메모, `connections.json`, `opencode.json`은 관측 연결, `native-observation.sqlite3`는 일상 세션 관측에 사용한다. 로그에는 소스·프롬프트·명령 출력이 포함될 수 있다. 서버가 가동 중인 DB는 SQLite 온라인 백업으로 보존하고 상태 홈의 관련 파일도 함께 보관한다. 다른 컴퓨터로 이동하면 절대 경로, Git worktree 위치, 실행 파일, 로그인과 환경변수를 재확인한다.
+
+**업데이트.** 설치 방식을 확인한 뒤 소스 링크 또는 패키지를 갱신한다. 서버는 기존 Python 코드를 메모리에 유지할 수 있으므로 실제 반영 전에 대기·실행 중인 jobs, 활성 배치, 직접 실행 중인 프로세스를 확인한다. 운영 변경 시 해당 원장·모드·URL에서 상태와 관제 화면을 검증한다. `cleanup ID --remove-worktree`는 완료·깨끗함·원본 HEAD에 통합됐음을 확인한 도구 소유 작업 폴더만 제거한다. [원장 백업, 갱신과 복구](OPERATIONS.ko.md)
+
+<a id="commands"></a>
+
+## 9. CLI 찾아보기
+
+공통 형식은 `agent-workflow [--home PATH] 명령 …`이다. 명령의 필수 옵션·허용값은 설치본에서 `--help`로 확인한다.
+
+| 목적 | 명령과 용도 |
+|---|---|
+| 설치·시범 | `doctor` 실행 파일·버전 확인, `demo-setup` 로컬 시범 원격과 작업 준비 |
+| 경량 세션 | `close-session` 마감, `pickup` 인계·검증 결과 조회, `patterns` 입력 이력 집계 |
+| 작업·연결 | `create` 명시 ID 등록, `connect` 프로젝트·원장·프로필 연결, `start` 자동 ID 등록, `list` 작업 목록, `show` 작업과 현재 증거 조회 |
+| 검사 계획 | `profile save/show/list/checks` 설정 저장·조회·검사 미리보기, `recommend-checks` 변경 기반 검사 묶음 추천, `evaluate-checks` 저장된 추천 품질 확인, `check-add` 열린 작업에 검사 추가 |
+| 준비·담당 | `prepare` 환경 준비, `assign` 구현·검토자 변경, `execution-config` 모델·한도 설정 |
+| 대화형 수행 | `brief` 역할별 입력, `checkpoint` 진행 기록·다음 행동, `check` 검사 실행, `result-schema` 리뷰 스키마, `review-import` 독립 검토 결과 등록, `finish` 로컬 완료 |
+| 자동 수행·인계 | `run`·`pipeline` 유한 자동 실행, `handoff` 인계 파일, `finalize` 작업일지와 설정된 내보내기, `cleanup` 환경 정리 |
+| 대기열·보류 | `queue`, `jobs`, `cancel`, `stop`, `resume`으로 실행 관리. `hold`, `unhold`로 개별 작업 보류·해제. `notifications`로 결과 알림 기록 조회 |
+| 순차 작업 | `depends` 선행 작업과 조건 등록, `batch create/show/list/start/pause`로 작업 묶음 관리 |
+| 릴리스 | `release-config` 대상 등록, `release-clear` 시작 전 설정 해제, `release` 릴리스 수행·재개, `release-status` 기록된 결과 조회 |
+| 화면·서비스 | `serve` 전경 서버, `watch` 여러 원장의 관측 서버, `daemon start/stop/status` 백그라운드 서버, `service-install` 자동 시작 설정 |
+| 호스트 관측 | `native install/uninstall` 직접 훅 관리, `native register/unregister/status` 프로젝트별 플러그인 관측 연결·진단. `opencode connect/list/disconnect` HTTP 소스 관리 |
+| 화면 검사 | `browser-check --file 시나리오.json`을 등록된 검사 명령에 넣는다. `WORKFLOW_EVIDENCE_DIR`에 Playwright 결과를 기록한다. 같은 로컬 HTTP 출처의 `visible`, `click`, `fill`, `text`, `url` 단계를 지원한다. |
+
+프로필 예제와 작업별 절차는 [상세 사용 사례](USE_CASES.ko.md), 화면 가이드와 버전별 기록은 [문서 목록](README.md)에서 찾을 수 있다.

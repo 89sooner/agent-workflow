@@ -38,7 +38,8 @@ def project_key(path):
     path = Path(path).expanduser().resolve()
     try:
         result = subprocess.run(["git", "-C", str(path), "rev-parse", "--git-common-dir"],
-                                capture_output=True, text=True, timeout=2)
+                                capture_output=True, text=True, timeout=2,
+                                env={k: v for k, v in os.environ.items() if not k.startswith("GIT_")})
         common = result.stdout.strip()
         if result.returncode == 0 and common:
             path = (path / common).resolve()
@@ -287,7 +288,7 @@ def connect(home, project, ledgers=(), profile=None, criteria=None, scope=None, 
 
 
 def start_registered(home, goal, project=".", criteria=None, *, checks=(), owner=None, reviewer=None,
-                     name=None, reviewer_name=None):
+                     name=None, reviewer_name=None, check_groups=()):
     home = state_home(home)
     project = project_root(project)
     key = project_key(project)
@@ -308,13 +309,19 @@ def start_registered(home, goal, project=".", criteria=None, *, checks=(), owner
     task_id = "AW-" + now()[:10].replace("-", "") + "-" + uuid.uuid4().hex[:12]
     profile = record.get("profile")
     if profile:
-        _read_profile(Path(target), profile, project)
+        saved = _read_profile(Path(target), profile, project)
+        if check_groups:
+            from .profiles import check_plan
+            check_plan(saved["config"], check_groups)
+    elif check_groups:
+        raise WorkflowError("검사 묶음을 선택하려면 연결된 프로젝트에 프로필이 필요합니다.")
     store = Store(target)
     try:
         if profile:
             from .workspaces import create_from_profile
             task = create_from_profile(store, task_id, profile, goal, criteria, checks=checks, owner=owner,
-                                       reviewer=reviewer, scope=record["scope"])
+                                       reviewer=reviewer, scope=record["scope"], check_groups=check_groups,
+                                       expected_project=project)
         else:
             task = create_task(store, task_id, project, goal, criteria, [], list(checks), owner or "claude",
                                reviewer or "codex", record["scope"])

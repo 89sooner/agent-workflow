@@ -1,6 +1,6 @@
 ---
 name: agent-workflow
-description: Track and continue an existing work package across Codex and Claude using a shared local task ledger, real verification, independent review, and generated handoffs. Use when the user asks to run this workflow, resume its task, coordinate implementation and review, or preserve its current execution state. A small standalone edit does not need a workflow task.
+description: Track and continue an existing work package across Codex and Claude using a shared local task ledger, real verification, independent review, and generated handoffs. Use when the user asks to run this workflow, resume its task, coordinate implementation and review, or preserve its current execution state. Also use for a lightweight Git session close or pickup, local usage patterns, recommending registered checks for a change, independent check selection, and evaluating missed or unnecessary check groups.
 ---
 
 # Agent Workflow
@@ -28,6 +28,24 @@ The controller adds this policy to generated briefs and resume prompts.
 Observation-only plugins do not change an external session's instructions.
 See [the communication policy](../../docs/AGENT_COMMUNICATION.ko.md).
 
+## Git sessions without a task ID
+
+- For a lightweight session close (세션 마감, 다음 세션에 이어가기), summarize actual work and observed verification.
+  Put the next concrete action in a separate argument.
+  Run `agent-workflow close-session --summary TEXT --next TEXT` in the project.
+  Add `--worklog-dir DIRECTORY` when the user specifies an existing worklog destination.
+  Return the worklog and resume paths.
+- For an informal continuation (이어서 진행, 어디까지 했지), run `agent-workflow pickup` in the intended project.
+  Compare the saved next action with current Git status and project context documents.
+  Read each registered task's evidence, rerun_checks, reason, and release_status.
+  Use its show command for details. Check unavailable evidence before deciding whether to repeat verification.
+  Check the current diff when file contents matter.
+  Use the registered ledger when the user identifies a managed task.
+- For recurring usage analysis, run `agent-workflow patterns`.
+  Limit the interval with `--since YYYY-MM-DD --until YYYY-MM-DD`.
+  Use the aggregate counts as evidence. A matched keyword can have several meanings.
+- Preserve explicitly requested full transcript exports, established handoff packs, and standardized Obsidian dailywork workflows.
+
 ## Start or resume
 
 1. Run `agent-workflow list` and `show ID`. Read current Git state, checkpoint,
@@ -41,6 +59,16 @@ See [the communication policy](../../docs/AGENT_COMMUNICATION.ko.md).
    does not require launching another model. When automatic execution is requested,
    `run ID --dry-run` shows the concrete plan; proceed with `run ID` when the user's
    existing request covers that plan. Do not create an extra approval ritual.
+
+For change-based check selection, run `recommend-checks PROFILE --criterion TEXT --preview`.
+Use a model call only when the user requests AI-assisted selection or authorizes sending the displayed input.
+Read both selections and their differences. Select trusted group names when registering a task.
+Use `evaluate-checks REPORT --expected-group GROUP` for a retrospective with human labels.
+Recommendation evidence and execution evidence have separate purposes.
+See the [current manual](../../docs/USER_GUIDE.ko.md) and [worked cases](../../docs/USE_CASES.ko.md).
+
+Preview a profile's effective checks with `profile checks NAME --check-group GROUP`.
+Select relevant groups with repeated `--check-group` options on `create --profile` or a connected `start`.
 
 Use a saved project profile when one exists: `profile list`, `profile show NAME`,
 then `create ID --profile NAME`. Profiles bind trusted checks/setup, allowed paths,
@@ -87,6 +115,8 @@ transient-error fallback models. Preserve usage counters across resumes. Unknown
 costs are unknown; a reported-cost threshold is not a provider billing guarantee.
 
 ## Releases and background execution
+
+For a release status question, run `release-status ID`. Report the recorded merge, deployment, and health results separately.
 
 When the user requests push/merge/deploy, bind their existing authorization to
 concrete `release-config` values: repository, remote, base/branch, allowed changed

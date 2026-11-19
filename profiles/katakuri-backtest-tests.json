@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "project": "/home/roqkf/katakuri-band",
+  "refs": ["AGENTS.md"],
+  "base_check_description": "합성 입력으로 백테스트 드라이버의 수수료, 진입·청산과 결과 계산을 검사",
+  "checks": [
+    ["python3", "-B", "-m", "pytest", "-p", "no:cacheprovider", "-q", "tests/test_backtest.py"]
+  ],
+  "check_group_descriptions": {
+    "viewer": "백테스트 결과가 화면 데이터와 HTML로 올바르게 투영되는지 합성 입력으로 검증"
+  },
+  "check_groups": {
+    "viewer": [
+      ["python3", "-B", "-m", "pytest", "-p", "no:cacheprovider", "-q", "-m", "not requires_backdata", "tests/test_backtest_viewer.py"]
+    ]
+  },
+  "allowed_paths": ["tests/test_backtest.py", "tests/test_backtest_viewer.py"]
+}

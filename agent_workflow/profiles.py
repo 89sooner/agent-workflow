@@ -43,6 +43,34 @@ def commands(value, name):
     return value
 
 
+def check_plan(config, groups=(), checks=()):
+    """Expand explicitly selected groups from a validated profile into the runner's argv list."""
+    if groups is None:
+        groups = ()
+    if not isinstance(groups, (list, tuple)):
+        raise WorkflowError("검사 묶음 이름 목록이 필요합니다.")
+    selected = list(dict.fromkeys(identifier(name) for name in groups))
+    base = config.get("checks", [])
+    if not selected:
+        # Retain the exact legacy sequence, including intentionally repeated checks.
+        return {"check_groups": [], "checks": [*base, *checks]}
+    available = config.get("check_groups", {})
+    grouped = []
+    for name in selected:
+        if name not in available:
+            raise WorkflowError(f"프로필에 등록되지 않은 검사 묶음: {name}")
+        grouped.extend(available[name])
+    # A profile can deliberately repeat a baseline check. Selecting a group is additive.
+    result = list(base)
+    seen = {tuple(argv) for argv in base}
+    for argv in [*grouped, *checks]:
+        key = tuple(argv)
+        if key not in seen:
+            seen.add(key)
+            result.append(argv)
+    return {"check_groups": selected, "checks": result}
+
+
 def relative_paths(value, name):
     for item in strings(value, name):
         p = Path(item)
@@ -84,7 +112,8 @@ def execution_config(raw=None):
 def validate(raw):
     cfg = copy.deepcopy(raw)
     keys(cfg, {"version", "project", "owner", "reviewer", "refs", "checks", "setup", "allowed_paths", "forbidden_paths",
-               "execution", "workspace", "services", "blocked_windows", "exports", "notifications", "documents"}, "profile")
+               "execution", "workspace", "services", "blocked_windows", "exports", "notifications", "documents",
+               "check_groups", "check_group_descriptions", "base_check_description"}, "profile")
     if type(cfg.get("version", 1)) is not int or cfg.get("version", 1) != 1:
         raise WorkflowError("지원하는 프로필 형식은 version 1입니다.")
     cfg["version"] = 1
@@ -102,6 +131,22 @@ def validate(raw):
     strings(cfg.setdefault("refs", []), "refs")
     for key in ("checks", "setup"):
         commands(cfg.setdefault(key, []), key)
+    groups = cfg.get("check_groups", {})
+    if not isinstance(groups, dict):
+        raise WorkflowError("check_groups는 검사 묶음 이름과 명령 목록의 객체여야 합니다.")
+    for name, checks in groups.items():
+        identifier(name)
+        if not commands(checks, f"check_groups.{name}"):
+            raise WorkflowError(f"check_groups.{name}에 검사 명령이 필요합니다.")
+    descriptions = cfg.get("check_group_descriptions", {})
+    if not isinstance(descriptions, dict) or set(descriptions) - groups.keys():
+        raise WorkflowError("check_group_descriptions에는 등록된 검사 묶음 이름을 사용하세요.")
+    values = list(descriptions.values())
+    if "base_check_description" in cfg:
+        values.append(cfg["base_check_description"])
+    for value in values:
+        if not isinstance(value, str) or not value.strip() or len(value) > 400 or not value.isprintable():
+            raise WorkflowError("검사 묶음 설명은 한 줄에 1~400자로 입력하세요.")
     for key in ("allowed_paths", "forbidden_paths"):
         relative_paths(cfg.setdefault(key, []), key)
     from .policy import under
@@ -202,7 +247,8 @@ def save(store, name, config):
 
 def get(store, name):
     identifier(name)
-    init(store)
+    if not store.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='profiles'").fetchone():
+        raise WorkflowError("프로필 없음: " + name)
     row = store.db.execute("SELECT data FROM profiles WHERE name=?", (name,)).fetchone()
     if row is None:
         raise WorkflowError("프로필 없음: " + name)

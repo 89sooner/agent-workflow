@@ -312,7 +312,9 @@ def handler(home, token, *, read_only=False, observer=False):
                         observation = {"status": "unavailable", "reason": str(exc)}
                     rows = store.db.execute("SELECT seq,at,kind,data FROM events WHERE task_id=? ORDER BY seq DESC LIMIT 60", (task["id"],)).fetchall()
                     events = [{"seq": r[0], "at": r[1], "kind": r[2], "data": json.loads(r[3])} for r in rows]
+                    from .release_status import summarize_release
                     return self.response({"task": task, "observed_git": current, "freshness": flags,
+                                          "release_status": summarize_release(task),
                                           "observation": observation,
                                           "events": events, "jobs": [j for j in list_jobs(store) if j["task_id"] == task["id"]]})
                 return self.response({"error": "경로 없음"}, 404)
@@ -385,7 +387,9 @@ def handler(home, token, *, read_only=False, observer=False):
                     if not isinstance(names, dict) or set(names) - {"implement", "review"} or any(
                             not isinstance(name, str) or len(name) > 120 or any(ord(c) < 32 for c in name) for name in names.values()):
                         raise WorkflowError("담당 이름은 역할별 120자 이하의 문자열이어야 합니다.")
-                    task = create_from_profile(store, task_id, profile, goal, criteria, isolate=isolate)
+                    groups = strings(data.get("check_groups", []), "check_groups")
+                    task = create_from_profile(store, task_id, profile, goal, criteria, isolate=isolate,
+                                               check_groups=groups)
                     names = {role: name.strip() for role, name in names.items() if name.strip()}
                     if names:
                         task["agent_names"] = names

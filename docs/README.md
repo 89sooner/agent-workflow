@@ -1,6 +1,6 @@
 # 문서 안내
 
-갱신: 2026-11-05. 현재 사용법과 과거 설계·검증 기록을 구분한다.
+2026년 11월 19일 갱신. [최신 사용·운영 매뉴얼](USER_GUIDE.ko.md)에서 전체 기능을 찾고, [상세 사용 사례](USE_CASES.ko.md)에서 필요한 절차를 따라 할 수 있다.
 
 | 문서 | 현재 역할 |
 |---|---|
@@ -20,7 +20,7 @@
 | [관측 API와 증거](OBSERVABILITY.ko.md) | task/job/run/span/event, 상태·완료·재생·로그 계약 |
 | [자동화](AUTOMATION_V0.3.ko.md) | profile, 격리 작업, 검증, 리뷰, 큐, release 명령 |
 | [후속 진행 현황](FOLLOWUP_STATUS.ko.md) | UX-01~03 완료·남은 범위·다음 3D 형상 작업·배포/검증 구분 |
-| [기본 개념](USER_GUIDE.ko.md) | v0.2 개념·파일럿 기록과 현재 문서 연결 |
+| [v0.2 기본 개념과 파일럿](USER_GUIDE_V0.2.ko.md) | 2026년 10월 당시의 사용 기록 |
 | [초기 구현 계획](IMPLEMENTATION_PLAN.md) | 2026-10의 구현 이력; 현재 미완료 목록으로 사용하지 않음 |
 | [조사 근거](OBSERVABILITY_RESEARCH.ko.md) | 2026-10-30 조사 결과; 최신 제품 조사로 간주하지 않음 |
 | [초기 구성도](workflow-blueprint.html) | 2026-10-08 설계 시뮬레이션; 실제 관측 화면이 아님 |

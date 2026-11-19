@@ -84,6 +84,10 @@
       <p>저장한 프로젝트 설정으로 작업 공간과 검사 조건을 준비합니다.</p>
       <label for="create-profile">프로젝트 설정<select id="create-profile" required><option value="">설정을 불러오는 중</option></select></label>
       <p id="profile-hint" class="muted"></p>
+      <fieldset id="create-check-groups" hidden>
+        <legend>작업에 추가할 검사 묶음</legend>
+        <div id="check-group-options"></div>
+      </fieldset>
       <label for="create-id">작업 ID <small>비우면 자동 생성</small><input id="create-id" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]{0,79}" placeholder="자동 생성" autocomplete="off"></label>
       <label for="create-goal">끝내려는 작업<textarea id="create-goal" required rows="2" maxlength="2000"></textarea></label>
       <label for="create-criteria">완료 조건 <small>한 줄에 하나씩 입력</small><textarea id="create-criteria" required rows="3" maxlength="3000"></textarea></label>
