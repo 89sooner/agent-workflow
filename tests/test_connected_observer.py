@@ -96,6 +96,29 @@ class ConnectedObserverTests(unittest.TestCase):
         self.assertEqual(self.request(server, '/api/tasks', {**body, 'agent_names': {'implement': '\n'}})[0], 400)
         self.assertEqual(len(self.store.all()), count)
 
+    def test_recommendations_follow_selected_ledger_in_observer(self):
+        from agent_workflow.check_advisor import recommend
+        empty = self.root / 'empty'
+        other = Store(self.root / 'other')
+        self.addCleanup(other.close)
+        profile = {'project':str(self.project), 'check_groups':{'unit':[['git','diff','--check']]}}
+        save(self.store, 'fixture', profile)
+        save(other, 'fixture', profile)
+        with patch('agent_workflow.check_advisor_models.ask', return_value={'groups':['unit'],'reason':'test'}):
+            rid = recommend(self.store.home, 'fixture', ['criterion'], reviewer='none',
+                            record_result=True)['recommendation_id']
+        connect(empty, self.project, ledgers=[self.store.home, other.home], registration_home=self.store.home,
+                include_processes=False, include_temporary=False, include_default=False)
+        server = self.serve(empty, observer=True)
+        query = '/api/recommendations?profile=fixture&ledger='
+        code, result = self.request(server, query + ledger_id(self.store.home))
+        self.assertEqual(code, 200)
+        self.assertEqual([r['id'] for r in result['recommendations']], [rid])
+        code, result = self.request(server, query + ledger_id(other.home))
+        self.assertEqual((code, result['recommendations']), (200, []))
+        for path in ('/api/check-advisor/preview', '/api/check-advisor/run'):
+            self.assertEqual(self.request(server, path, {'profile':'fixture','criteria':['criterion']})[0], 403)
+
     def test_project_overview_groups_related_worktrees(self):
         task = self.task('MAIN')
         tree = self.root / 'related'

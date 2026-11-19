@@ -35,6 +35,19 @@ class RecordTests(unittest.TestCase):
     def create(self, tid, rid, **kwargs):
         return create_from_profile(self.store, tid, "demo", "goal", self.criteria, recommendation_id=rid, **kwargs)
 
+    def test_recent_lists_current_profile_receipts_in_reverse_insertion_order(self):
+        ids = [self.record() for _ in range(14)]
+        profiles.save(self.store, "other", self.cfg)
+        recent = records.recent(self.store, "demo")
+        rows = recent["recommendations"]
+        self.assertEqual([row["id"] for row in rows], ids[-12:][::-1])
+        self.assertEqual(set(rows[0]), {"id", "created_at", "profile_digest", "suggested_groups"})
+        self.assertEqual(rows[0]["suggested_groups"], ["data", "ui"])
+        self.assertEqual(rows[0]["profile_digest"], self.profile["digest"])
+        self.assertEqual(records.recent(self.store, "other")["recommendations"], [])
+        profiles.save(self.store, "demo", {**self.cfg, "checks":[]})
+        self.assertEqual(records.recent(self.store, "demo")["recommendations"], [])
+
     def test_adoption_feedback_and_latest_executed_costs(self):
         rid = self.record()
         task = self.create("TASK", rid)

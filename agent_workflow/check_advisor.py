@@ -47,7 +47,8 @@ def build_packet(config, criteria, root, base=None):
 
 
 def recommend(home, profile, criteria, *, project=None, base=None, provider="codex",
-              reviewer="auto", preview=False, timeout=90, record_result=False):
+              reviewer="auto", preview=False, timeout=90, record_result=False,
+              expected_input_digest=None, expected_providers=None):
     if provider not in ("codex", "claude") or reviewer not in ("auto", "none", "codex", "claude"):
         raise WorkflowError("지원하지 않는 추천 모델 공급자입니다.")
     if reviewer == provider:
@@ -86,6 +87,9 @@ def recommend(home, profile, criteria, *, project=None, base=None, provider="cod
         "change_summary": {k: change[k] for k in ("base", "truncated", "omitted_sensitive", "omitted_diff_files")},
         "path_count": len(change["paths"]), "area_count": len(areas),
     }
+    if expected_input_digest is not None or expected_providers is not None:
+        if (expected_input_digest != report["input_digest"] or expected_providers != providers):
+            raise WorkflowError("추천 입력 또는 공급자가 바뀌었습니다. 새 미리보기를 확인하세요.")
     if preview:
         return {**report, "status": "preview", "input": packet}
     first = _ask(provider, packet, timeout) if groups else None

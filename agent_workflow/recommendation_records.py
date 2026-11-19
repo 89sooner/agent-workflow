@@ -73,6 +73,29 @@ def show(home, recommendation_id):
         return _public(_receipt(store.db, recommendation_id))
 
 
+def recent(store, profile):
+    """Show only selectable group names and IDs for the current version of this profile."""
+    identifier(profile)
+    result = {"profile": profile, "recommendations": []}
+    if store is None or store.db.execute("""
+        SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('profiles','check_recommendations')
+    """).fetchone()[0] != 2:
+        return result
+    # The profile index supports filtering by both equality keys in reverse insertion order.
+    rows = store.db.execute("""
+        SELECT id, profile_digest, json_extract(data, '$.created_at'),
+               json_extract(data, '$.suggested_groups')
+        FROM check_recommendations
+        WHERE profile=? AND profile_digest=(SELECT json_extract(data, '$.digest') FROM profiles WHERE name=?)
+        ORDER BY rowid DESC LIMIT 12
+    """, (profile, profile))
+    result["recommendations"] = [
+        {"id": rid, "profile_digest": digest, "created_at": created_at, "suggested_groups": json.loads(groups)}
+        for rid, digest, created_at, groups in rows
+    ]
+    return result
+
+
 def resolve(store, rid, profile_record, expected_project):
     """Recover the recorded worktree and check its saved project/profile binding."""
     receipt = _receipt(store.db, rid)

@@ -75,6 +75,7 @@ def handler(home, token, *, read_only=False, observer=False):
     from .opencode import Observer
     opencode = Observer(home)
     native_lock = threading.Lock()
+    advisor_lock = threading.Lock()
     # Discovery is read-only; only opaque IDs from this local allowlist are accepted.
     discovery_lock = threading.Lock()
     discovery_cache = {"at": 0, "value": None}
@@ -152,7 +153,7 @@ def handler(home, token, *, read_only=False, observer=False):
                 self.origin()
                 parsed = urlparse(self.path)
                 path = unquote(parsed.path)
-                if path in ("/", "/mission", "/mission/", "/sessions", "/overview", "/static/mission.js", "/static/mission.css", "/static/MISSION_LICENSES.txt", "/static/mission-icon.svg", "/static/app.js", "/static/styles.css", "/static/observatory.js", "/static/observatory.css",
+                if path in ("/", "/mission", "/mission/", "/sessions", "/overview", "/static/mission.js", "/static/mission.css", "/static/MISSION_LICENSES.txt", "/static/mission-icon.svg", "/static/recommendation-advisor.js", "/static/app.js", "/static/styles.css", "/static/observatory.js", "/static/observatory.css",
                             "/static/saas.css", "/static/scene3d.js", "/static/scene3d.css", "/static/three-vendor.js", "/static/THREE_LICENSE.txt"):
                     name = "index.html" if path == "/" else "mission.html" if path in ("/mission", "/mission/", "/sessions", "/overview") else path.rsplit("/", 1)[1]
                     mime = "text/html" if name.endswith(".html") else "text/javascript" if name.endswith(".js") else "text/css" if name.endswith(".css") else "image/svg+xml" if name.endswith(".svg") else "text/plain"
@@ -222,6 +223,10 @@ def handler(home, token, *, read_only=False, observer=False):
                     raise WorkflowError("OpenCode는 /mission의 읽기 전용 세션 관측만 지원합니다.")
                 ledger_home, ledger = selected_home(query)
                 effective_read_only = read_only or observer or ledger_home != Path(home)
+                if path == "/api/recommendations":
+                    from .recommendation_records import recent
+                    store = Store(ledger_home, read_only=True) if ledger_home is not None else None
+                    return self.response(recent(store, query.get("profile", [None])[0]))
                 if ledger_home is None:
                     if path == "/api/state":
                         return self.response({"tasks": [], "jobs": [], "profiles": [], "notifications": [],
@@ -361,6 +366,29 @@ def handler(home, token, *, read_only=False, observer=False):
                             discovery_cache.update(at=0, value=None)
                         with opencode.lock:
                             opencode.cache.clear()
+                    return self.response(result)
+                if self.path in {"/api/check-advisor/preview", "/api/check-advisor/run"}:
+                    from .check_advisor import recommend
+                    from .profiles import identifier, strings
+                    preview = self.path.endswith("/preview")
+                    fields = {"profile", "criteria"} if preview else {"profile", "criteria", "input_digest", "providers"}
+                    if set(data) != fields:
+                        raise WorkflowError("추천 요청 항목을 확인하세요.")
+                    profile = identifier(data["profile"])
+                    criteria = strings(data["criteria"], "criteria")
+                    if preview:
+                        return self.response(recommend(home, profile, criteria, preview=True))
+                    digest = data["input_digest"]
+                    providers = strings(data["providers"], "providers")
+                    if not isinstance(digest, str) or len(digest) != 64:
+                        raise WorkflowError("먼저 추천 입력 미리보기를 확인하세요.")
+                    if not advisor_lock.acquire(blocking=False):
+                        return self.response({"error": "다른 검사 추천을 실행 중입니다. 완료 후 다시 시도하세요."}, 409)
+                    try:
+                        result = recommend(home, profile, criteria, expected_input_digest=digest,
+                                           expected_providers=providers)
+                    finally:
+                        advisor_lock.release()
                     return self.response(result)
                 if self.path == "/api/recommendations/feedback":
                     from .recommendation_records import feedback

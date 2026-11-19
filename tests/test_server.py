@@ -127,6 +127,65 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(json.loads(job["options"])["recoveries"], 0)
         self.assertEqual(self.request("/api/queue", {"task_id": "WEB-1", "timeout": True}, headers)[0], 400)
 
+    def test_advisor_requires_unchanged_preview_and_limits_concurrent_calls(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from unittest.mock import patch
+        from agent_workflow.profiles import save
+
+        store = Store(self.home)
+        try:
+            save(store, "fixture", {"project": str(self.root / "project"),
+                                    "check_groups": {"syntax": [["git", "diff", "--check"]]}})
+        finally:
+            store.close()
+        options = {"profile":"fixture", "criteria":["validate code"]}
+        headers = {"X-Workflow-Token":"test-token"}
+        preview_path, run_path = "/api/check-advisor/preview", "/api/check-advisor/run"
+        started, finish = threading.Event(), threading.Event()
+
+        def answer(*args):
+            started.set()
+            if not finish.wait(4):
+                raise AssertionError("concurrent request did not finish")
+            return {"groups":["syntax"], "reason":"test"}
+
+        with patch("agent_workflow.check_advisor_models.ask", side_effect=answer) as ask:
+            self.assertEqual(self.request(preview_path, options)[0], 403)
+            self.assertEqual(self.request(preview_path, options, {**headers, "Origin":"https://other.invalid"})[0], 400)
+            self.assertEqual(self.request(preview_path, {**options, "project":"/tmp/outside"}, headers)[0], 400)
+            code, raw, _ = self.request(preview_path, options, headers)
+            self.assertEqual(code, 200)
+            preview = json.loads(raw)
+            self.assertEqual(preview["status"], "preview")
+            run = {**options, "input_digest":preview["input_digest"], "providers":preview["providers"]}
+            self.assertEqual(self.request(run_path, options, headers)[0], 400)
+            self.assertEqual(self.request(run_path, {**run, "providers":["codex", "claude"]}, headers)[0], 400)
+            self.assertEqual(self.request(run_path, {**run, "criteria":["other"]}, headers)[0], 400)
+            self.assertEqual(self.request(run_path, {**run, "record_result":True}, headers)[0], 400)
+            tracked = self.root / "project/app.txt"
+            tracked.write_text("changed since preview")
+            self.assertEqual(self.request(run_path, run, headers)[0], 400)
+            tracked.write_text("fixture")
+            ask.assert_not_called()
+
+            with ThreadPoolExecutor(1) as pool:
+                future = pool.submit(self.request, run_path, run, headers)
+                try:
+                    self.assertTrue(started.wait(3))
+                    self.assertEqual(self.request(run_path, run, headers)[0], 409)
+                    self.assertEqual(self.request(preview_path, options, headers)[0], 200)
+                finally:
+                    finish.set()
+                code, raw, _ = future.result()
+            self.assertEqual(code, 200)
+            report = json.loads(raw)
+            self.assertEqual(report["suggested_groups"], ["syntax"])
+            self.assertNotIn("recommendation_id", report)
+            ask.assert_called_once()
+            self.assertEqual(self.request(run_path, run, headers)[0], 200)
+        recs = json.loads(self.request("/api/recommendations?profile=fixture")[1])
+        self.assertEqual(recs["recommendations"], [])
+
     def test_recorded_recommendation_and_feedback(self):
         from unittest.mock import patch
         from agent_workflow.profiles import save
@@ -142,6 +201,12 @@ class DashboardTests(unittest.TestCase):
         rid = report["recommendation_id"]
         headers = {"X-Workflow-Token": "test-token"}
         self.assertEqual(json.loads(self.request("/api/recommendations/" + rid)[1])["suggested_groups"], ["syntax"])
+        self.assertEqual(self.request("/api/recommendations")[0], 400)
+        self.assertEqual(self.request("/api/recommendations?profile=%2Fbad")[0], 400)
+        code, body, _ = self.request("/api/recommendations?profile=fixture")
+        self.assertEqual(code, 200)
+        self.assertEqual([r["id"] for r in json.loads(body)["recommendations"]], [rid])
+        self.assertEqual(json.loads(self.request("/api/recommendations?profile=other")[1])["recommendations"], [])
         payload = {"id":"LINKED", "profile":"fixture", "goal":"job", "criteria":["criterion"],
                    "recommendation_id":rid, "isolate":False}
         self.assertEqual(self.request("/api/tasks", payload, headers)[0], 201)
