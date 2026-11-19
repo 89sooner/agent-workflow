@@ -59,7 +59,10 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/workflow-browser" --no-audit --no-fund playwright@1.51.1
           "$RUNNER_TEMP/workflow-browser/node_modules/.bin/playwright" install --with-deps chromium
-          sudo apt-get install --yes fonts-noto-cjk
+          if [ -z "$(fc-list :lang=ko -f '%{family}')" ]; then
+            timeout 180 sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=25 install --yes --no-install-recommends fonts-nanum
+          fi
+          test -n "$(fc-list :lang=ko -f '%{family}')"
       - name: React management, observatory and controller-backed browser acceptance
         env:
           WORKFLOW_PLAYWRIGHT_PATH: ${{ runner.temp }}/workflow-browser/node_modules/playwright
