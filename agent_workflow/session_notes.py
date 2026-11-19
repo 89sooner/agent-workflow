@@ -14,6 +14,9 @@ import sqlite3
 import stat
 import subprocess
 import tempfile
+import time
+
+from . import resume_metrics
 
 from .connections import ledger_home, load_registry, project_key, state_home
 from .core import WorkflowError, atomic_write, now, snapshot
@@ -192,7 +195,20 @@ def _export(note, worklog_dir):
     return {**note, "exported_worklog": str(path)}
 
 
+def _finish_close(home, note, worklog_dir, started_ms):
+    try:
+        draft = resume_metrics.record_close(home, note, started_ms)
+        if draft is not None:
+            note["authoring_measurement"] = draft
+    except WorkflowError as exc:
+        # The immutable note is already durable. A retry can recover its timing receipt.
+        note["measurement_error"] = str(exc)
+    return _export(note, worklog_dir)
+
+
 def close_note(home, project, summary, next_action, worklog_dir=None):
+    started_ms = resume_metrics.wall_ms()
+    tool_start = time.monotonic_ns()
     if not all(isinstance(value, str) and value.strip() for value in (summary, next_action)):
         raise WorkflowError("작업 요약과 다음 작업을 입력하세요.")
     notes_root = state_home(home) / "session-notes"
@@ -218,7 +234,7 @@ def close_note(home, project, summary, next_action, worklog_dir=None):
                     if candidate is not None and candidate.is_relative_to(Path(git["project"])):
                         comparable = _snapshot(project, notes_root, exclude=candidate)
                 if previous["git"] == comparable:
-                    return _export({**previous, "saved": False}, worklog_dir)
+                    return _finish_close(home, {**previous, "saved": False}, worklog_dir, started_ms)
         note["created_at"] = now()
         note["local_date"] = datetime.fromisoformat(note["created_at"]).astimezone().date().isoformat()
         number = int(latest.name) + 1 if latest else 1
@@ -226,14 +242,17 @@ def close_note(home, project, summary, next_action, worklog_dir=None):
         # Readers discover only complete, numbered directories.
         staging = Path(tempfile.mkdtemp(prefix=".pending-", dir=directory))
         try:
-            atomic_write(staging / "note.json", json.dumps(note, ensure_ascii=True, indent=2))
             atomic_write(staging / "현황.md", _markdown(note, resume=False))
             atomic_write(staging / "재개용.md", _markdown(note, resume=True))
+            # Covers Git lookup, lock wait and rendering/writing both notes. Export is separate.
+            note["close_tool_ms"] = (time.monotonic_ns() - tool_start) // 1_000_000
+            note["close_started_ms"] = started_ms
+            atomic_write(staging / "note.json", json.dumps(note, ensure_ascii=True, indent=2))
             staging.rename(folder)
         finally:
             if staging.exists():
                 shutil.rmtree(staging)
-        return _export({**_read(folder), "saved": True}, worklog_dir)
+        return _finish_close(home, {**_read(folder), "saved": True}, worklog_dir, started_ms)
 
 
 def _evidence(task, current, problem):
@@ -361,7 +380,8 @@ def _registered_tasks(home, current):
             "unavailable_ledgers": unavailable}
 
 
-def pickup(home, project):
+def pickup(home, project, *, measure=False):
+    started = resume_metrics.wall_ms() if measure else None
     notes_root = state_home(home) / "session-notes"
     current = _snapshot(project, notes_root)
     context_folder = Path(current["project"]) / "agent-context"
@@ -371,10 +391,11 @@ def pickup(home, project):
     result = {"current": current, "project_context": project_context, **_registered_tasks(home, current)}
     latest = _latest(_location(notes_root, current))
     if latest is None:
-        return {**result, "found": False, "head_changed": None, "dirty_paths_changed": None}
-    note = _read(latest)
-    return {
-        **note, **result, "found": True,
-        "head_changed": note["git"]["head"] != current["head"],
-        "dirty_paths_changed": note["git"]["dirty_digest"] != current["dirty_digest"],
-    }
+        result.update(found=False, head_changed=None, dirty_paths_changed=None)
+    else:
+        note = _read(latest)
+        result.update(note, found=True, head_changed=note["git"]["head"] != current["head"],
+                      dirty_paths_changed=note["git"]["dirty_digest"] != current["dirty_digest"])
+    if measure:
+        result["measurement"] = resume_metrics.start_pickup(home, result, started)
+    return result

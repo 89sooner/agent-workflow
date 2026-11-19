@@ -182,6 +182,18 @@ def parser():
     c.add_argument("--worklog-dir", type=Path, help="작업일지를 함께 저장할 기존 폴더")
     c = commands.add_parser("pickup", help="현재 브랜치의 마지막 인계 및 저장 후 Git 상태 변화 확인")
     c.add_argument("--project", default=".")
+    c.add_argument("--measure", action="store_true", help="이 재개의 첫 작업 시작까지 측정")
+    c = commands.add_parser("resume-time", help="현재 작업 트리·브랜치의 재개 및 마감 시간 측정")
+    actions = c.add_subparsers(dest="operation", required=True)
+    for name in ("start", "start-close", "report"):
+        sub = actions.add_parser(name)
+        sub.add_argument("--project", default=".")
+    sub = actions.add_parser("finish", help="처음 올바른 작업을 시작할 때 측정 종료")
+    sub.add_argument("id", nargs="?")
+    sub.add_argument("--project", default=".")
+    sub.add_argument("--wrong-pick", action="store_true", help="올바른 작업 전에 잘못된 작업을 골랐음")
+    sub.add_argument("--reexplanations", type=int, default=0, help="다시 설명한 횟수")
+    actions.add_parser("abandon").add_argument("id")
     c = commands.add_parser("opencode", help="OpenCode 서버 읽기 전용 관측 연결; 모델 실행 없음")
     oc = c.add_subparsers(dest="opencode_command", required=True)
     o = oc.add_parser("connect", help="로컬 OpenCode 서버를 한 번 연결하면 새 세션 자동 관측")
@@ -404,7 +416,19 @@ def dispatch(args):
         from .session_notes import close_note, pickup
         if args.command == "close-session":
             return close_note(args.home, args.project, args.summary, args.next_action, args.worklog_dir)
-        return pickup(args.home, args.project)
+        return pickup(args.home, args.project, measure=args.measure)
+    if args.command == "resume-time":
+        from . import resume_metrics
+        if args.operation == "start":
+            return resume_metrics.start_manual(args.home, args.project)
+        if args.operation == "start-close":
+            return resume_metrics.start_close(args.home, args.project)
+        if args.operation == "abandon":
+            return resume_metrics.abandon(args.home, args.id)
+        if args.operation == "finish":
+            return resume_metrics.finish(args.home, args.id, args.project, wrong_pick=args.wrong_pick,
+                                         reexplanations=args.reexplanations)
+        return resume_metrics.summary(args.home, args.project)
     if args.command == "browser-check":
         command = ["node", str(Path(__file__).with_name("browser-check.mjs")), str(args.file.resolve())]
         result = subprocess.run(command)
