@@ -837,9 +837,10 @@ export default function App() {
       )}
       <aside
         ref={navigation}
-        role={navigationOpen ? "dialog" : undefined}
+        role={navigationOpen && !connecting ? "dialog" : undefined}
+        inert={navigationOpen && connecting}
         aria-label="작업 탐색 메뉴"
-        aria-modal={navigationOpen || undefined}
+        aria-modal={(navigationOpen && !connecting) || undefined}
         id="mission-navigation"
         className={`sidebar${navigationOpen ? " mobile-open" : ""}`}
       >
