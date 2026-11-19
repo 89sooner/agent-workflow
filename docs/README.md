@@ -1,6 +1,6 @@
 # 문서 안내
 
-2026년 11월 19일 갱신. [최신 사용·운영 매뉴얼](USER_GUIDE.ko.md)에서 전체 기능을 찾고, [상세 사용 사례](USE_CASES.ko.md)에서 필요한 절차를 따라 할 수 있다.
+2026년 11월 20일 갱신. [최신 사용·운영 매뉴얼](USER_GUIDE.ko.md)에서 전체 기능을 찾고, [상세 사용 사례](USE_CASES.ko.md)에서 필요한 절차를 따라 할 수 있다.
 
 | 문서 | 현재 역할 |
 |---|---|
@@ -13,10 +13,10 @@
 | [OpenCode 관측](OPENCODE_OBSERVATION.ko.md) | 연결·자동 세션 발견·인증·지원 범위; 소스 통합과 운영 적용 구분 |
 | [서비스 사용성 개선 계획](USABILITY_SERVICE_PLAN.ko.html) | 실제 화면 진단, 첫 연결·일상 관리 개선 우선순위와 수용 기준 |
 | [작업자 3D·이름표·성능](DETAILED_WORKERS.ko.md) | 확대·선택·이름표 충돌 회피, 1/4/12/24명 합성 브라우저 검증 |
-| [React 실행 관제실](REACT_MISSION_CONTROL.ko.md) | `/mission` 사용법, 이름·그래프·R3F·이력·재생·개발 검증 |
+| [React 실행 관제실](REACT_MISSION_CONTROL.ko.md) | 기본 주소 `/` · `/mission`. 새 작업 등록, 추천, 작업·실행 관리, 이름·그래프·3D·이력 재생 |
 | [프로젝트 연결](PROJECT_OBSERVATORY.ko.md) | 원장 자동 발견, connect/start/watch, 이름 등록과 관측 범위 |
 | [운영 절차](OPERATIONS.ko.md) | 8776/8777 배치, 큐·직접 실행 확인, 백업·반영·health·복구 |
-| [기존 SaaS 화면](SAAS_OBSERVATORY.ko.md) | `/` 관리 UI와 기존 Three.js 관제실의 조작 |
+| [이전 SaaS 화면 기록](SAAS_OBSERVATORY.ko.md) | 2026-11-04 정적 화면의 구현·검증 자료 |
 | [관측 API와 증거](OBSERVABILITY.ko.md) | task/job/run/span/event, 상태·완료·재생·로그 계약 |
 | [자동화](AUTOMATION_V0.3.ko.md) | profile, 격리 작업, 검증, 리뷰, 큐, release 명령 |
 | [후속 진행 현황](FOLLOWUP_STATUS.ko.md) | UX-01~03 완료·남은 범위·다음 3D 형상 작업·배포/검증 구분 |

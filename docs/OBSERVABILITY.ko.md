@@ -1,8 +1,8 @@
 # v0.4.0 에이전트 관제실 사용 안내
 
-갱신: 2026-11-04. 새 `/mission`의 사용법은 [React 관제실](REACT_MISSION_CONTROL.ko.md), 현재 운영 절차는 [운영 안내](OPERATIONS.ko.md)에 있다. 아래 관측 API·증거 계약은 새 화면에서도 유지한다. 기존 화면에만 있는 제어는 `/`에서 사용한다.
+이 문서는 v0.4에서 도입한 관측 API와 증거 계약을 설명한다. 현재 `/`와 `/mission`은 동일한 React 관제실에서 관측·작업 등록·실행 관리를 제공한다. [React 관제실](REACT_MISSION_CONTROL.ko.md) · [운영 안내](OPERATIONS.ko.md).
 
-관제실은 agent-workflow가 실제로 호출한 구현 담당, 검사 실행기, 독립 리뷰, 통합·배포의 작업과 인계를 보여준다. Three.js 3D 작업실, 역할 목록, 실행 그래프, 시간순 이벤트, 선택한 단계의 결과와 로그가 같은 기록을 사용한다. 화면 구성·조작·프로젝트 탐색은 [3D 관제실 안내](SAAS_OBSERVATORY.ko.md)를 참고한다.
+관제실은 agent-workflow가 실제로 호출한 구현 담당, 검사 실행기, 독립 리뷰, 통합·배포의 작업과 인계를 보여준다. Three.js 3D 작업실, 역할 목록, 실행 그래프, 시간순 이벤트, 선택한 단계의 결과와 로그가 같은 기록을 사용한다. 현재 화면 구성·조작·프로젝트 탐색은 [React 관제실](REACT_MISSION_CONTROL.ko.md)을 참고한다.
 
 Python 3.11 이상과 Git을 사용하는 기존 실행 환경을 유지한다. Three.js는 고정 버전의 로컬 번들로 제공하므로 대시보드 실행에 새 Python 패키지, Node 서버, npm 설치, 외부 관측 서비스 또는 CDN은 필요하지 않다. 화면 설계의 조사 근거는 [제품·연구 비교](OBSERVABILITY_RESEARCH.ko.md), 프로젝트 설정과 기본 자동화는 [v0.3 안내](AUTOMATION_V0.3.ko.md)를 참고한다.
 
@@ -266,11 +266,11 @@ agent-workflow review-import WP-074 --file /path/to/review.json \
 
 ```bash
 python3 -m unittest discover -s tests -v
-python3 tests/observability_integration.py
+python3 tests/mission_integration.py
 ```
 
 관제실 통합 테스트는 임시 작업과 로컬 서버에서 기록·API·브라우저의 연결을 검사한다. 모델 과금이나 운영 배포를 호출하는 live 검증과 구분한다. 브라우저 검증에는 선택적 개발 의존성인 Playwright가 필요하며 CI의 고정 검증 버전은 `1.51.1`이다. 사용자용 CLI와 대시보드의 runtime 의존성에는 추가되지 않는다. 로컬 실행 결과와 검증 범위는 [v0.4 검증 기록](verification-v0.4.json), 해당 commit의 CI 결과는 GitHub Actions에서 확인한다.
 
 실제 CLI 계정·모델 연결은 기존 `tests/live_smoke.py`, 외부 운영 릴리스는 사용자가 지정한 대상과 권한에서 별도로 검증한다. 이 문서는 실제 사용자 환경의 WSL 재부팅, 장기간 상주 운용, 운영 GitHub merge·배포가 검증되었다고 주장하지 않는다.
 
-기존 상세 화면은 한 작업·실행을 중심으로 하며, 새 `/mission`은 프로젝트 전체와 개별 실행을 함께 탐색한다. CLI 내부 subagent 관측, 전역 task DAG 편집, OTLP export, 다중 사용자 접근 제어, 무제한 로그·trace 저장 관리, 사용자 생산성 개선의 정량 평가가 필요하면 각각의 별도 계약과 검증을 추가해야 한다.
+React 관제실은 프로젝트 전체와 개별 실행을 함께 탐색한다. CLI 내부 subagent 관측, 전역 task DAG 편집, OTLP export, 다중 사용자 접근 제어, 무제한 로그·trace 저장 관리, 사용자 생산성 개선의 정량 평가가 필요하면 각각의 별도 계약과 검증을 추가해야 한다.

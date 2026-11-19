@@ -139,6 +139,8 @@ try {
     ),
   );
   assert((await page.locator(".room-selection").innerText()).includes("지우"));
+  await page.getByRole("button", { name: "3D 공간 확대", exact: true }).click();
+  await page.getByRole("button", { name: "3D 공간 축소", exact: true }).click();
   await page.getByRole("button", { name: "선택한 작업자 가까이" }).click();
   await page.getByRole("button", { name: "시점 초기화", exact: true }).click();
   const movingA = await page.locator(".room-canvas canvas").screenshot();
@@ -152,7 +154,7 @@ try {
       (await page.locator(".room-canvas").getAttribute("data-active")) ===
       "false",
   );
-  assert(await page.getByLabel("움직임 줄이기").isDisabled());
+  assert(await page.locator("#mission-main").getByLabel("움직임 줄이기").isDisabled());
   await page.waitForTimeout(250);
   const stillA = await page.locator(".room-canvas canvas").screenshot();
   await page.waitForTimeout(250);
@@ -258,6 +260,10 @@ try {
   assert.equal(runner.exitCode, 0);
   await pick("OBS-TRACE");
   await page.locator(".graph-node").first().click();
+  const receipt=page.locator(".inspector details").filter({has:page.getByText("실행 근거와 사용량",{exact:true})});
+  await receipt.locator("summary").click();
+  assert.equal(await receipt.locator("dt").filter({hasText:"종료 코드"}).locator("+ dd").textContent(),"0");
+  assert.ok((await receipt.locator("code").first().textContent()).trim().length>0);
   await page.getByRole("button", { name: "표준 출력", exact: true }).click();
   await until(
     async () =>
@@ -274,6 +280,11 @@ try {
   );
   await page.getByRole("button", { name: "일시 정지", exact: false }).click();
   await page.locator("#event-position").fill("0");
+  await page.getByRole("button",{name:"다음 이벤트",exact:true}).click();
+  assert.equal(await page.locator("#event-position").inputValue(),"1");
+  await page.getByRole("button",{name:"이전 이벤트",exact:true}).click();
+  assert.equal(await page.locator("#event-position").inputValue(),"0");
+  assert.equal(await page.getByText("실행 근거와 사용량",{exact:true}).count(),0,"replay does not expose later receipts");
   assert.equal(
     await page.locator(".room-canvas").getAttribute("data-active"),
     "false",
@@ -283,6 +294,25 @@ try {
     0,
   );
   await page.getByRole("button", { name: "실시간으로 돌아가기" }).click();
+  const follow = page.getByRole("button",{name:"최신 단계 따라가기"});
+  const originalFollow = await follow.getAttribute("aria-pressed");
+  await follow.click();
+  assert.notEqual(await follow.getAttribute("aria-pressed"),originalFollow);
+  await follow.click();
+  const searchEvents = page.getByLabel("이벤트 검색");
+  await searchEvents.fill("nonexistent-fixture-event");
+  await page.getByText("검색에 맞는 이벤트가 없습니다.").waitFor();
+  await searchEvents.fill("");
+  await page.getByRole("button",{name:"역할 개요",exact:true}).click();
+  assert.equal(await page.locator(".graph-node").count(),3);
+  assert.match(await page.locator(".graph-node").filter({hasText:"리뷰"}).textContent(),/2회/);
+  await page.getByRole("button",{name:"실행 순서",exact:true}).click();
+  assert.equal(await page.locator(".graph-node").count(),6);
+  const exportLink = page.getByRole("link",{name:/JSON 내보내기/});
+  const exported = await (await page.request.get(new URL(await exportLink.getAttribute("href"), f.url).href)).json();
+  assert.equal(exported.spans.length, 6);
+  assert.equal(exported.coverage.cli_internal_tools, false);
+  assert.equal(exported.task.id, "OBS-TRACE");
   // More than eight stages: actor/event selection must bring old span into graph and room.
   await pick("MISSION-LONG");
   assert.equal(await page.locator(".graph-node").count(), 8);
@@ -398,7 +428,8 @@ try {
         "reselected task waits for fresh response",
         "disconnect/recovery",
         "logs",
-        "replay",
+        "replay with previous/next, follow and search",
+        "role grouping, step graph and real trace export",
         "old-stage selection",
         "pagination",
         "cross-ledger delayed response",

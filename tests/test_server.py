@@ -52,7 +52,8 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(state["tasks"][0]["id"], "WEB-1")
         self.assertEqual(state["csrf_token"], "test-token")
         self.assertEqual(self.request("/")[0], 200)
-        self.assertEqual(self.request("/static/app.js")[0], 200)
+        self.assertEqual(self.request("/static/app.js")[0], 404)
+        self.assertEqual(self.request("/")[1], self.request("/mission")[1])
         self.assertIn("frame-ancestors 'none'", headers["Content-Security-Policy"])
 
     def test_react_mission_assets_are_local_and_allowlisted(self):

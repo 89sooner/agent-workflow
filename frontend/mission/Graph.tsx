@@ -1,7 +1,11 @@
-import { useId, useState } from "react";
-import type { Graph as Model, Node, Transfer } from "./types";
+import { useId, useMemo, useState } from "react";
+import type { Graph as Model, Node, Trace, Transfer } from "./types";
 import { color, label } from "./model";
+import { executionStatus, roleGraph } from "./roleGraph";
+import "./role-graph.css";
+
 interface Props {
+  trace?: Trace;
   graph: Model;
   selected: string | null;
   onSelect: (n: Node) => void;
@@ -10,8 +14,9 @@ interface Props {
   replay: boolean;
 }
 export function ExecutionGraph({
-  graph,
-  selected,
+  graph: stepGraph,
+  trace,
+  selected: selectedSpan,
   onSelect,
   transfers,
   motion,
@@ -19,6 +24,17 @@ export function ExecutionGraph({
 }: Props) {
   const [zoom, setZoom] = useState(1),
     marker = useId().replaceAll(":", "");
+  const [roleMode, setRoleMode] = useState(false);
+  const projection = useMemo(
+    () =>
+      roleMode && trace ? roleGraph(stepGraph, trace, selectedSpan) : null,
+    [roleMode, trace, stepGraph, selectedSpan],
+  );
+  const graph = projection?.graph || stepGraph;
+  const selected = projection?.selected || selectedSpan;
+  const statusText = (status: string) =>
+    status === "changes_requested" ? "수정 요청" : label(status);
+  const nodesById = new Map(graph.nodes.map((n) => [n.id, n]));
   const active = new Set(transfers.flatMap((t) => [t.source, t.target]));
   return (
     <section className="panel graph-panel" aria-label="실행 흐름 그래프">
@@ -45,9 +61,24 @@ export function ExecutionGraph({
           </button>
         </div>
       </div>
+      {trace && (
+        <div
+          className="role-graph-mode"
+          role="group"
+          aria-label="그래프 표시 방식"
+        >
+          <button aria-pressed={!roleMode} onClick={() => setRoleMode(false)}>
+            실행 순서
+          </button>
+          <button aria-pressed={roleMode} onClick={() => setRoleMode(true)}>
+            역할 개요
+          </button>
+        </div>
+      )}
       <p className="panel-caption">
-        선은 기록된 실행 순서입니다. 노드를 선택하면 담당자와 결과가 함께
-        표시됩니다.
+        {projection
+          ? "역할별 호출과 연결 횟수입니다. 역할을 선택하면 마지막 실행의 근거를 엽니다."
+          : "선은 기록된 실행 순서입니다. 노드를 선택하면 담당자와 결과가 함께 표시됩니다."}
       </p>
       {!graph.nodes.length ? (
         <div className="empty-state">
@@ -67,7 +98,9 @@ export function ExecutionGraph({
             height={graph.height * zoom}
             viewBox={`0 0 ${graph.width} ${graph.height}`}
             role="group"
-            aria-label="작업별 실제 실행 순서"
+            aria-label={
+              projection ? "작업별 역할 개요" : "작업별 실제 실행 순서"
+            }
           >
             <defs>
               <marker
@@ -114,75 +147,115 @@ export function ExecutionGraph({
               </g>
             ))}
             {graph.edges.map((edge) => {
-              const a = graph.nodes.find((n) => n.id === edge.source)!,
-                b = graph.nodes.find((n) => n.id === edge.target)!;
-              const path = `M ${a.x + 180} ${a.y} C ${a.x + 205} ${a.y},${b.x - 25} ${b.y},${b.x} ${b.y}`;
+              const a = nodesById.get(edge.source)!,
+                b = nodesById.get(edge.target)!;
+              const reverse = projection && a.x >= b.x && a.y === b.y;
+              const path = reverse
+                ? `M ${a.x + 120} ${a.y - 38} C ${a.x + 120} ${a.y - 73},${b.x + 60} ${b.y - 73},${b.x + 60} ${b.y - 38}`
+                : `M ${a.x + 180} ${a.y} C ${a.x + 205} ${a.y},${b.x - 25} ${b.y},${b.x} ${b.y}`;
+              const count = projection?.edgeCounts.get(edge.id);
               return (
                 <g key={edge.id}>
-                  <title>{edge.label}</title>
+                  <title>
+                    {edge.label}
+                    {count != null && ` · ${count}회`}
+                  </title>
                   <path
                     d={path}
                     className="graph-edge"
                     markerEnd={`url(#${marker})`}
                   />
+                  {count != null && (
+                    <text
+                      className="role-edge-count"
+                      textAnchor="middle"
+                      x={(a.x + b.x) / 2 + 90}
+                      y={reverse ? a.y - 65 : (a.y + b.y) / 2 - 5}
+                    >
+                      {count}회
+                    </text>
+                  )}
                   {motion && active.has(b.actorId) && (
                     <path d={path} className="graph-edge signal" />
                   )}
                 </g>
               );
             })}
-            {graph.nodes.map((n) => (
-              <g
-                key={n.id}
-                className={`graph-node ${selected === n.id ? "selected" : ""} ${motion && n.status === "running" ? "working" : ""}`}
-                transform={`translate(${n.x},${n.y - 38})`}
-                role="button"
-                tabIndex={0}
-                aria-label={`${n.label} · ${label(n.role)} · ${label(n.status)}`}
-                aria-pressed={selected === n.id}
-                onClick={() => onSelect(n)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    onSelect(n);
-                  }
-                }}
-                data-node-id={n.id}
-              >
-                <title>
-                  {n.label} · {n.taskId}
-                </title>
-                <rect className="node-card" width="180" height="86" rx="12" />
-                <rect
-                  x="0"
-                  y="15"
-                  width="3"
-                  height="55"
-                  rx="1"
-                  fill={color(n.status)}
-                />
-                <text x="14" y="23" className="node-role">
-                  {label(n.role)}
-                  {n.kind === "assignment" ? " · 배정" : ""}
-                </text>
-                <text x="14" y="45" className="node-name">
-                  {n.label.length > 17 ? n.label.slice(0, 16) + "…" : n.label}
-                </text>
-                <circle cx="18" cy="65" r="3" fill={color(n.status)} />
-                <text x="28" y="69" className="node-state">
-                  {replay && n.status === "running"
-                    ? "당시 실행 중"
-                    : label(n.status)}
-                </text>
-              </g>
-            ))}
+            {graph.nodes.map((n) => {
+              const count = projection?.countByNode.get(n.id);
+              const status = executionStatus(n.span, n.status);
+              return (
+                <g
+                  key={n.id}
+                  className={`graph-node ${selected === n.id ? "selected" : ""} ${motion && n.status === "running" ? "working" : ""}`}
+                  transform={`translate(${n.x},${n.y - 38})`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${n.label} · ${label(n.role)} · ${statusText(status)}${count ? ` · ${count.calls}회` : ""}`}
+                  aria-pressed={selected === n.id}
+                  onClick={() => onSelect(n)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onSelect(n);
+                    }
+                  }}
+                  data-node-id={n.id}
+                >
+                  <title>
+                    {n.label} · {n.taskId}
+                  </title>
+                  <rect className="node-card" width="180" height="86" rx="12" />
+                  <rect
+                    x="0"
+                    y="15"
+                    width="3"
+                    height="55"
+                    rx="1"
+                    fill={
+                      status === "changes_requested" ? "#edc875" : color(status)
+                    }
+                  />
+                  <text x="14" y="23" className="node-role">
+                    {label(n.role)}
+                    {n.kind === "assignment" ? " · 배정" : ""}
+                  </text>
+                  <text x="14" y="45" className="node-name">
+                    {count
+                      ? `${count.calls}회 · 통과 ${count.succeeded} · 확인 ${count.attention}`
+                      : n.label.length > 17
+                        ? n.label.slice(0, 16) + "…"
+                        : n.label}
+                  </text>
+                  <circle
+                    cx="18"
+                    cy="65"
+                    r="3"
+                    fill={
+                      status === "changes_requested" ? "#edc875" : color(status)
+                    }
+                  />
+                  <text x="28" y="69" className="node-state">
+                    {replay && n.status === "running"
+                      ? "당시 실행 중"
+                      : statusText(status)}
+                  </text>
+                </g>
+              );
+            })}
           </svg>
         </div>
       )}
       <div className="panel-footer">
-        <span>최근 작업 최대 6개 · 작업당 단계 최대 8개</span>
         <span>
-          {graph.nodes.length} / {graph.total}개 단계·배정 표시
+          {projection
+            ? "최근 작업 최대 6개 · 조회된 실행 기준"
+            : "최근 작업 최대 6개 · 작업당 단계 최대 8개"}
+        </span>
+        <span>
+          {projection
+            ? `역할·배정 ${graph.nodes.length}개`
+            : `${graph.nodes.length} / ${graph.total}개 단계·배정 표시`}
         </span>
       </div>
     </section>

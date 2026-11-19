@@ -1,8 +1,6 @@
-# Three.js 관제실과 SaaS형 워크스페이스
+# 2026-11-04 기록 · Three.js 관제실과 SaaS형 워크스페이스
 
-갱신: 2026-11-04. 이 문서는 `/`의 기존 관리 UI와 Three.js 구현을 설명한다.
-새 `/mission`의 TypeScript·React·R3F 사용법은 [React 관제실](REACT_MISSION_CONTROL.ko.md),
-현재 URL·재시작 절차는 [운영 안내](OPERATIONS.ko.md)에 있다. 아래 초기 화면/검증 기록은 유지한다.
+아래의 화면, 파일 목록, 빌드 명령과 테스트는 2026년 11월 4일 배포의 기록이다. 현재 `/`와 `/mission`은 같은 React 실행 관제실을 제공한다. 현재 빌드·사용법은 [React 관제실](REACT_MISSION_CONTROL.ko.md), URL·재시작 절차는 [운영 안내](OPERATIONS.ko.md)를 참고한다.
 
 ## 설계와 구현
 

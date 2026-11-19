@@ -3,9 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/build-frontend.mjs && node scripts/build-mission.mjs",
-    "dev": "node scripts/build-frontend.mjs --watch",
-    "check:vendor": "node scripts/build-frontend.mjs --check",
+    "build": "node scripts/build-mission.mjs",
+    "dev": "node scripts/build-mission.mjs --watch",
     "build:mission": "node scripts/build-mission.mjs",
     "dev:mission": "node scripts/build-mission.mjs --watch",
     "typecheck": "tsc --noEmit",

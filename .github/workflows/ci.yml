@@ -35,7 +35,7 @@ jobs:
         run: |
           python -m pip install . --no-deps
           cd "$RUNNER_TEMP"
-          python -c "from importlib.resources import files; root = files('agent_workflow'); assert all(root.joinpath('static', name).is_file() for name in ('index.html', 'app.js', 'styles.css', 'observatory.js', 'observatory.css', 'saas.css', 'scene3d.js', 'scene3d.css', 'three-vendor.js', 'THREE_LICENSE.txt', 'mission.html', 'mission.js', 'mission.css', 'mission-icon.svg', 'MISSION_LICENSES.txt'))"
+          python -c "from importlib.resources import files; root = files('agent_workflow'); assert all(root.joinpath('static', name).is_file() for name in ('mission.html', 'mission.js', 'mission.css', 'mission-icon.svg', 'MISSION_LICENSES.txt'))"
 
   browser:
     name: Browser / actual local workflows
@@ -49,10 +49,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify pinned Three.js bundle
+      - name: Verify the production React bundle
         run: |
           npm ci --no-audit --no-fund
-          npm run check:vendor
           npm run typecheck
           npm run test:mission
           npm run check:mission
@@ -61,21 +60,20 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/workflow-browser" --no-audit --no-fund playwright@1.51.1
           "$RUNNER_TEMP/workflow-browser/node_modules/.bin/playwright" install --with-deps chromium
           sudo apt-get install --yes fonts-noto-cjk
-      - name: Existing dashboard and controller-backed observatory acceptance
+      - name: React management, observatory and controller-backed browser acceptance
         env:
           WORKFLOW_PLAYWRIGHT_PATH: ${{ runner.temp }}/workflow-browser/node_modules/playwright
           WORKFLOW_SCREENSHOT_DIR: ${{ runner.temp }}/workflow-screenshots
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           python tests/ui_integration.py
-          python tests/observability_integration.py
-          python tests/saas_integration.py
           node tests/workers_browser.mjs
           node tests/instanced_workers_browser.mjs
           python tests/mission_integration.py
           python tests/opencode_integration.py
           python tests/onboarding_integration.py
           python tests/native_integration.py
+          WORKFLOW_NATIVE_SCENARIO=tests/bookmarks_scenarios.mjs python tests/native_integration.py
           node tests/plugins.mjs
           node tests/plugins_v2.mjs
           python scripts/package-plugins.py

@@ -16,13 +16,13 @@ from agent_workflow.observability import run_context, view
 from agent_workflow.server import handler
 from agent_workflow.daemon import init_queue
 from agent_workflow.usage import managed_process
-from saas_integration import prepare_saas
+from react_browser_fixture import prepare_workspace
 
 
 def main():
     with tempfile.TemporaryDirectory(prefix='workflow-react-mission-') as directory:
         root = Path(directory)
-        fixture = prepare_saas(root)
+        fixture = prepare_workspace(root)
         store = Store(fixture['home'])
         try:
             init_queue(store)

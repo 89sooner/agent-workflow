@@ -153,11 +153,13 @@ def handler(home, token, *, read_only=False, observer=False):
                 self.origin()
                 parsed = urlparse(self.path)
                 path = unquote(parsed.path)
-                if path in ("/", "/mission", "/mission/", "/sessions", "/overview", "/static/mission.js", "/static/mission.css", "/static/MISSION_LICENSES.txt", "/static/mission-icon.svg", "/static/recommendation-advisor.js", "/static/app.js", "/static/styles.css", "/static/observatory.js", "/static/observatory.css",
-                            "/static/saas.css", "/static/scene3d.js", "/static/scene3d.css", "/static/three-vendor.js", "/static/THREE_LICENSE.txt"):
-                    name = "index.html" if path == "/" else "mission.html" if path in ("/mission", "/mission/", "/sessions", "/overview") else path.rsplit("/", 1)[1]
+                if path in ("/", "/mission", "/mission/", "/sessions", "/overview",
+                            "/static/mission.js", "/static/mission.css", "/static/MISSION_LICENSES.txt", "/static/mission-icon.svg"):
+                    name = path.rsplit("/", 1)[-1] if path.startswith("/static/") else "mission.html"
                     mime = "text/html" if name.endswith(".html") else "text/javascript" if name.endswith(".js") else "text/css" if name.endswith(".css") else "image/svg+xml" if name.endswith(".svg") else "text/plain"
                     return self.response((assets / name).read_bytes(), content_type=mime + "; charset=utf-8")
+                if path.startswith("/static/"):
+                    return self.response({"error": "정적 파일 없음"}, 404)
                 if path == "/demo":
                     p = Path(home) / "demo/site/index.html"
                     if not p.exists():

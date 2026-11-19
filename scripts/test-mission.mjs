@@ -162,6 +162,27 @@ console.log(
   "Mission model: replay chronology, identity, actual transfers and bounded selection passed.",
 );
 
+const rolesBuild = await build({
+  entryPoints: ["frontend/mission/roleGraph.ts"], bundle: true, write: false, platform: "node", format: "esm",
+});
+const { roleGraph } = await import("data:text/javascript;base64," + Buffer.from(rolesBuild.outputFiles[0].text).toString("base64"));
+const roleSpans = spans.map((s,i) => ({...s, role: i < 9 ? "implement" : "review",
+  result: i === 10 ? {verdict:"changes_requested"} : s.result}));
+const linked = {...trace, spans:roleSpans, edges:[
+  {id:"retry1", source:"s0", target:"s1"}, {id:"retry2", source:"s1", target:"s2"},
+  {id:"handoff", source:"s8", target:"s9"}, {id:"unknown", source:"s9", target:"absent"}]};
+const grouped = roleGraph(graphOf(linked, [task], "T", "s0"), linked, "s0");
+assert.equal(grouped.graph.nodes.length, 2);
+assert.deepEqual(grouped.countByNode.get("s8"), {calls:9,succeeded:8,attention:0});
+assert.deepEqual(grouped.countByNode.get("s11"), {calls:3,succeeded:2,attention:1});
+assert.equal(grouped.selected, "s8");
+assert.equal(grouped.graph.edges.length, 2);
+assert.deepEqual([...grouped.edgeCounts.values()], [2,1], "aggregate only observed transfers");
+const pointInTime = atEvent(trace, 1);
+const historicalRoles = roleGraph(graphOf(pointInTime, [task], "T"), pointInTime, null);
+assert.deepEqual(historicalRoles.countByNode.get("s"), {calls:1,succeeded:0,attention:0}, "no future verdict while replaying");
+console.log("Role projection: hidden calls, retries, actual handoffs and time-bound verdicts verified.");
+
 const roomsBuild = await build({
   entryPoints: ["frontend/mission/rooms.ts"], bundle: true, write: false, platform: "node", format: "esm",
 });

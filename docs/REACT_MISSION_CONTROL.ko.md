@@ -1,19 +1,16 @@
 # React 실행 관제실 사용 안내
 
-갱신: 2026-11-04 · TypeScript + React + Three.js + React Three Fiber.
+2026년 11월 20일 갱신. TypeScript·React·Three.js·React Three Fiber 기반 웹 사용 안내.
 
-`/mission`은 실제 작업을 관측하는 새 화면이고 `/`는 기존 등록·실행·중단 관리 화면이다.
-둘은 같은 Python HTTP API를 사용한다. 관측은 GET이며, 명시적인 연결 설정은 토큰으로 검증한 설정 POST를 사용한다.
-새 화면을 열었다고 worker나 모델 호출이 시작되지는 않는다. 단, 일반 `serve` 서버 자체는
-worker를 실행하므로 관측 전용 서버에는 `watch` 또는 `serve --read-only`를 사용한다.
+**기본 주소 `/`와 `/mission`은 같은 React 실행 관제실을 연다.** 상단에서 새 작업을 등록하고 **작업·실행 관리**로 전환해 상태 조회·실행·중단·재개를 진행한다. 3D 공간과 실행 그래프도 이 화면에서 선택한다. `/overview`는 프로젝트 통합 보기, `/sessions`는 일상 세션 관측 페이지다.
+작업 관리 API는 자신의 기본 원장을 관리하는 서버에서 요청 토큰을 확인한다. 관측만 운영하려면 `watch` 또는 `serve --read-only`를 사용한다.
 
 ## 현재 WSL 주소와 원장
 
 | 목적 | 주소 | state home | 실행 제어 |
 |---|---|---|---|
 | Katakuri H 작업 관측 | http://127.0.0.1:8777/mission | `/tmp/katakuri-h-local-queue-workflow-20261029` | 서버 전체 읽기 전용 |
-| 기본 원장 관측 | http://127.0.0.1:8776/mission | `~/.local/state/agent-workflow` | 관측 GET, 명시적 연결 설정 POST |
-| 기본 원장 관리 | http://127.0.0.1:8776/ | 위와 동일 | 기존 worker·관리 API |
+| 기본 원장 관리·실행 관측 | http://127.0.0.1:8776/ · http://127.0.0.1:8776/mission | `~/.local/state/agent-workflow` | 기본 원장 작업 등록·실행 제어, 등록된 외부 원장 조회 |
 | React 개발 미리보기 | http://127.0.0.1:8880/mission | `/tmp/agent-workflow-react-preview-20261102` | 기존 미리보기 |
 | 첫 연결 개선 미리보기 | http://127.0.0.1:8884/mission | `/tmp/agent-workflow-usability-observer-20261104` | 연결 설정만 가능, 작업 실행 불가 |
 
@@ -25,7 +22,7 @@ worker를 실행하므로 관측 전용 서버에는 `watch` 또는 `serve --rea
 
 ## 사용 순서
 
-1. 운영 H 관제실 `http://127.0.0.1:8777/mission`을 연다. 왼쪽 **작업 원장**에서 `katakuri-h-local-queue-workflow-20261029`를 선택한다.
+1. 기본 관제실 `http://127.0.0.1:8776/`을 연다. **작업 원장 / 연결**에서 관리·관측 대상을 확인한다. 관리 원장에는 **관리 원장**이라는 표시가 붙는다. 모바일에서는 **작업 탐색**을 열어 원장을 선택한다.
 2. **프로젝트 전체 관제실**에서 실행·대기·미확인 수, 최근 작업 흐름을 본다. 원장/프로젝트를 바꾸면 이전 범위의 이력과 재생 상태는 초기화된다.
 3. **작업·담당자 검색**에 작업 ID나 실제 배정 이름을 입력한다. 작업을 선택하면 해당 작업의 최근 실행이 열린다.
 4. 3D 담당자 또는 그래프 노드를 선택한다. 오른쪽 패널에서 배정 이름의 출처, 역할, 요청 모델/관측 모델, 실행 ID, 시작·종료, 실제 결과를 본다. 그래프 선택과 3D 선택은 같은 실행을 가리킨다.
@@ -34,7 +31,22 @@ worker를 실행하므로 관측 전용 서버에는 `watch` 또는 `serve --rea
 7. **기록 재생**을 누르면 불러온 이벤트의 고정 스냅샷을 순서대로 재생한다. 슬라이더로 이동하고, **실시간으로 돌아가기**로 종료한다. 재생은 실행 명령이 아니며 그 시점 이후의 결과를 미리 표시하지 않는다.
 8. 이벤트는 100개씩 표시한다. **이전 쪽 / 최신 쪽**은 불러온 이벤트를 탐색하고, **이전 기록 불러오기**는 서버의 이전 페이지를 추가한다. **JSON 내보내기**는 해당 작업/run의 기록을 내려받는다.
 9. 작업자를 선택한 뒤 **선택한 작업자 가까이**로 확대한다. 고정 크기 이름표는 겹칠 때 선택된 작업자를 우선하고 주변 이름표를 숨긴다. 전체 이름·역할·상태는 선택 정보에서 확인한다. [3D 상세·성능 검증](DETAILED_WORKERS.ko.md). 3D는 드래그 회전·스크롤 확대·**시점 초기화**를 지원한다. **3D 공간**을 끄거나 **움직임 줄이기**를 선택할 수 있다. OS reduced-motion 설정을 우선한다. WebGL을 사용할 수 없어도 그래프·담당자·이력은 사용할 수 있다.
-10. 작업 등록·실행·중단은 서버 자신의 관리 가능한 원장에서만 보이는 **작업 등록·실행 관리** 링크로 이동한다. 8777 H 서버는 읽기 전용이다. 기본 원장의 등록·실행 관리는 8776 기존 관리 화면에서 한다. 원장을 바꾸면 대상이 달라지므로 state home을 먼저 확인한다.
+10. **화면 설정**에서 화면 테마, 3D 공간 표시, 움직임 줄이기를 변경할 수 있다. OS에서 움직임 줄이기를 지정했으면 그 설정을 우선한다.
+
+## 새 작업 등록과 검사 추천
+
+관리 서버에서 대상이 기본 원장이면 상단 **새 작업 등록**, 다른 원장이나 OpenCode 관측 연결을 보고 있으면 **관리 원장에서 새 작업 등록**을 누른다. 후자의 경우 등록 대상이 기본 원장으로 바뀌고 등록 창이 열린다. `watch` 또는 `serve --read-only`에서 작업 등록이 필요하면 별도의 관리 서버를 연다.
+
+1. **프로젝트 설정**, **작업 목표**, **완료 조건**을 입력한다. 완료 조건은 한 줄에 하나씩 작성한다. 필요하면 작업 ID, 담당자 이름, 격리 작업 폴더를 지정한다.
+2. **저장한 추천 사용 (선택)**에서 해당 프로필의 최근 추천을 선택하거나 ID를 조회한다. 묶음 체크 상태를 바꿀 수 있다. 저장한 추천은 등록 시 프로필·현재 변경·완료 조건이 일치해야 연결된다.
+3. 기록 없이 추천이 필요하면 완료 조건 아래 **AI로 검사 묶음 추천받기 (선택)**를 펼친다. **보낼 내용 미리보기**는 로컬 Git 변경과 공급자 목록을 표시한다. 전송하려면 **모델에 보내 추천받기**를 누른다. 비용 또는 CLI 계정 사용량이 발생할 수 있다. 결과를 확인한 뒤 **추천 묶음 선택**으로 체크 상태에 적용한다. 두 번째 모델 오류가 있으면 **첫 모델의 선택 적용**을 선택할 수 있다.
+4. **작업 등록**을 누르면 작업을 생성하고 해당 ID를 선택한다. 실행은 작업 상세에서 따로 시작한다. 미커밋 변경을 현재 작업 트리에서 검사하려면 **별도 작업 폴더와 브랜치에서 진행**을 해제한다.
+
+## 작업·실행 관리
+
+관리형 작업을 선택하고 **작업·실행 관리**를 연다. 작업의 완료 조건·참조·검사와 리뷰, 릴리스의 병합·배포·상태 점검 근거를 읽을 수 있다. 저장한 추천에 연결된 작업은 **검사 추천과 실제 작업 결과**에서 추천·채택·묶음별 실행 결과와 사람의 평가를 확인한다. 필요했던 검사 묶음을 선택해 저장하는 절차는 선택 사항이다.
+
+기본 원장의 **실행 옵션**에서 시간 제한과 복구 횟수를 지정하고 **워크플로 실행** 또는 설정된 릴리스의 **통합 · 배포 실행**을 선택한다. **작업 보류**에는 이유가 필요하다. 실행 대기열에서 대기 중인 실행은 취소하고, 실행 중이면 중단을 요청하며, 실패·중단된 실행은 재개할 수 있다. 연결된 다른 원장에서는 조회와 로그 열기를 사용한다. 실행·보류·평가는 해당 작업의 관리 원장에서만 변경한다.
 
 ## 무엇을 보여 주는가
 
@@ -50,6 +62,9 @@ worker를 실행하므로 관측 전용 서버에는 `watch` 또는 `serve --rea
 | 경로 | 역할 |
 |---|---|
 | `frontend/mission/App.tsx` | 원장·프로젝트·작업·run 선택, 상세·로그·이력·재생 |
+| `frontend/mission/CreateTaskDialog.tsx` | 기본 관리 원장의 작업 등록, 추천 조회·미리보기·선택 |
+| `frontend/mission/Management.tsx` | 작업 계약·근거·릴리스, 실행 제어·대기열, 추천 피드백 |
+| `frontend/mission/Preferences.tsx` | 화면 이동, 테마·3D·움직임 설정 |
 | `frontend/mission/Connections.tsx` | 프로젝트·도구 연결 대화상자, 지원 범위와 실패 해결 안내 |
 | `frontend/mission/api.ts` | 범위별 polling, 취소, backoff, visibility 처리 |
 | `frontend/mission/model.ts` | 실제 데이터 → 그래프, 이벤트 시점 상태, 전달 이벤트 |
@@ -58,7 +73,7 @@ worker를 실행하므로 관측 전용 서버에는 `watch` 또는 `serve --rea
 | `frontend/mission/mission.css` | 반응형 UI, 상태 표시, 제한된 전환 |
 | `scripts/build-mission.mjs` | 고정 의존성의 로컬 JS/CSS·라이선스 빌드와 일치 검사 |
 | `agent_workflow/onboarding.py` | capability, 프로젝트 후보 확인, 관측 설정 저장 |
-| `agent_workflow/server.py` | `/mission`과 정적 자산 allowlist, 취소된 GET 연결 정리 |
+| `agent_workflow/server.py` | `/` · `/mission`의 React 셸, 정적 자산, 원장별 관리·조회 권한 |
 | `tests/mission_integration.py`, `tests/mission_scenarios.mjs` | 격리된 실제 DB·HTTP·프로세스·Chromium 수용 검사 |
 | `scripts/test-mission.mjs` | 재생 시간순서·이름·중복 전달 방지·선택 단계 보존 회귀 검사 |
 
@@ -75,7 +90,6 @@ npm ci --ignore-scripts --no-audit --no-fund
 npm run typecheck
 npm run test:mission
 npm run build
-npm run check:vendor
 npm run check:mission
 ```
 
@@ -94,7 +108,7 @@ python3 -m agent_workflow --home /path/to/observer watch --port 8878
 # 이 호스트의 동시 검증을 보호하는 공유 잠금이다.
 flock -w 600 /tmp/katakuri-host-heavy-check.lock python3 -m unittest discover -s tests
 flock -w 600 /tmp/katakuri-host-heavy-check.lock python3 tests/mission_integration.py
-flock -w 600 /tmp/katakuri-host-heavy-check.lock python3 tests/saas_integration.py
+flock -w 600 /tmp/katakuri-host-heavy-check.lock python3 tests/ui_integration.py
 ```
 
 브라우저 도구 경로는 `WORKFLOW_PLAYWRIGHT_PATH`, 스크린샷 폴더는 `WORKFLOW_SCREENSHOT_DIR`로
@@ -105,11 +119,10 @@ flock -w 600 /tmp/katakuri-host-heavy-check.lock python3 tests/saas_integration.
 ## 표시 범위와 한계
 
 - 그래프: 최근 작업 최대 6개, 작업당 최대 8단계. 활성·선택 단계는 표시 범위에 유지한다.
-- 3D: 최대 12개 담당자/실행기. 같은 시스템 actor의 반복 호출은 최근 호출을 대표로 표시한다.
+- 3D에는 담당자·실행기를 최대 24개까지 표시하고 선택한 작업자를 유지한다. 목록 보기에서는 불러온 노드의 담당자를 찾을 수 있다. 같은 actor의 반복 호출은 해당 actor의 노드로 묶는다.
 - 담당자 목록 100개, 실행 이력 목록 30개. 더 오래된 run은 작업별 실행 드롭다운에서 선택한다.
 - 서버도 작업/run/span/event 개수 제한을 적용한다. 화면이 전체 원장을 전부 렌더링한 것으로 해석하지 않는다. 이전 이벤트는 페이지로 추가한다.
 - 프로젝트 poll 4초, 작업 trace 2초, 연결 목록 15초. 서로 다른 조회의 표시 시점에 짧은 차이가 있을 수 있다. 실패 시 마지막 기록을 유지하고 backoff 재시도한다.
-- 이번 작업은 관제 UI의 프런트 구조를 개선한 것이다. Python 실행기를 Rust/Go로 바꾸거나, 원장 없는 임의의 외부 에이전트 내부 활동을 자동 수집하는 기능은 포함하지 않는다.
 - 검증 JSON과 로그는 기록 당시의 증거다. 현재 배포 SHA는 운영 checkout과 HTTP 자산을 함께 확인한다. 공개 저장소에 운영 로그·DB·비공개 작업 프롬프트를 커밋하지 않는다.
 
 

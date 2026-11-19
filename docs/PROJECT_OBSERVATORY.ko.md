@@ -1,7 +1,7 @@
 # 프로젝트 연결과 실제 에이전트 관제실
 
 갱신: 2026-11-04. connect/start/watch와 프로젝트 관측은 main에 통합된 기능이다.
-새 React `/mission` 화면의 조작은 [React 관제실](REACT_MISSION_CONTROL.ko.md),
+기본 React 관제실 `/` · `/mission`의 조작은 [React 관제실](REACT_MISSION_CONTROL.ko.md),
 운영 적용은 [운영 절차](OPERATIONS.ko.md)를 참고한다. 완료·프로세스 종료·배포는 별도 증거다.
 
 ## 먼저 관측하기
@@ -145,5 +145,5 @@ SQLite backup 복사본을 사용한다. 미리보기는 스냅샷이며 실시�
 다를 수 있다. 운영 코드, 모델 작업, 원격 main은 이 검증으로 변경하지 않는다.
 
 2026-11-02 React 관제실은 실제 H 원장을 읽기 전용으로 연결해 최근 task/run을 확인했다.
-이전 8877 복제 원장 미리보기와 현재 8777 실제 H 원장을 혼동하지 않는다. 새 UI 검사는
-`tests/mission_integration.py`, 기존 UI 회귀 검사는 `tests/saas_integration.py`에서 수행한다.
+이전 8877 복제 원장 미리보기와 현재 8777 실제 H 원장을 혼동하지 않는다. React 실행 관측은
+`tests/mission_integration.py`, 작업 등록·실행 관리 회귀 검사는 `tests/ui_integration.py`에서 수행한다.

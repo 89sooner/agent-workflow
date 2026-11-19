@@ -43,7 +43,9 @@ function Controls({
   focus,
   focusId,
   livePositions,
+  zoomCamera,
 }: {
+  zoomCamera: { current: ((factor: number) => void) | null };
   reset: number;
   extent: number;
   focus: [number, number, number] | null;
@@ -62,13 +64,21 @@ function Controls({
     c.maxPolarAngle = Math.PI * 0.47;
     c.target.set(0, 0, 1);
     c.addEventListener("change", change);
+    zoomCamera.current = (factor) => {
+      const offset = camera.position.clone().sub(c.target);
+      const distance = Math.max(c.minDistance, Math.min(c.maxDistance, offset.length() * factor));
+      camera.position.copy(c.target).add(offset.setLength(distance));
+      c.update();
+      invalidate();
+    };
     c.update();
     return () => {
       c.removeEventListener("change", change);
       c.dispose();
       controls.current = null;
+      zoomCamera.current = null;
     };
-  }, [camera, gl, invalidate]);
+  }, [camera, gl, invalidate, zoomCamera]);
   useEffect(() => {
     camera.position.set(extent * 0.9, extent * 0.9, -extent);
     controls.current?.target.set(0, 0.5, 1);
@@ -710,6 +720,7 @@ export function Room({
   const actorGroups = useMemo(() => new Map<string, Group>(), []);
   const [focus, setFocus] = useState<string | null>(null);
   const [listView, setListView] = useState(false);
+  const zoomCamera = useRef<((factor: number) => void) | null>(null);
   const [reset, setReset] = useState(0),
     [lost, setLost] = useState(false);
   const selectedNode = nodes.find((n) => n.id === selected);
@@ -764,7 +775,11 @@ export function Room({
           <span className="eyebrow">AGENT WORKSPACE</span>
           <h2>함께 일하는 공간</h2>
         </div>
-        <div>
+        <div style={{display:"flex", flexWrap:"wrap", justifyContent:"flex-end", gap:4}}>
+          <button disabled={lost || listView} aria-label="3D 공간 확대"
+            onClick={() => {setFocus(null); zoomCamera.current?.(0.8);}}>＋</button>
+          <button disabled={lost || listView} aria-label="3D 공간 축소"
+            onClick={() => {setFocus(null); zoomCamera.current?.(1.25);}}>−</button>
           <button onClick={()=>setListView(v=>!v)}>{listView?"3D 보기":"목록 보기"}</button>
           <button
             disabled={!selectedNode || lost || listView}
@@ -926,6 +941,7 @@ export function Room({
                   ) : null;
                 })}
               <Controls
+                zoomCamera={zoomCamera}
                 reset={reset}
                 extent={Math.max(floorWidth, floorDepth, 10)}
                 focus={focusPosition}

@@ -1,320 +1,269 @@
-// Browser regression checks use intercepted API fixtures, never real queue mutations.
-// Run: node tests/ui_scenarios.mjs [http://127.0.0.1:8776]
+// Production React bundle, real HTTP handlers, ephemeral database, synthetic agents only.
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import {createRequire} from 'node:module';
+import {homedir} from 'node:os';
+import {join} from 'node:path';
 import {exerciseAdvisor} from './advisor_scenarios.mjs';
-import { createRequire } from 'node:module';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+
 const require = createRequire(import.meta.url);
-let playwright;
-if (process.env.WORKFLOW_PLAYWRIGHT_PATH) playwright = require(process.env.WORKFLOW_PLAYWRIGHT_PATH);
-else {
-  try { playwright = require('playwright'); }
-  catch { playwright = require(join(homedir(), '.cache/webprobe/runtime/node_modules/playwright')); }
-}
-const origin = process.argv[2] || 'http://127.0.0.1:8776';
-const browser = await playwright.chromium.launch({ headless: true });
-const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
-const page = await context.newPage();
-const errors = [];
-page.on('pageerror', (e) => errors.push(e.message));
-const task = {
-  id: 'UI-READY', goal: '검색 결과의 변경 내용을 검증하고 실행하기', status: 'ready',
-  project: '/workspace/검색 프로젝트', owner: 'claude', reviewer: 'codex',
-  criteria: ['검색 결과에서 변경 내용을 확인한다'], checkpoint: { summary: '작업 준비 완료', next: '기능 구현' },
-  verification: null, review: null, implementation: null, release: null
-};
-const stale = {
-  ...task, id: 'UI-STALE', goal: '<img src=x onerror="window.unsafe=true"> 오래된 검증', status: 'completed',
-  verification: { passed: true }, review: { verdict: 'pass' },
-  release: { stage: 'configured', error: 'CI 결과를 확인하세요.', config: { base: 'main', branch: 'workflow/test', deploy: ['deploy'] } }
-};
-let tasks = [task, stale], jobs = [], fail = false;
-let projectExecutions = null, readOnly = false;
-let profiles = [{ name: 'fixture-project', config: { check_groups: { ui: [['node', '--version']], docs: [['python3', '--version']] }, project: '/fixture/project', owner: 'claude', reviewer: 'codex' } }];
-let expectedGroups = null;
-const recentQueries = [];
-let recentMode = 'list', finishOldList;
-const delayedRecentList = new Promise(resolve => { finishOldList = resolve; });
-let finishStaleLookup;
-const delayedLookup = new Promise(resolve => { finishStaleLookup = resolve; });
-const requests = [];
-let events = [{ at: '2026-10-08T00:00:00Z', kind: 'created', data: { summary: '작업 등록됨', source: 'fixture' } }];
-await page.route('**/api/**', async (route) => {
-  const req = route.request(), path = new URL(req.url()).pathname;
-  if (fail) return route.fulfill({ status: 503, json: { error: '테스트 연결 중단' } });
-  if (path === '/api/connections') return route.fulfill({ json: { ledgers: [{ id: 'fixture', home: '/fixture/state', task_count: tasks.length }], warnings: [] } });
-  if (path === '/api/project-observability') return route.fulfill({ json: { schema_version: 1, tasks, agents: [], events: [], executions: projectExecutions ?? jobs } });
-  if (path === '/api/state') return route.fulfill({ json: { tasks, jobs, profiles, notifications: [], daemon: { running: true }, version: 'fixture', csrf_token: 'fixture-token', read_only: readOnly } });
-  if (path.startsWith('/api/job-log/')) return route.fulfill({ json: { text: '<script>window.unsafe=true</script>\nfixture log output', truncated: false } });
-  if (path === '/api/recommendations') {
-    const query = new URL(req.url()).searchParams;
-    recentQueries.push([query.get('profile'), query.get('ledger')]);
-    if (recentMode === 'delayed') {
-      await delayedRecentList;
-      return route.fulfill({json:{recommendations:[{id:'REC-outdated-list',suggested_groups:['docs'],created_at:'2026-11-01T09:00:00Z'}]}});
-    }
-    if (recentMode === 'error') return route.fulfill({status:404,json:{error:'old server'}});
-    return route.fulfill({json:{recommendations:recentMode === 'empty' ? [] : [
-      {id:'REC-recent',suggested_groups:['ui'],created_at:'2026-11-19T09:00:00Z',profile_digest:'fixture'}]}});
-  }
-  if (path === '/api/recommendations/REC-old') {
-    await delayedLookup;
-    return route.fulfill({status:400, json:{error:'expired lookup'}});
-  }
-  if (path === '/api/recommendations/REC-demo') return route.fulfill({json: {
-    id: 'REC-demo', profile: 'fixture-project', suggested_groups: ['ui'] }});
-  if (path.startsWith('/api/tasks/')) {
-    const selected = tasks.find((t) => t.id === decodeURIComponent(path.split('/').pop()));
-    return route.fulfill({ json: { task: selected, jobs, events, observed_git: {},
-      recommendation: selected?.profile?.recommendation_id ? {primary:['ui'],reviewer:['ui'],adopted_groups:['ui'],
-        checks_by_group:{ui:{planned_count:1,executed_count:0,passed_count:0,failed_count:0,seconds:null}},expected_groups:expectedGroups} : null,
-      release_status: selected?.release ? { merge: 'succeeded', deployment: 'applied', health: 'failed' } : null, freshness: {
-      verification_is_current: false, review_is_current: false, completion_is_current: false
-    } } });
-  }
+const {chromium} = require(process.env.WORKFLOW_PLAYWRIGHT_PATH || join(homedir(), '.cache/webprobe/runtime/node_modules/playwright'));
+const f = JSON.parse(await fs.readFile(process.argv[2], 'utf8'));
+const browser = await chromium.launch({args:['--enable-unsafe-swiftshader']});
+const page = await browser.newPage({viewport:{width:1450,height:1000}, reducedMotion:'reduce'});
+const requests = [], errors = [], external = [];
+page.on('pageerror', e => errors.push(e.message));
+page.on('request', req => {
+  const url = new URL(req.url());
+  if (url.origin !== f.url) external.push(url.origin);
   if (req.method() === 'POST') {
     assert.equal(req.headers()['x-workflow-token'], 'fixture-token');
-    const body = req.postDataJSON(); requests.push({ path, body });
-    if (path === '/api/recommendations/feedback') {
-      expectedGroups = body.expected_groups;
-      return route.fulfill({json:{expected_groups:expectedGroups}});
-    }
-    if (path === '/api/tasks') {
-      const created = { ...task, id: body.id, goal: body.goal, criteria: body.criteria, project_config: profiles[0].config, profile: { name: body.profile, recommendation_id: body.recommendation_id } };
-      tasks.push(created); return route.fulfill({ status: 201, json: { task: created } });
-    }
-    if (path === '/api/queue') {
-      const job = { ...body, id: `job-${requests.length}`, task_id: body.task_id, action: body.action, status: 'queued', created_at: '2026-10-08T00:01:00Z' };
-      jobs.push(job); return route.fulfill({ json: { job } });
-    }
-    if (path === '/api/cancel') {
-      const job = jobs.find((j) => j.id === body.job_id); job.status = 'cancelled';
-      return route.fulfill({ json: { job } });
-    }
-    if (path === '/api/stop') {
-      const job = jobs.find(j => j.id === body.job_id); job.cancel_requested = 1;
-      return route.fulfill({ json: { job } });
-    }
-    if (path === '/api/resume') {
-      const old = jobs.find(j => j.id === body.job_id);
-      const job = { ...old, id: `job-${requests.length}`, status: 'queued', cancel_requested: 0 };
-      jobs.push(job); return route.fulfill({ json: { job } });
-    }
+    requests.push({path:url.pathname, data:req.postDataJSON()});
   }
-  return route.fulfill({ status: 404, json: { error: 'Unexpected fixture request' } });
 });
-const waitLoaded = async () => { await page.locator('#loading').waitFor({ state: 'hidden' }); await page.locator('.detail-title').waitFor(); };
-const openNavigation = async () => {
-  if (page.viewportSize().width <= 900 && await page.locator('#navigation-toggle').getAttribute('aria-expanded') !== 'true') {
-    await page.locator('#navigation-toggle').click();
-  }
+const $ = id => page.locator('#' + id);
+const button = name => page.getByRole('button',{name,exact:true});
+const panel = () => $('task-management');
+const until = async (fn, message) => {
+  const end = Date.now()+25_000;
+  while (Date.now()<end) {if (await fn()) return;await page.waitForTimeout(100);}
+  throw Error('Timeout: '+message);
 };
+const state = async () => (await page.request.get(f.url+'/api/state?ledger='+f.primary)).json();
+const task = async id => (await page.request.get(f.url+'/api/tasks/'+encodeURIComponent(id)+'?ledger='+f.primary)).json();
+const jobs = async id => (await state()).jobs.filter(j=>j.task_id===id);
+async function choose(id) {
+  await $('task-search').fill(id);
+  await page.locator('.task-item').filter({hasText:id}).click();
+  await $('task-search').fill('');
+}
+async function openManagement() {
+  if (!await panel().isVisible()) await button('작업·실행 관리').click();
+  await panel().waitFor();
+}
+async function clickPost(name,path) {
+  const got = page.waitForResponse(r=>new URL(r.url()).pathname===path && r.request().method()==='POST');
+  await button(name).click();
+  const response = await got;
+  assert.ok(response.ok(), path+' failed: '+await response.text());
+  return response.json();
+}
+async function screenshot(name) {
+  if (!process.env.WORKFLOW_SCREENSHOT_DIR) return;
+  await fs.mkdir(process.env.WORKFLOW_SCREENSHOT_DIR,{recursive:true});
+  await page.screenshot({path:join(process.env.WORKFLOW_SCREENSHOT_DIR,name+'.png')});
+}
+async function ledgerDefault(path) {
+  await page.goto(f.url+path);
+  await button('새 작업 등록').waitFor();
+  assert.equal(await $('new-task').isEnabled(),true);
+  assert.equal(await $('ledger').inputValue(),f.primary,'new visits resolve to the writable primary');
+  assert.equal(await page.locator('#root .mission-shell').count(),1);
+  assert.equal(await page.locator('script[src="/static/app.js"]').count(),0);
+}
 try {
-  await page.goto(origin);
-  await page.getByRole('heading', { name: '연결된 프로젝트 관제실', exact: true }).waitFor();
-  assert.equal(await page.locator('.task-item.selected').count(), 0);
-  // The two APIs can observe different moments. Once jobs catches up, controls must update.
-  const cancelled = { id: 'cache-job', task_id: 'UI-READY', action: 'pipeline', status: 'cancelled' };
-  jobs = [{ ...cancelled, status: 'running' }]; projectExecutions = [cancelled];
-  const refreshSettled = async () => {
-    await page.locator('#refresh').click();
-    await page.locator('#refresh:enabled').waitFor();
-  };
-  await refreshSettled(); await page.locator('#nav-runs').click();
-  const cachedResume = page.getByRole('button', { name: 'UI-READY 실행 재개', exact: true });
-  assert.equal(await cachedResume.isDisabled(), true, 'active queue still prevents duplicate resume');
-  jobs = [cancelled]; await refreshSettled();
-  assert.equal(await cachedResume.isDisabled(), false, 'resume must update when only queue activity changes');
-  readOnly = true; await refreshSettled(); assert.equal(await cachedResume.isDisabled(), true);
-  readOnly = false; await refreshSettled(); assert.equal(await cachedResume.isDisabled(), false);
-  jobs = []; projectExecutions = null; await refreshSettled();
-  await page.locator('#nav-observatory').click();
-  console.log('PASS mixed API snapshots refresh resume and read-only controls');
-  await page.locator('.task-item').filter({ hasText: 'UI-READY' }).click();
-  await waitLoaded();
-  assert.equal(await page.locator('#metric-blocked').textContent(), '1');
-  assert.equal(await page.locator('#metric-deployed').textContent(), '0');
-  await page.keyboard.press('/'); assert.equal(await page.evaluate(() => document.activeElement.id), 'search');
-  await page.locator('#search').fill('없는 검색'); assert.match(await page.locator('#task-list').textContent(), /조건에 맞는 작업이 없습니다/);
-  await page.locator('#search').fill('');
-  await page.getByRole('button', { name: '워크플로 실행', exact: true }).click();
-  await page.locator('#jobs .badge.warn').waitFor();
-  assert.deepEqual(requests[0], { path: '/api/queue', body: { task_id: 'UI-READY', action: 'pipeline' } });
-  assert.equal(await page.getByRole('button', { name: '실행 대기 · 진행 중' }).isDisabled(), true);
-  await page.getByRole('button', { name: 'UI-READY 실행 대기 취소' }).click();
-  await page.locator('#jobs .badge', { hasText: '취소됨' }).waitFor();
-  assert.equal(requests[1].path, '/api/cancel');
-  console.log('PASS search, keyboard, CSRF queue, duplicate disable, cancel');
-
-  await page.locator('#filter').selectOption('blocked');
-  assert.equal(await page.locator('.task-item').count(), 1);
-  await page.locator('.task-item').click();
-  await page.locator('.evidence-note.stale').waitFor();
-  assert.equal(await page.locator('#detail img').count(), 0);
-  assert.equal(await page.evaluate(() => window.unsafe), undefined);
-  assert.equal(await page.locator('.workflow-step').nth(1).locator('.step-state').textContent(), '확인 필요');
-  assert.equal(await page.locator('.workflow-step').nth(2).locator('.step-state').textContent(), '확인 필요');
-  await page.getByRole('button', { name: '통합 · 배포 실행', exact: true }).click();
-  await page.getByRole('button', { name: 'UI-STALE 실행 대기 취소' }).waitFor();
-  assert.equal(requests.at(-1).body.action, 'release');
-  await page.getByRole('button', { name: 'UI-STALE 실행 대기 취소' }).click();
-  console.log('PASS attention filter, stale evidence, literal rendering, release request');
-
-  await page.locator('#nav-tasks').click();
-  await page.locator('.event-raw summary').first().click();
-  await page.locator('.event-raw[open]').waitFor();
-  events = [{ at: '2026-10-08T00:02:00Z', kind: 'checkpoint', data: { summary: '새 기록' } }, ...events];
-  await page.locator('#refresh').click();
-  await page.getByText('새 기록', { exact: true }).waitFor();
-  assert.equal(await page.locator('.event-raw[open]').count(), 1);
-  assert.equal(await page.locator('.detail-title').textContent(), stale.goal);
-  await page.locator('#theme-toggle').click();
-  assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
+  const discovery = await (await page.request.get(f.url+'/api/connections')).json();
+  assert.equal(discovery.ledgers[0].id,f.foreign,'fixture reproduces read-only discovery ordered ahead of primary');
+  await ledgerDefault('/');
+  await ledgerDefault('/mission');
+  const prefs=page.locator('.console-preferences');
+  await prefs.locator('summary').click();
+  await prefs.getByLabel('화면 테마').selectOption('light');
+  await prefs.getByLabel('3D 공간 표시').uncheck();
+  assert.ok(await prefs.getByLabel('움직임 줄이기').isDisabled());
   await page.reload();
-  await page.getByRole('heading', { name: '연결된 프로젝트 관제실', exact: true }).waitFor();
-  assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
-  assert.equal(await page.locator('.task-item.selected').count(), 0);
-  await page.locator('#filter').selectOption('blocked');
-  await page.locator('.task-item').filter({ hasText: 'UI-STALE' }).click();
-  await waitLoaded();
-  assert.equal(await page.locator('.detail-title').textContent(), stale.goal);
-  await page.getByText('원장에 기록된 릴리스 결과', { exact: true }).click();
-  assert.ok(await page.getByText('배포 적용 · 적용됨', { exact: true }).isVisible());
-  assert.ok(await page.getByText('배포 후 상태 검사 · 실패', { exact: true }).isVisible());
-  console.log('PASS independent deployment and health receipts, selection, theme and project overview');
+  await until(async()=>await page.locator('html').getAttribute('data-theme')==='light','persistent theme');
+  await prefs.locator('summary').click();
+  assert.equal(await prefs.getByLabel('3D 공간 표시').isChecked(),false,'persistent list alternative');
+  await prefs.getByLabel('화면 테마').selectOption('dark');await prefs.locator('summary').click();
+  await page.locator('body').click({position:{x:1,y:1}});
+  await page.keyboard.press('Control+k');
+  await until(async()=>await $('task-search').evaluate(el=>el===document.activeElement),'keyboard search focus');
+  await $('task-search').fill('not-a-task');
+  await page.getByRole('button',{name:'검색 조건 초기화',exact:true}).click();
 
-  for (const width of [375, 390, 768, 1440]) {
-    await page.setViewportSize({ width, height: 900 });
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `overflow at ${width}`);
-    assert.ok(await page.locator('#refresh').getAttribute('aria-label'));
-  }
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  assert.equal(await page.locator('.button').first().evaluate((el) => getComputedStyle(el).transitionDuration), '0s');
-  console.log('PASS 375/390/768/1440 widths, mobile accessible refresh, reduced motion');
+  await page.goto(f.url+'/mission?'+new URLSearchParams({ledger:f.foreign,task:'UI-FOREIGN'}));
+  await until(async()=>await $('ledger').inputValue()===f.foreign,'explicit foreign ledger');
+  await openManagement();
+  assert.equal(await button('워크플로 실행').count(),0,'foreign ledger cannot execute');
+  await button('관리 원장에서 새 작업 등록').click();
+  await $('create-profile').selectOption('fixture-project');
+  assert.equal(await $('ledger').inputValue(),f.primary);
+  assert.equal(requests.length,0,'switching the inspection source must not create a task');
+  await page.keyboard.press('Escape');
+  await $('create-dialog').waitFor({state:'hidden'});
 
-  await page.locator('#filter').selectOption('all');
+  // Cover slow/delayed, malformed and partial model responses with test-only transport.
   await exerciseAdvisor(page);
-  await page.locator('#new-task').click();
-  assert.equal(recentQueries.length, 0);
-  const picker = page.locator('#recommendation-summary');
-  const recentSelect = page.locator('#recent-recommendation');
-  recentMode = 'delayed';
-  await Promise.all([page.waitForRequest(req => new URL(req.url()).pathname === '/api/recommendations'), picker.click()]);
-  await page.locator('#create-close').click();
-  await page.locator('#new-task').click();
-  recentMode = 'empty';
-  await picker.click();
-  await page.getByText('이 프로필의 최근 추천이 없습니다.', {exact:true}).waitFor();
-  assert.equal(await recentSelect.isDisabled(), true);
-  assert.equal(await page.locator('#create-submit').isEnabled(), true);
-  assert.deepEqual(recentQueries.at(-1), ['fixture-project', 'fixture']);
-  const staleList = page.waitForResponse(res => new URL(res.url()).pathname === '/api/recommendations');
-  finishOldList();
-  await (await staleList).finished();
-  assert.equal(await recentSelect.locator('option[value="REC-outdated-list"]').count(), 0);
-  await picker.click();
-  recentMode = 'error';
-  await picker.click();
-  await page.getByText(/최근 목록을 불러오지 못했습니다/).waitFor();
-  assert.equal(await page.locator('#create-submit').isEnabled(), true);
-  await picker.click();
-  recentMode = 'list';
-  await picker.click();
-  await recentSelect.locator('option[value="REC-recent"]').waitFor({state:'attached'});
-  await page.locator('#create-recommendation').fill('REC-old');
-  await Promise.all([page.waitForRequest(req => req.url().includes('/REC-old')), page.locator('#load-recommendation').click()]);
-  await page.locator('#create-recommendation').fill('REC-demo');
-  await page.getByRole('button', {name:'추천 묶음 불러오기'}).click();
-  await page.locator('#recommendation-hint').waitFor();
-  const staleResponse = page.waitForResponse(response => response.url().includes('/REC-old'));
-  finishStaleLookup();
-  await (await staleResponse).finished();
-  assert.equal(await page.getByRole('checkbox', {name:'ui (1개 검사)'}).isChecked(), true);
-  assert.equal(await page.locator('#create-recommendation').inputValue(), 'REC-demo');
-  await recentSelect.selectOption('REC-recent');
-  assert.equal(await page.locator('#create-recommendation').inputValue(), 'REC-recent');
-  await page.locator('#create-id').fill('UI-NEW');
-  await page.locator('#create-goal').fill('새 작업 등록과 실행 제어');
-  await page.locator('#create-criteria').fill('목표에 맞는 검사\n독립 리뷰 통과');
-  await page.locator('#create-submit').click();
-  await page.locator('#create-dialog').waitFor({ state: 'hidden' });
-  await page.locator('.detail-title', { hasText: '새 작업 등록과 실행 제어' }).waitFor();
-  assert.equal(requests.at(-1).path, '/api/tasks');
-  assert.deepEqual(requests.at(-1).body.criteria, ['목표에 맞는 검사', '독립 리뷰 통과']);
-  assert.equal(requests.at(-1).body.isolate, true);
-  assert.deepEqual(requests.at(-1).body.check_groups, ['ui']);
-  assert.equal(requests.at(-1).body.recommendation_id, 'REC-recent');
-  await page.getByText('검사 추천과 실제 작업 결과', {exact:true}).click();
-  await page.getByRole('group', {name:'실제로 필요했던 검사 묶음'}).getByRole('checkbox', {name:'ui', exact:true}).check();
-  events = [...events, {at:'2026-10-09T00:00:00Z',kind:'checkpoint',data:{summary:'updated while editing'}}];
-  await page.locator('#refresh').click();
-  await page.locator('#refresh:enabled').waitFor();
-  assert.equal(await page.locator('#recommendation-detail').evaluate(el => el.open), true);
-  assert.equal(await page.getByRole('group', {name:'실제로 필요했던 검사 묶음'}).getByRole('checkbox', {name:'ui', exact:true}).isChecked(), true);
-  await page.getByRole('button', {name:'필요 묶음 저장'}).click();
-  await page.locator('#action-message', {hasText:'평가를 저장'}).waitFor();
-  assert.deepEqual(requests.at(-1).body, {task_id:'UI-NEW', expected_groups:['ui']});
-  await page.locator('#nav-tasks').click();
-  await page.locator('.execution-options summary').click();
-  await page.locator('#option-timeout').fill('0');
-  await page.locator('#nav-observatory').click();
-  const beforeInvalidOption = requests.length;
-  await page.getByRole('button', { name: '워크플로 실행', exact: true }).click();
-  assert.equal(requests.length, beforeInvalidOption);
-  assert.equal(await page.locator('body').getAttribute('data-view'), 'tasks');
-  assert.equal(await page.locator('.execution-options').getAttribute('open') !== null, true);
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'option-timeout');
-  await page.locator('#refresh').click();
-  await page.locator('#refresh:enabled').waitFor();
-  assert.match(await page.locator('#option-error').textContent(), /실행 옵션/);
-  await page.locator('#option-timeout').fill('1234');
-  assert.equal(await page.locator('#option-error').isHidden(), true);
-  await page.locator('#option-repairs').fill('0');
-  await page.locator('#option-recoveries').fill('2');
-  await page.getByRole('button', { name: '워크플로 실행', exact: true }).click();
-  await page.getByRole('button', { name: 'UI-NEW 실행 대기 취소' }).waitFor();
-  assert.deepEqual(requests.at(-1).body, { task_id: 'UI-NEW', action: 'pipeline', timeout: 1234, repairs: 0, recoveries: 2 });
-  const createdJob = jobs.at(-1); createdJob.status = 'running';
-  await page.locator('#refresh').click();
-  await page.getByRole('button', { name: 'UI-NEW 실행 중단', exact: true }).click();
-  assert.equal(requests.at(-1).path, '/api/stop');
-  assert.equal(await page.getByRole('button', { name: 'UI-NEW 실행 중단', exact: true }).isDisabled(), true);
-  createdJob.status = 'cancelled'; await page.locator('#refresh').click();
-  await page.getByRole('button', { name: 'UI-NEW 실행 재개', exact: true }).click();
-  await page.getByRole('button', { name: 'UI-NEW 실행 대기 취소' }).waitFor();
-  assert.equal(requests.at(-1).path, '/api/resume');
-  jobs.at(-1).log_path = '/fixture/job.log'; await page.locator('#refresh').click();
-  await page.locator(`[data-focus="log-${jobs.at(-1).id}"]`).click();
-  await page.locator('.job pre', { hasText: 'fixture log output' }).waitFor();
-  assert.equal(await page.locator('#jobs script').count(), 0);
-  assert.equal(await page.evaluate(() => window.unsafe), undefined);
-  console.log('PASS profile task form, execution options, individual stop and resume');
+  // Exercise both real server routes through the browser. Only model inference is synthetic.
+  await $('new-task').click();
+  await $('create-profile').selectOption('fixture-project');
+  await $('create-criteria').fill('실습 미리보기');
+  await page.locator('#advisor-options summary').click();
+  await clickPost('보낼 내용 미리보기','/api/check-advisor/preview');
+  const r = page.waitForResponse(res=>res.url().endsWith('/api/check-advisor/run'));
+  await $('advisor-run').click();
+  assert.equal((await r).status(),200);
+  await $('advisor-apply').click();
+  assert.deepEqual(await page.locator('#check-group-options input:checked').evaluateAll(xs=>xs.map(x=>x.value)),['docs']);
+  assert.equal(await $('create-recommendation').inputValue(),'');
+  await $('create-close').click();
 
-  const fs = await import('node:fs/promises');
-  const output = new URL('../artifacts/ui-v0.3/', import.meta.url);
-  await fs.mkdir(output, { recursive: true });
-  await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
-  await page.screenshot({ path: new URL('desktop.png', output).pathname });
-  for (const width of [375, 768, 1440]) {
-    await page.setViewportSize({ width, height: 950 });
-    await openNavigation();
-    await page.locator('#new-task').click();
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-    assert.equal(await page.locator('#create-dialog').evaluate(el => el.scrollWidth <= el.clientWidth + 1), true);
-    if (width === 375) await page.screenshot({ path: new URL('mobile-create.png', output).pathname });
+  await $('new-task').click();
+  await $('create-profile').selectOption('fixture-project');
+  await $('recommendation-summary').click();
+  await $('recent-recommendation').selectOption(f.receipt);
+  assert.equal(await $('create-recommendation').inputValue(),f.receipt);
+  assert.equal(await page.locator('#check-group-options input[value="ui"]').isChecked(),true);
+  // An old ID may still be loaded directly, including after clearing the recent picker.
+  await $('recent-recommendation').selectOption('');
+  let startOld, finishOld, endOld;
+  const began = new Promise(resolve => { startOld=resolve; });
+  const pendingOld = new Promise(resolve => { finishOld=resolve; });
+  const settled = new Promise(resolve => { endOld=resolve; });
+  const oldPattern='**/api/recommendations/REC-expired*';
+  await page.route(oldPattern, async route => {
+    startOld();
+    await pendingOld;
+    await route.fulfill({status:400,json:{error:'stale ID response'}}).catch(()=>{});
+    endOld();
+  });
+  await $('create-recommendation').fill('REC-expired');
+  await Promise.all([began,$('load-recommendation').click()]);
+  await $('create-recommendation').fill(f.receipt);
+  await $('load-recommendation').click();
+  await $('recommendation-hint').waitFor();
+  finishOld();await settled;await page.unroute(oldPattern);
+  assert.equal(await $('create-recommendation').inputValue(),f.receipt);
+  assert.equal(await page.getByText('stale ID response',{exact:true}).count(),0);
+  const literal = '<img src=x onerror="window.injected=true"> 표시 결과';
+  await $('create-goal').fill(literal);
+  await $('create-criteria').fill(f.criteria.join('\n'));
+  await $('create-id').fill('UI-NEW');
+  await $('create-agent-name').fill('검증 담당');
+  await $('create-reviewer-name').fill('독립 리뷰');
+  const created = (await clickPost('작업 등록','/api/tasks')).task;
+  assert.equal(created.goal,literal);
+  assert.ok(created.workspace.managed);
+  assert.deepEqual(created.profile.check_groups,['ui']);
+  assert.equal(created.profile.recommendation_id,f.receipt);
+  assert.equal(created.agent_names.implement,'검증 담당');
+  await $('create-dialog').waitFor({state:'hidden'});
+  await openManagement();
+  await panel().getByText('작업 계약과 검사 결과',{exact:true}).click();
+  await panel().getByText(f.criteria[0],{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>typeof window.injected),'undefined');
+  const recommendation = panel().locator('details').filter({has:page.getByText('검사 추천과 실제 작업 결과',{exact:true})});
+  await recommendation.locator('summary').first().click();
+  const expected = recommendation.getByRole('group',{name:'실제로 필요했던 검사 묶음'}).getByRole('checkbox',{name:'ui',exact:true});
+  await expected.check();
+  await page.getByRole('button',{name:'기록 새로고침'}).click();
+  assert.equal(await expected.isChecked(),true,'polling or refresh retains feedback draft');
+  await clickPost('필요 묶음 저장','/api/recommendations/feedback');
+  assert.deepEqual((await task('UI-NEW')).recommendation.expected_groups,['ui']);
+  await screenshot('react-managed-task');
+  console.log('PASS both entry points, primary default, foreign switch, CSRF, real saved and unrecorded recommendations, literal rendering and optional feedback');
+
+  await button('작업 보류').click();
+  await page.getByLabel('보류 이유').fill('운영 확인');
+  await clickPost('보류 적용','/api/hold');
+  assert.equal((await task('UI-NEW')).task.hold.reason,'운영 확인');
+  await clickPost('보류 해제','/api/unhold');
+  await panel().getByText('실행 옵션',{exact:true}).click();
+  const timeout = page.getByLabel('프로세스 시간 제한(초)');
+  await timeout.fill('0');
+  const before = requests.length;
+  await button('워크플로 실행').click();
+  assert.equal(requests.length,before);
+  assert.equal(await timeout.evaluate(i=>i.checkValidity()),false);
+  await timeout.fill('60');await page.getByLabel('추가 수정 횟수').fill('0');await page.getByLabel('오류 복구 횟수').fill('0');
+  const queued=(await clickPost('워크플로 실행','/api/queue')).job;
+  assert.equal(queued.timeout,60);
+  assert.equal(queued.repairs,0);
+  await clickPost('UI-NEW 대기 취소','/api/cancel');
+  await choose('UI-HEALTH'); await openManagement();
+  await panel().getByText('원장에 기록된 릴리스 결과',{exact:true}).click();
+  const phases=panel().locator('details').filter({has:page.getByText('원장에 기록된 릴리스 결과',{exact:true})});
+  assert.equal(await phases.getByText('배포 적용',{exact:true}).locator('..').locator('dd').textContent(),'적용됨');
+  assert.equal(await phases.getByText('배포 후 상태 검사',{exact:true}).locator('..').locator('dd').textContent(),'실패');
+  await choose('OBS-TRACE'); await openManagement();
+  const releaseJob=(await clickPost('통합 · 배포 실행','/api/queue')).job;
+  assert.equal(releaseJob.action,'release');
+  await clickPost('OBS-TRACE 대기 취소','/api/cancel');
+  await clickPost('릴리스 설정 해제','/api/release-clear');
+  assert.equal((await task('OBS-TRACE')).task.release,null);
+  await choose('UI-NEW'); await openManagement();
+  await clickPost('UI-NEW 실행 재개','/api/resume');
+  await fs.writeFile(f.start_worker,'start fixture worker');
+  await until(async()=>(await jobs('UI-NEW')).some(j=>j.status==='running' && j.log_path),'real worker starts');
+  await clickPost('UI-NEW 실행 중단','/api/stop');
+  await until(async()=>(await jobs('UI-NEW')).filter(j=>j.status==='cancelled').length>=2,'worker stopped');
+  // Hold a live implementation at its actual subprocess boundary.
+  await choose('OBS-LIVE'); await openManagement();
+  await clickPost('워크플로 실행','/api/queue');
+  const traceURL=f.url+'/api/observability?ledger='+f.primary+'&task_id=OBS-LIVE';
+  await until(async()=>(await (await page.request.get(traceURL)).json()).spans.some(s=>s.role==='implement'&&s.status==='running'),'active implementation span');
+  await button('작업 보류').click();
+  await page.getByLabel('보류 이유').fill('다음 단계 중단 확인');
+  await clickPost('보류 적용','/api/hold');
+  await fs.writeFile(f.signal_agent,'release fixture model');
+  await until(async()=>(await jobs('OBS-LIVE')).some(j=>j.status==='failed'),'hold stops the next stage');
+  const heldTrace=await (await page.request.get(traceURL)).json();
+  assert.equal(heldTrace.spans.some(span=>span.role==='check'||span.role==='review'),false);
+  assert.equal(heldTrace.task.hold.reason,'다음 단계 중단 확인');
+  await clickPost('보류 해제','/api/unhold');
+  await clickPost('OBS-LIVE 실행 재개','/api/resume');
+  await until(async()=>(await task('OBS-LIVE')).task.status==='completed','unheld job resumes');
+  await choose('UI-NEW'); await openManagement();
+  // Reissue from the cancelled row; saved options and the original task are retained.
+  const resumedResponse=page.waitForResponse(r=>r.url().endsWith('/api/resume')&&r.request().method()==='POST');
+  await button('UI-NEW 실행 재개').first().click();
+  assert.ok((await resumedResponse).ok());
+  await until(async()=>(await task('UI-NEW')).task.status==='completed','workflow completes');
+  await until(async()=>(await jobs('UI-NEW')).some(j=>j.status==='succeeded'),'job succeeds');
+  const detail=await task('UI-NEW');
+  assert.equal(detail.freshness.completion_is_current,true);
+  assert.equal(detail.recommendation.checks_by_group.ui.passed_count,1);
+  // Wait for the completed row to refresh before opening its real job log.
+  await page.getByRole('button',{name:'기록 새로고침'}).click();
+  const finishedLog = panel().locator('.mg-jobs li').filter({hasText:/UI-NEW.*완료/s}).locator('.mg-job-log').first();
+  await finishedLog.locator('summary').click();
+  await finishedLog.locator('pre').filter({hasText:/check 1\/2|구현|review/i}).waitFor();
+  console.log('PASS durable hold/unhold, invalid execution options, cancel, real stop/resume, applied checks, completed ledger and job log');
+
+  await choose('OBS-TRACE');
+  await openManagement();
+  await fs.rename(f.project,f.project+'-moved');
+  try {
+    await page.getByRole('button',{name:'기록 새로고침'}).click();
+    await panel().getByText(/작업 폴더 상태 확인 불가/).waitFor();
+  } finally { await fs.rename(f.project+'-moved',f.project); }
+  await page.getByRole('button',{name:'기록 새로고침'}).click();
+  await panel().getByText(/작업 폴더 상태 확인 불가/).waitFor({state:'hidden'});
+
+  for(const width of [375,768,1440]){
+    await page.setViewportSize({width,height:heightFor(width)});
+    if(width===375){
+      await button('작업 탐색').click();
+      const search=$('task-search');await search.fill('OBS-TRACE');
+      await page.locator('.task-item').filter({hasText:'OBS-TRACE'}).click();
+      assert.equal(await button('작업 탐색').getAttribute('aria-expanded'),'false');
+    }
+    await $('new-task').click();
+    await $('create-profile').selectOption('fixture-project');
+    const dialog=$('create-dialog');
+    assert.equal(await dialog.evaluate(d=>d.scrollWidth<=d.clientWidth+1),true,'dialog overflows '+width);
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+    await screenshot('react-create-'+width);
     await page.keyboard.press('Escape');
-    await page.locator('#create-dialog').waitFor({ state: 'hidden' });
+    await dialog.waitFor({state:'hidden'});
   }
-
-  tasks = []; jobs = []; await page.locator('#refresh').click();
-  await page.getByText('첫 워크플로를 시작해 보세요.', { exact: true }).waitFor();
-  assert.equal(await page.locator('#metric-active').textContent(), '0');
-  assert.equal(await page.locator('.workflow-track').count(), 0);
-  fail = true; await page.locator('#refresh').click();
-  await page.locator('#error').filter({ hasText: '테스트 연결 중단' }).waitFor();
-  fail = false; await page.locator('#refresh').click();
-  await page.locator('#error').waitFor({ state: 'hidden' });
-  assert.deepEqual(errors, []);
-  console.log('PASS empty state, connection failure and recovery, zero uncaught errors');
-} finally { await context.close(); await browser.close(); }
+  assert.equal(requests.some(r=>r.path==='/api/tasks' && r.data.id!=='UI-NEW'),false);
+  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
+  console.log('PASS release controls, responsive registration, no external assets and zero browser exceptions');
+} catch(error){
+  console.error('React management debug:',errors, (await page.locator('body').innerText()).slice(-3000));
+  await screenshot('react-management-failure');
+  throw error;
+} finally{await browser.close()}
+function heightFor(width){return width===768?390:860}
