@@ -71,9 +71,11 @@ try {
   await page.getByRole('button',{name:'프로젝트 연결',exact:true}).click();
   await screenshot('onboarding-mobile');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-  assert.equal(await page.getByRole('dialog').evaluate(el=>el.scrollWidth<=el.clientWidth),true);
+  assert.equal(await page.getByRole('dialog').count(),1);
+  assert.equal(await page.getByRole('dialog',{name:'프로젝트 연결'}).evaluate(el=>el.scrollWidth<=el.clientWidth),true);
   await page.keyboard.press('Escape');
-  await page.getByRole('dialog').waitFor({state:'hidden'});
+  await page.locator('dialog.connection-dialog').waitFor({state:'hidden'});
+  await page.getByRole('dialog',{name:'작업 탐색 메뉴'}).waitFor();
   assert.equal(await page.getByRole('button',{name:'프로젝트 연결',exact:true}).evaluate(el=>el===document.activeElement),true);
   await page.goto(f.readonly+'/mission');
   await page.getByRole('button',{name:'작업 탐색',exact:true}).click();
