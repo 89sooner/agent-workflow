@@ -299,6 +299,9 @@ def handler(home, token, *, read_only=False, observer=False):
                         stream.seek(max(0, size - 65536))
                         text = stream.read().decode(errors="replace")
                     return self.response({"job_id": job_id, "text": text, "truncated": size > 65536})
+                if path.startswith("/api/recommendations/"):
+                    from .recommendation_records import show
+                    return self.response(show(store.home, path.removeprefix("/api/recommendations/")))
                 if path.startswith("/api/tasks/"):
                     task = store.get(path.removeprefix("/api/tasks/"))
                     from .cli import freshness
@@ -313,8 +316,10 @@ def handler(home, token, *, read_only=False, observer=False):
                     rows = store.db.execute("SELECT seq,at,kind,data FROM events WHERE task_id=? ORDER BY seq DESC LIMIT 60", (task["id"],)).fetchall()
                     events = [{"seq": r[0], "at": r[1], "kind": r[2], "data": json.loads(r[3])} for r in rows]
                     from .release_status import summarize_release
+                    from .recommendation_records import task_summary
                     return self.response({"task": task, "observed_git": current, "freshness": flags,
                                           "release_status": summarize_release(task),
+                                          "recommendation": task_summary(store, task),
                                           "observation": observation,
                                           "events": events, "jobs": [j for j in list_jobs(store) if j["task_id"] == task["id"]]})
                 return self.response({"error": "경로 없음"}, 404)
@@ -357,6 +362,11 @@ def handler(home, token, *, read_only=False, observer=False):
                         with opencode.lock:
                             opencode.cache.clear()
                     return self.response(result)
+                if self.path == "/api/recommendations/feedback":
+                    from .recommendation_records import feedback
+                    from .profiles import identifier, strings
+                    return self.response(feedback(home, identifier(data.get("task_id")),
+                                                  strings(data.get("expected_groups"), "expected_groups")))
                 store = Store(home)
                 if self.path in {"/api/hold", "/api/unhold"}:
                     from .core import set_hold, clear_hold
@@ -387,9 +397,10 @@ def handler(home, token, *, read_only=False, observer=False):
                     if not isinstance(names, dict) or set(names) - {"implement", "review"} or any(
                             not isinstance(name, str) or len(name) > 120 or any(ord(c) < 32 for c in name) for name in names.values()):
                         raise WorkflowError("담당 이름은 역할별 120자 이하의 문자열이어야 합니다.")
-                    groups = strings(data.get("check_groups", []), "check_groups")
+                    groups = strings(data["check_groups"], "check_groups") if "check_groups" in data else None
+                    rec_id = identifier(data["recommendation_id"]) if "recommendation_id" in data else None
                     task = create_from_profile(store, task_id, profile, goal, criteria, isolate=isolate,
-                                               check_groups=groups)
+                                               check_groups=groups, recommendation_id=rec_id)
                     names = {role: name.strip() for role, name in names.items() if name.strip()}
                     if names:
                         task["agent_names"] = names

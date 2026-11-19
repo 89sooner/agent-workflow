@@ -84,6 +84,9 @@
       <p>저장한 프로젝트 설정으로 작업 공간과 검사 조건을 준비합니다.</p>
       <label for="create-profile">프로젝트 설정<select id="create-profile" required><option value="">설정을 불러오는 중</option></select></label>
       <p id="profile-hint" class="muted"></p>
+      <label for="create-recommendation">저장한 추천 ID <small>선택</small><input id="create-recommendation" autocomplete="off"></label>
+      <button id="load-recommendation" class="button small" type="button" hidden>추천 묶음 불러오기</button>
+      <p id="recommendation-hint" class="muted" hidden></p>
       <fieldset id="create-check-groups" hidden>
         <legend>작업에 추가할 검사 묶음</legend>
         <div id="check-group-options"></div>

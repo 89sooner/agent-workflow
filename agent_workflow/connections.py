@@ -288,7 +288,7 @@ def connect(home, project, ledgers=(), profile=None, criteria=None, scope=None, 
 
 
 def start_registered(home, goal, project=".", criteria=None, *, checks=(), owner=None, reviewer=None,
-                     name=None, reviewer_name=None, check_groups=()):
+                     name=None, reviewer_name=None, check_groups=None, recommendation_id=None, isolate=None):
     home = state_home(home)
     project = project_root(project)
     key = project_key(project)
@@ -313,15 +313,15 @@ def start_registered(home, goal, project=".", criteria=None, *, checks=(), owner
         if check_groups:
             from .profiles import check_plan
             check_plan(saved["config"], check_groups)
-    elif check_groups:
-        raise WorkflowError("검사 묶음을 선택하려면 연결된 프로젝트에 프로필이 필요합니다.")
+    elif check_groups or recommendation_id is not None or isolate:
+        raise WorkflowError("추천·검사 묶음 또는 격리 작업 트리를 사용하려면 연결된 프로젝트에 프로필이 필요합니다.")
     store = Store(target)
     try:
         if profile:
             from .workspaces import create_from_profile
             task = create_from_profile(store, task_id, profile, goal, criteria, checks=checks, owner=owner,
                                        reviewer=reviewer, scope=record["scope"], check_groups=check_groups,
-                                       expected_project=project)
+                                       expected_project=project, recommendation_id=recommendation_id, isolate=isolate)
         else:
             task = create_task(store, task_id, project, goal, criteria, [], list(checks), owner or "claude",
                                reviewer or "codex", record["scope"])

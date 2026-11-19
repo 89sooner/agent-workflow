@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from pathlib import Path
 
 from . import check_advisor_models, profiles
@@ -34,8 +35,19 @@ def _ask(provider, packet, timeout):
     return {"provider": provider, "groups": groups, "reason": answer["reason"]}
 
 
+def build_packet(config, criteria, root, base=None):
+    groups = config.get("check_groups", {})
+    descriptions = config.get("check_group_descriptions", {})
+    change = change_context(root, base=base, excluded_paths=config.get("forbidden_paths", ()))
+    return {"criteria": [s.strip() for s in criteria], "change": change,
+              "base_check_count": len(config.get("checks", [])),
+              "base_check_description": config.get("base_check_description", ""),
+              "optional_groups": {name: {"description": descriptions.get(name, ""), "checks": len(commands)}
+                                  for name, commands in groups.items()}}
+
+
 def recommend(home, profile, criteria, *, project=None, base=None, provider="codex",
-              reviewer="auto", preview=False, timeout=90):
+              reviewer="auto", preview=False, timeout=90, record_result=False):
     if provider not in ("codex", "claude") or reviewer not in ("auto", "none", "codex", "claude"):
         raise WorkflowError("지원하지 않는 추천 모델 공급자입니다.")
     if reviewer == provider:
@@ -54,19 +66,14 @@ def recommend(home, profile, criteria, *, project=None, base=None, provider="cod
     if project is not None and project_key(root) != project_key(config["project"]):
         raise WorkflowError("--project에는 등록된 프로젝트 또는 같은 Git 저장소의 작업 트리를 지정하세요.")
     groups = config.get("check_groups", {})
-    descriptions = config.get("check_group_descriptions", {})
-    change = change_context(root, base=base, excluded_paths=config.get("forbidden_paths", ()))
-    areas = {path.partition("/")[0] if "/" in path else "." for path in change["paths"]}
+    packet = build_packet(config, criteria, root, base)
+    change = packet["change"]
+    areas = sorted({path.partition("/")[0] if "/" in path else "." for path in change["paths"]})
     if reviewer == "auto":
         second = ("claude" if provider == "codex" else "codex") if len(areas) >= 2 or change["truncated"] else None
     else:
         second = None if reviewer == "none" else reviewer
     providers = [p for p in (provider, second) if p and groups]
-    packet = {"criteria": [s.strip() for s in criteria], "change": change,
-              "base_check_count": len(config.get("checks", [])),
-              "base_check_description": config.get("base_check_description", ""),
-              "optional_groups": {name: {"description": descriptions.get(name, ""), "checks": len(commands)}
-                                  for name, commands in groups.items()}}
     report = {
         "kind": REPORT_KIND, "version": 1, "profile": profile, "profile_digest": record["digest"],
         "input_digest": hashlib.sha256(json.dumps(packet, sort_keys=True).encode()).hexdigest(),
@@ -78,13 +85,16 @@ def recommend(home, profile, criteria, *, project=None, base=None, provider="cod
         return {**report, "status": "preview", "input": packet}
     first = _ask(provider, packet, timeout) if groups else None
     checked = None
+    review_ms = None
     status = "complete"
     if groups and second:
+        started = time.monotonic()
         try:
             checked = _ask(second, packet, timeout)
         except WorkflowError as exc:
             status = "review_incomplete"
             checked = {"provider": second, "error": str(exc)}
+        review_ms = round((time.monotonic() - started) * 1000)
     primary_names = first["groups"] if first else []
     reviewed_names = checked.get("groups", []) if checked else []
     plan = profiles.check_plan(config, list(dict.fromkeys(primary_names + reviewed_names)))
@@ -93,8 +103,12 @@ def recommend(home, profile, criteria, *, project=None, base=None, provider="cod
         comparison = {"agreed": [n for n in primary_names if n in reviewed_names],
                       "primary_only": [n for n in primary_names if n not in reviewed_names],
                       "reviewer_only": [n for n in reviewed_names if n not in primary_names]}
-    return {**report, "status": status, "primary": first, "review": checked,
-            "comparison": comparison, "suggested_groups": plan["check_groups"], "checks": plan["checks"]}
+    result = {**report, "status": status, "primary": first, "review": checked, "review_ms": review_ms,
+              "comparison": comparison, "suggested_groups": plan["check_groups"], "checks": plan["checks"]}
+    if record_result and status == "complete":
+        from .recommendation_records import save_recommendation
+        result["recommendation_id"] = save_recommendation(home, result, record, criteria, root, base, areas, review_ms)
+    return result
 
 
 def evaluate(path, expected):

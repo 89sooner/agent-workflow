@@ -158,7 +158,18 @@ def parser():
     c.add_argument("--provider", choices=["codex", "claude"], default="codex")
     c.add_argument("--reviewer", choices=["auto", "none", "codex", "claude"], default="auto")
     c.add_argument("--timeout", type=int, default=90, help="모델 호출당 최대 초 (1~600)")
-    c.add_argument("--preview", action="store_true", help="모델에 보낼 입력과 공급자만 출력")
+    recording = c.add_mutually_exclusive_group()
+    recording.add_argument("--preview", action="store_true", help="모델에 보낼 입력과 공급자만 출력")
+    recording.add_argument("--record", action="store_true", help="완전한 추천의 선택 기록을 원장에 저장하고 ID 반환")
+    c = commands.add_parser("recommendation", help="저장된 추천, 작업별 검사 실측 및 사람의 평가")
+    actions = c.add_subparsers(dest="operation", required=True)
+    actions.add_parser("show").add_argument("id")
+    actions.add_parser("report").add_argument("--profile")
+    f = actions.add_parser("feedback")
+    f.add_argument("task_id")
+    labels = f.add_mutually_exclusive_group(required=True)
+    labels.add_argument("--expected-group", action="append", metavar="GROUP")
+    labels.add_argument("--expected-none", action="store_true")
     c = commands.add_parser("evaluate-checks", help="저장한 추천과 필요한 검사 묶음 대조")
     c.add_argument("report", type=Path)
     labels = c.add_mutually_exclusive_group(required=True)
@@ -195,11 +206,15 @@ def parser():
     c.add_argument("--registration-home", help="연결된 원장 중 새 작업을 등록할 경로")
     c = commands.add_parser("start", help="연결한 프로젝트에 작업 자동 ID 등록; 실행은 별도")
     c.add_argument("goal")
+    c.add_argument("--isolate", action=argparse.BooleanOptionalAction, default=None)
     c.add_argument("--project", default=".")
     c.add_argument("--criterion", action="append")
     c.add_argument("--check", action="append", default=[])
-    c.add_argument("--check-group", action="append", default=[], metavar="GROUP",
-                   help="등록 프로필에서 추가할 검사 묶음. 여러 번 지정할 수 있습니다.")
+    c.add_argument("--recommendation", metavar="ID", help="저장한 추천 선택을 사용")
+    selection = c.add_mutually_exclusive_group()
+    selection.add_argument("--check-group", action="append", metavar="GROUP", help="채택할 추가 검사 묶음")
+    selection.add_argument("--base-checks-only", dest="check_group", action="store_const", const=[],
+                           help="추가 묶음을 모두 제외하고 공통 검사만 사용")
     c.add_argument("--owner", choices=["codex", "claude"])
     c.add_argument("--reviewer", choices=["codex", "claude", "codex-session", "none"])
     c.add_argument("--name", help="구현 에이전트에게 실제 할당한 이름")
@@ -217,8 +232,11 @@ def parser():
     c.add_argument("--criterion", action="append", required=True)
     c.add_argument("--ref", action="append", default=[])
     c.add_argument("--check", action="append", default=[])
-    c.add_argument("--check-group", action="append", default=[], metavar="GROUP",
-                   help="등록 프로필에서 추가할 검사 묶음. 여러 번 지정할 수 있습니다.")
+    c.add_argument("--recommendation", metavar="ID", help="저장한 추천 선택을 사용")
+    selection = c.add_mutually_exclusive_group()
+    selection.add_argument("--check-group", action="append", metavar="GROUP", help="채택할 추가 검사 묶음")
+    selection.add_argument("--base-checks-only", dest="check_group", action="store_const", const=[],
+                           help="추가 묶음을 모두 제외하고 공통 검사만 사용")
     c.add_argument("--owner", choices=["codex", "claude"])
     c.add_argument("--reviewer", choices=["codex", "claude", "codex-session", "none"])
     c.add_argument("--scope", default="지정 목표의 로컬 구현·검증. 커밋·푸시·병합·배포 제외.")
@@ -348,15 +366,23 @@ def dispatch(args):
     if args.command == "recommend-checks":
         from .check_advisor import recommend
         return recommend(args.home, args.profile, args.criterion, project=args.project, base=args.base,
-                         provider=args.provider, reviewer=args.reviewer, preview=args.preview, timeout=args.timeout)
+                         provider=args.provider, reviewer=args.reviewer, preview=args.preview, timeout=args.timeout,
+                         record_result=args.record)
+    if args.command == "recommendation":
+        from . import recommendation_records as records
+        if args.operation == "show":
+            return records.show(args.home, args.id)
+        if args.operation == "feedback":
+            return records.feedback(args.home, args.task_id, args.expected_group or [])
+        return records.summary(args.home, args.profile)
     if args.command == "evaluate-checks":
         from .check_advisor import evaluate
         return evaluate(args.report, args.expected_group or [])
     if args.command == "release-status":
         from .release_status import status
         return status(args.home, args.id)
-    if args.command == "create" and args.check_group and not args.profile:
-        raise WorkflowError("--check-group에는 --profile이 필요합니다.")
+    if args.command == "create" and (args.check_group is not None or args.recommendation) and not args.profile:
+        raise WorkflowError("검사 묶음과 추천 ID를 사용하려면 --profile이 필요합니다.")
     if args.command == "profile":
         if args.operation == "checks":
             from . import profiles
@@ -412,7 +438,7 @@ def dispatch(args):
         return start_registered(args.home, args.goal, args.project, args.criterion,
                                 checks=[argv_from(x) for x in args.check], owner=args.owner,
                                 reviewer=args.reviewer, name=args.name, reviewer_name=args.reviewer_name,
-                                check_groups=args.check_group)
+                                check_groups=args.check_group, recommendation_id=args.recommendation, isolate=args.isolate)
     if args.command == "watch":
         from .connections import state_home
         from .server import serve
@@ -487,7 +513,8 @@ def dispatch(args):
                 from .workspaces import create_from_profile
                 return create_from_profile(store, args.id, args.profile, args.goal, args.criterion,
                                            args.ref, [argv_from(x) for x in args.check], args.owner,
-                                           args.reviewer, args.scope, args.isolate, check_groups=args.check_group)
+                                           args.reviewer, args.scope, args.isolate, check_groups=args.check_group,
+                                           recommendation_id=args.recommendation)
             if args.isolate:
                 raise WorkflowError("자동 worktree는 --profile과 함께 사용하세요.")
             return create_task(store, args.id, args.project or ".", args.goal, args.criterion,

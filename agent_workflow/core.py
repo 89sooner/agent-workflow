@@ -263,8 +263,10 @@ def clear_hold(store, task_id):
     return store.get(task_id)
 
 
-def create_task(store, task_id, project, goal, criteria, refs, checks, owner, reviewer, scope, metadata=None):
-    store.directory(task_id)
+def create_task(store, task_id, project, goal, criteria, refs, checks, owner, reviewer, scope, metadata=None, *,
+                before_snapshot=None):
+    if before_snapshot is None:
+        store.directory(task_id)
     project = project_root(project)
     if store.home.is_relative_to(project):
         raise WorkflowError("상태 디렉터리는 대상 Git 프로젝트 밖에 두세요.")
@@ -283,6 +285,9 @@ def create_task(store, task_id, project, goal, criteria, refs, checks, owner, re
     if reviewer != "none" and reviewer == owner:
         raise WorkflowError("실행 담당과 독립 검토자는 달라야 합니다.")
     with store.lock(project):
+        if before_snapshot:
+            before_snapshot()
+            store.directory(task_id)
         baseline = snapshot(project)
         from .policy import changed_files, protected_snapshot
         baseline["changed_files"] = changed_files(project)

@@ -9,8 +9,8 @@ from . import profiles
 
 
 def create_from_profile(store, task_id, name, goal, criteria, refs=(), checks=(), owner=None,
-                        reviewer=None, scope="지정 목표의 로컬 구현·검증", isolate=None, *, check_groups=(),
-                        expected_project=None):
+                        reviewer=None, scope="지정 목표의 로컬 구현·검증", isolate=None, *, check_groups=None,
+                        expected_project=None, recommendation_id=None):
     if store.db.execute("SELECT 1 FROM tasks WHERE id=?", (task_id,)).fetchone():
         raise WorkflowError("이미 존재하는 작업 ID: " + task_id)
     record = profiles.get(store, name)
@@ -20,11 +20,23 @@ def create_from_profile(store, task_id, name, goal, criteria, refs=(), checks=()
         from .connections import project_key
         if project_key(original) != project_key(expected_project):
             raise WorkflowError("프로필이 다른 프로젝트를 가리킵니다.")
+    verify = None
+    if recommendation_id is not None:
+        from functools import partial
+        from .recommendation_records import resolve, verify_input
+        receipt, original = resolve(store, recommendation_id, record, expected_project)
+        verify = partial(verify_input, receipt, cfg, criteria, original)
+        if check_groups is None:
+            check_groups = receipt["suggested_groups"]
     plan = profiles.check_plan(cfg, check_groups, checks)
     profile = {"name": name, "digest": record["digest"]}
+    if recommendation_id is not None:
+        profile["recommendation_id"] = recommendation_id
+        if checks:
+            profile["individual_check_indexes"] = [i for i, argv in enumerate(plan["checks"]) if argv in checks]
     if plan["check_groups"]:
         profile["check_groups"] = plan["check_groups"]
-    store.directory(task_id)
+    profiles.identifier(task_id)
     isolated = cfg["workspace"]["isolate"] if isolate is None else isolate
     owner, reviewer = owner or cfg["owner"], reviewer or cfg["reviewer"]
     if owner == reviewer:
@@ -41,9 +53,13 @@ def create_from_profile(store, task_id, name, goal, criteria, refs=(), checks=()
         if project.exists() or project.is_symlink():
             raise WorkflowError("작업 폴더가 이미 존재합니다: " + str(project))
         branch = cfg["workspace"]["branch_prefix"] + task_id
-        root.mkdir(parents=True, exist_ok=True)
         with store.lock(original):
+            if verify:
+                verify()
             before = snapshot(original)
+            if recommendation_id is not None and before["dirty"]:
+                raise WorkflowError("추천한 미커밋 변경은 새 작업 트리에 없습니다. 현재 트리에서 --no-isolate로 등록하세요.")
+            root.mkdir(parents=True, exist_ok=True)
             git(original, "worktree", "add", "-b", branch, str(project), before["head"])
         workspace = {"managed": True, "source": str(original), "path": str(project),
                      "branch": branch, "base_head": before["head"], "source_dirty": before["dirty"], "prepared": False}
@@ -51,7 +67,8 @@ def create_from_profile(store, task_id, name, goal, criteria, refs=(), checks=()
         task = create_task(store, task_id, project, goal, criteria,
                            [*cfg["refs"], *refs], plan["checks"], owner, reviewer, scope,
                            metadata={"profile": profile,
-                                     "project_config": copy.deepcopy(cfg), "execution": cfg["execution"], "workspace": workspace})
+                                     "project_config": copy.deepcopy(cfg), "execution": cfg["execution"], "workspace": workspace},
+                           before_snapshot=None if isolated else verify)
     except BaseException:
         # This tree was created by this call and has not run setup or an agent.
         if workspace["managed"] and not snapshot(project)["dirty"]:

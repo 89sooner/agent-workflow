@@ -242,13 +242,43 @@ function actionButton(title, glyph, key, disabled, callback, primary = false) {
   button.type = 'button'; button.dataset.focus = key; button.disabled = disabled || (state.readOnly && key !== 'task-view');
   button.append(icon(glyph), node('span', title)); button.addEventListener('click', callback); return button;
 }
+function recommendationDetail(task, receipt) {
+  const panel = node('details', null, 'goal-details');
+  panel.append(node('summary', '검사 추천과 실제 작업 결과'));
+  for (const [label, groups] of [['첫 모델', receipt.primary], ['두 번째 모델', receipt.reviewer],
+    ['채택', receipt.adopted_groups], ['사람이 필요하다고 판정', receipt.expected_groups]]) {
+    panel.append(node('p', label + ' · ' + (groups == null ? '기록 없음' : groups.join(', ') || '추가 묶음 없음')));
+  }
+  for (const [name, result] of Object.entries(receipt.checks_by_group)) {
+    const seconds = result.seconds == null ? '시간 미기록' : Number(result.seconds).toFixed(2) + '초';
+    panel.append(node('p', name + ' · 실행 ' + result.executed_count + '/' + result.planned_count
+      + ' · 통과 ' + result.passed_count + ' · 실패 ' + result.failed_count + ' · ' + seconds));
+  }
+  if (!state.readOnly) {
+    const choices = node('fieldset');
+    choices.append(node('legend', '실제로 필요했던 검사 묶음'));
+    for (const name of Object.keys(task.project_config?.check_groups || {})) {
+      const option = node('label', null, 'checkbox-label'), input = node('input');
+      input.type = 'checkbox'; input.value = name; input.checked = (receipt.expected_groups || []).includes(name);
+      option.append(input, document.createTextNode(name)); choices.append(option);
+    }
+    const save = node('button', '필요 묶음 저장', 'button small');
+    save.type = 'button'; save.disabled = state.busy;
+    save.addEventListener('click', () => {
+      const expected = Array.from(choices.querySelectorAll('input:checked'), input => input.value);
+      mutate('/api/recommendations/feedback', { task_id: task.id, expected_groups: expected }, '검사 추천 평가를 저장했습니다.');
+    });
+    panel.append(choices, save);
+  }
+  return panel;
+}
 function renderDetail() {
   const detail = state.detail, task = detail?.task || selectedTask();
   syncObservatoryVisibility(); renderProjectActivity();
   window.WorkflowObservatory?.update({ task: task || null, detail, jobs: state.jobs, ledger: state.ledger, project: state.project, projectData: !task ? state.projectData : null, onSelectTask: selectTask, connected: state.connected });
   $('project-room').hidden = !task;
   const pending = state.jobs.some((job) => job.task_id === state.selected && ['queued', 'running'].includes(job.status));
-  const key = JSON.stringify([task, detail?.observed_git, detail?.freshness, detail?.events, state.busy, pending, Boolean(detail), state.view]);
+  const key = JSON.stringify([task, detail?.observed_git, detail?.freshness, detail?.events, detail?.recommendation, state.readOnly, state.busy, pending, Boolean(detail), state.view]);
   if (key === state.detailKey) return;
   state.detailKey = key;
   const fragment = document.createDocumentFragment(), contextFragment = document.createDocumentFragment();
@@ -295,6 +325,7 @@ function renderDetail() {
     }
     head.append(details);
   }
+  if (detail?.recommendation) head.append(recommendationDetail(task, detail.recommendation));
   contextFragment.append(head);
   if (observationError) contextFragment.append(node('div', `작업 폴더 상태를 확인하지 못했습니다: ${textValue(observationError)} 저장된 완료 이력은 유지되며, 작업 폴더를 복구한 뒤 새로고침하면 최신 증거를 다시 확인합니다.`, 'notice evidence-error'));
   if (held) {
@@ -549,8 +580,29 @@ $('new-task').addEventListener('click', () => {
   $('create-isolate').checked = profile?.config?.workspace?.isolate !== false;
   closeSidebar(false); notice('create-error', ''); $('create-dialog').showModal();
 });
+let loadedRecommendation = null;
+function clearRecommendation() {
+  loadedRecommendation = null;
+  $('recommendation-hint').hidden = true;
+  $('load-recommendation').hidden = !$('create-recommendation').value.trim();
+}
+$('create-recommendation').addEventListener('input', clearRecommendation);
+$('load-recommendation').addEventListener('click', async () => {
+  const id = $('create-recommendation').value.trim(), profile = $('create-profile').value;
+  try {
+    const record = await request('/api/recommendations/' + encodeURIComponent(id));
+    if ($('create-recommendation').value.trim() !== id || $('create-profile').value !== profile) return;
+    if (record.profile !== profile) throw new Error('현재 선택한 프로젝트 프로필과 추천이 다릅니다.');
+    loadedRecommendation = record;
+    for (const box of $('check-group-options').querySelectorAll('input')) box.checked = record.suggested_groups.includes(box.value);
+    $('recommendation-hint').textContent = '추천 묶음 · ' + (record.suggested_groups.join(', ') || '기본 검사만');
+    $('recommendation-hint').hidden = false;
+    notice('create-error', '');
+  } catch (error) { clearRecommendation(); notice('create-error', error.message); }
+});
 $('create-close').addEventListener('click', () => $('create-dialog').close());
 $('create-profile').addEventListener('change', () => {
+  $('create-recommendation').value = ''; clearRecommendation();
   profileHint();
   $('create-isolate').checked = state.profiles.find(item => item.name === $('create-profile').value)?.config?.workspace?.isolate !== false;
 });
@@ -563,11 +615,18 @@ $('create-form').addEventListener('submit', async event => {
     const payload = { id: $('create-id').value.trim(), agent_names: { implement: $('create-agent-name').value.trim(), review: $('create-reviewer-name').value.trim() }, profile: $('create-profile').value,
       check_groups: Array.from($('check-group-options').querySelectorAll('input:checked'), input => input.value),
       goal: $('create-goal').value.trim(), criteria: $('create-criteria').value.split('\n').map(line => line.trim()).filter(Boolean), isolate: $('create-isolate').checked };
+    const recId = $('create-recommendation').value.trim();
+    if (recId) {
+      if (loadedRecommendation?.id !== recId || loadedRecommendation.profile !== payload.profile) {
+        throw new Error('추천 묶음을 불러온 뒤 채택할 묶음을 확인하세요.');
+      }
+      payload.recommendation_id = recId;
+    }
     const result = await request('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Workflow-Token': state.token }, body: JSON.stringify(payload) });
     state.selected = result.task.id; state.detail = null; state.detailKey = '';
     if (state.project && projectSource(result.task) !== state.project) state.project = projectSource(result.task);
     showView('observatory', false); closeSidebar(false);
-    $('create-dialog').close(); $('create-form').reset(); await refresh();
+    $('create-dialog').close(); $('create-form').reset(); clearRecommendation(); await refresh();
     notice('action-message', '작업을 등록했습니다. 범위와 검사 조건을 확인하고 실행하세요.');
   } catch (error) { notice('create-error', error.message); }
   finally { state.busy = false; $('create-submit').disabled = !state.profiles.length; renderDetail(); renderJobs(); }

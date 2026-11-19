@@ -31,6 +31,7 @@ const stale = {
 let tasks = [task, stale], jobs = [], fail = false;
 let projectExecutions = null, readOnly = false;
 let profiles = [{ name: 'fixture-project', config: { check_groups: { ui: [['node', '--version']], docs: [['python3', '--version']] }, project: '/fixture/project', owner: 'claude', reviewer: 'codex' } }];
+let expectedGroups = null;
 const requests = [];
 let events = [{ at: '2026-10-08T00:00:00Z', kind: 'created', data: { summary: '작업 등록됨', source: 'fixture' } }];
 await page.route('**/api/**', async (route) => {
@@ -40,9 +41,13 @@ await page.route('**/api/**', async (route) => {
   if (path === '/api/project-observability') return route.fulfill({ json: { schema_version: 1, tasks, agents: [], events: [], executions: projectExecutions ?? jobs } });
   if (path === '/api/state') return route.fulfill({ json: { tasks, jobs, profiles, notifications: [], daemon: { running: true }, version: 'fixture', csrf_token: 'fixture-token', read_only: readOnly } });
   if (path.startsWith('/api/job-log/')) return route.fulfill({ json: { text: '<script>window.unsafe=true</script>\nfixture log output', truncated: false } });
+  if (path === '/api/recommendations/REC-demo') return route.fulfill({json: {
+    id: 'REC-demo', profile: 'fixture-project', suggested_groups: ['ui'] }});
   if (path.startsWith('/api/tasks/')) {
     const selected = tasks.find((t) => t.id === decodeURIComponent(path.split('/').pop()));
     return route.fulfill({ json: { task: selected, jobs, events, observed_git: {},
+      recommendation: selected?.profile?.recommendation_id ? {primary:['ui'],reviewer:['ui'],adopted_groups:['ui'],
+        checks_by_group:{ui:{planned_count:1,executed_count:0,passed_count:0,failed_count:0,seconds:null}},expected_groups:expectedGroups} : null,
       release_status: selected?.release ? { merge: 'succeeded', deployment: 'applied', health: 'failed' } : null, freshness: {
       verification_is_current: false, review_is_current: false, completion_is_current: false
     } } });
@@ -50,8 +55,12 @@ await page.route('**/api/**', async (route) => {
   if (req.method() === 'POST') {
     assert.equal(req.headers()['x-workflow-token'], 'fixture-token');
     const body = req.postDataJSON(); requests.push({ path, body });
+    if (path === '/api/recommendations/feedback') {
+      expectedGroups = body.expected_groups;
+      return route.fulfill({json:{expected_groups:expectedGroups}});
+    }
     if (path === '/api/tasks') {
-      const created = { ...task, id: body.id, goal: body.goal, criteria: body.criteria, profile: { name: body.profile } };
+      const created = { ...task, id: body.id, goal: body.goal, criteria: body.criteria, project_config: profiles[0].config, profile: { name: body.profile, recommendation_id: body.recommendation_id } };
       tasks.push(created); return route.fulfill({ status: 201, json: { task: created } });
     }
     if (path === '/api/queue') {
@@ -165,7 +174,10 @@ try {
 
   await page.locator('#filter').selectOption('all');
   await page.locator('#new-task').click();
-  await page.getByRole('checkbox', {name: 'ui (1개 검사)'}).check();
+  await page.locator('#create-recommendation').fill('REC-demo');
+  await page.getByRole('button', {name:'추천 묶음 불러오기'}).click();
+  await page.locator('#recommendation-hint').waitFor();
+  assert.equal(await page.getByRole('checkbox', {name:'ui (1개 검사)'}).isChecked(), true);
   await page.locator('#create-id').fill('UI-NEW');
   await page.locator('#create-goal').fill('새 작업 등록과 실행 제어');
   await page.locator('#create-criteria').fill('목표에 맞는 검사\n독립 리뷰 통과');
@@ -176,6 +188,12 @@ try {
   assert.deepEqual(requests.at(-1).body.criteria, ['목표에 맞는 검사', '독립 리뷰 통과']);
   assert.equal(requests.at(-1).body.isolate, true);
   assert.deepEqual(requests.at(-1).body.check_groups, ['ui']);
+  assert.equal(requests.at(-1).body.recommendation_id, 'REC-demo');
+  await page.getByText('검사 추천과 실제 작업 결과', {exact:true}).click();
+  await page.getByRole('group', {name:'실제로 필요했던 검사 묶음'}).getByRole('checkbox', {name:'ui', exact:true}).check();
+  await page.getByRole('button', {name:'필요 묶음 저장'}).click();
+  await page.waitForFunction(() => document.getElementById('action-message').textContent.includes('평가를 저장'));
+  assert.deepEqual(requests.at(-1).body, {task_id:'UI-NEW', expected_groups:['ui']});
   await page.locator('#nav-tasks').click();
   await page.locator('.execution-options summary').click();
   await page.locator('#option-timeout').fill('0');

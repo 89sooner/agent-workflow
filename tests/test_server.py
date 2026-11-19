@@ -127,6 +127,32 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(json.loads(job["options"])["recoveries"], 0)
         self.assertEqual(self.request("/api/queue", {"task_id": "WEB-1", "timeout": True}, headers)[0], 400)
 
+    def test_recorded_recommendation_and_feedback(self):
+        from unittest.mock import patch
+        from agent_workflow.profiles import save
+        from agent_workflow.check_advisor import recommend
+        store = Store(self.home)
+        try:
+            save(store, "fixture", {"project": str(self.root / "project"),
+                                    "check_groups": {"syntax": [["git", "diff", "--check"]]}})
+        finally:
+            store.close()
+        with patch("agent_workflow.check_advisor_models.ask", return_value={"groups":["syntax"], "reason":"check"}):
+            report = recommend(self.home, "fixture", ["criterion"], reviewer="none", record_result=True)
+        rid = report["recommendation_id"]
+        headers = {"X-Workflow-Token": "test-token"}
+        self.assertEqual(json.loads(self.request("/api/recommendations/" + rid)[1])["suggested_groups"], ["syntax"])
+        payload = {"id":"LINKED", "profile":"fixture", "goal":"job", "criteria":["criterion"],
+                   "recommendation_id":rid, "isolate":False}
+        self.assertEqual(self.request("/api/tasks", payload, headers)[0], 201)
+        labels = {"task_id":"LINKED", "expected_groups":[]}
+        self.assertEqual(self.request("/api/recommendations/feedback", labels)[0], 403)
+        self.assertEqual(self.request("/api/recommendations/feedback", labels, headers)[0], 200)
+        linked = json.loads(self.request("/api/tasks/LINKED")[1])["recommendation"]
+        self.assertEqual(linked["recommendation_id"], rid)
+        self.assertEqual(linked["adopted_groups"], ["syntax"])
+        self.assertEqual(linked["expected_groups"], [])
+
     def test_stop_and_resume_use_csrf_and_preserve_job_options(self):
         headers = {"X-Workflow-Token": "test-token"}
         _, body, _ = self.request("/api/queue", {"task_id": "WEB-1", "timeout": 111}, headers)
