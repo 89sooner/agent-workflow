@@ -1,0 +1,18 @@
+.role-graph-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0 22px 0.5rem;
+}
+.role-graph-mode button {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.85rem;
+}
+.role-graph-mode button[aria-pressed="true"] {
+  border-color: var(--mint);
+  color: var(--mint);
+}
+.role-edge-count {
+  fill: var(--muted);
+  font-size: 10px;
+}

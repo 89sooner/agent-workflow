@@ -40,6 +40,8 @@ export interface Span {
   error?: unknown;
   model?: string | null;
   artifacts?: string[];
+  process?: { exit_code?: number | null; timed_out?: boolean | null; seconds?: number | null } | null;
+  usage?: { tokens?: number | null; reported_cost_usd?: number | null } | null;
 }
 export interface Event {
   seq: number;

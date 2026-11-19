@@ -1,0 +1,124 @@
+.task-create-dialog {
+  box-sizing: border-box;
+  width: min(620px, calc(100vw - 24px));
+  max-height: calc(100dvh - 32px);
+  padding: clamp(16px, 3vw, 28px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  color: var(--text);
+  background: var(--panel);
+}
+.task-create-dialog::backdrop {
+  background: #020712bf;
+}
+.task-create-dialog h2 {
+  margin: 0 0 16px;
+  font-size: 22px;
+}
+.task-create-dialog .create-fields {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+.task-create-dialog label {
+  margin-top: 5px;
+}
+.task-create-dialog small,
+.task-create-dialog .create-muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+.task-create-dialog :is(input:not([type="checkbox"]), textarea, select) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  padding: 8px 10px;
+}
+.task-create-dialog textarea {
+  resize: vertical;
+}
+.task-create-dialog p {
+  overflow-wrap: anywhere;
+  margin: 6px 0;
+}
+.task-create-dialog [role="alert"] {
+  color: #ffb1b1;
+}
+.task-create-dialog .create-choice,
+.task-create-dialog .create-group-set {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 5px 0;
+  padding: 10px 12px;
+}
+.task-create-dialog .create-choice summary {
+  cursor: pointer;
+}
+.task-create-dialog .create-choice[open] > label {
+  display: block;
+  margin: 12px 0 5px;
+}
+.task-create-dialog .create-choice button {
+  margin-top: 8px;
+}
+.task-create-dialog legend {
+  padding: 0 4px;
+  font-size: 13px;
+}
+.task-create-dialog #check-group-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+.task-create-dialog #check-group-options label,
+.task-create-dialog .create-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+.task-create-dialog .create-name-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.task-create-dialog .create-name-pair input {
+  display: block;
+  margin-top: 5px;
+}
+.task-create-dialog .create-submit-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+.task-create-dialog #advisor-input {
+  max-height: 13rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 9px;
+  background: var(--bg);
+  border-radius: 5px;
+}
+.task-create-dialog :is(summary, textarea):focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 2px;
+}
+@media (max-width: 480px) {
+  .task-create-dialog .create-name-pair {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}

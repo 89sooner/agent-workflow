@@ -1,0 +1,153 @@
+.mg-panel {
+  padding: 1.25rem;
+  overflow-wrap: anywhere;
+}
+.mg-panel .panel-heading {
+  padding: 0 0 0.75rem;
+}
+.mg-panel h2,
+.mg-panel h3,
+.mg-panel h4 {
+  margin: 0 0 0.4rem;
+}
+.mg-panel p {
+  margin: 0.35rem 0 0.65rem;
+}
+.mg-panel ul,
+.mg-panel ol {
+  margin: 0.4rem 0;
+  padding-inline-start: 1.45rem;
+}
+.mg-panel pre {
+  max-height: 16rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  margin-block: 0.5rem;
+  padding: 0.65rem;
+  background: var(--bg);
+}
+.mg-panel :is(pre, code) {
+  font-size: 0.86em;
+  overflow-wrap: anywhere;
+}
+.mg-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 0.4rem 0;
+}
+.mg-panel summary:focus-visible {
+  outline: 2px solid var(--mint);
+  outline-offset: 2px;
+}
+.mg-panel button {
+  min-height: 2.25rem;
+}
+.mg-title,
+.mg-flex {
+  display: flex;
+  gap: 0.45rem 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.mg-title {
+  justify-content: space-between;
+}
+.mg-title span,
+.mg-muted,
+.mg-path,
+.mg-facts dt {
+  color: var(--muted);
+}
+.mg-task,
+.mg-subsection {
+  margin-block: 0.75rem;
+}
+.mg-subsection,
+.mg-block {
+  border-top: 1px solid var(--line);
+  padding-block: 0.55rem;
+}
+.mg-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr));
+  gap: 0.5rem 1rem;
+  margin-block: 0.6rem;
+}
+.mg-facts dd {
+  margin: 0;
+}
+.mg-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding: 0;
+  border: 0;
+  margin: 0.45rem 0;
+}
+.mg-fields label,
+.mg-hold label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+}
+.mg-fields input {
+  width: 9rem;
+}
+.mg-fieldset {
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  margin-block: 0.5rem;
+  padding: 0.6rem;
+  min-width: 0;
+}
+.mg-fieldset button {
+  margin-top: 0.5rem;
+}
+.mg-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.mg-choice input {
+  accent-color: var(--mint);
+  width: 1rem;
+  height: 1rem;
+}
+.mg-panel .mg-primary {
+  border-color: var(--mint);
+}
+.mg-controls,
+.mg-continuity,
+.mg-hold {
+  margin-block: 0.8rem;
+}
+.mg-hold textarea {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  font: inherit;
+  padding: 0.5rem;
+  resize: vertical;
+}
+.mg-hold .mg-flex {
+  margin-top: 0.5rem;
+}
+.mg-jobs {
+  list-style: none;
+  padding-inline-start: 0 !important;
+}
+.mg-jobs li {
+  padding: 0.65rem 0;
+}
+.mg-jobs li + li {
+  border-top: 1px solid var(--line);
+}
+.mg-success {
+  color: var(--mint);
+}
+.mg-attention {
+  color: #e9c77c;
+}
+.mg-error {
+  color: #ffb1a8;
+}

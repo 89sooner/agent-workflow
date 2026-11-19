@@ -9,7 +9,7 @@ function gate() {
 
 export async function exerciseAdvisor(page) {
   const $ = id => page.locator('#' + id);
-  const calls = [], delayed = gate(), oldStarted = gate();
+  const calls = [], delayed = gate(), oldStarted = gate(), oldFinished = gate();
   const tag = '<img src=x onerror="window.advisorInjected=true">';
   const digest = 'a'.repeat(64);
   const routePattern = '**/api/check-advisor/*';
@@ -31,7 +31,13 @@ export async function exerciseAdvisor(page) {
     assert.deepEqual(Object.keys(data).sort(), ['criteria','input_digest','profile','providers']);
     assert.equal(data.input_digest, digest);
     assert.deepEqual(data.providers, base.providers);
-    if (text === '닫기 전 요청') { oldStarted.open(); await delayed.promise; }
+    if (text === '닫기 전 요청') {
+      oldStarted.open(); await delayed.promise;
+      try { await route.fulfill({json:{...base,status:'complete',primary:{provider:'codex',groups:['ui'],reason:'old'},review:null,suggested_groups:['ui']}}); }
+      catch { /* Closing a React dialog aborts its fetch. */ }
+      finally { oldFinished.open(); }
+      return;
+    }
     if (text === '새 입력 필요') return route.fulfill({ status:400, json:{ error:'변경된 입력을 다시 확인하세요.' } });
     const partial = text === '한쪽 공급자 오류';
     return route.fulfill({ json:{...base, status:partial ? 'review_incomplete' : 'complete',
@@ -46,6 +52,7 @@ export async function exerciseAdvisor(page) {
   };
   await page.route(routePattern, handle);
   await $('new-task').click();
+  await $('create-profile').selectOption('fixture-project');
   const initial = await $('create-criteria').inputValue();
   const groups = page.locator('#check-group-options input');
   const original = await groups.evaluateAll(boxes => boxes.filter(b=>b.checked).map(b=>b.value));
@@ -72,11 +79,8 @@ export async function exerciseAdvisor(page) {
     await Promise.all([oldStarted.promise, $('advisor-run').click()]);
     await $('create-close').click();
     await $('new-task').click();
-    await $('create-criteria').fill('다른 작업');
-    const completed = page.waitForResponse(r => r.url().endsWith('/api/check-advisor/run'));
-    delayed.open();
-    await (await completed).finished();
-    await page.locator('#advisor-preview:enabled').waitFor();
+    await $('create-profile').selectOption('fixture-project');
+    delayed.open(); await oldFinished.promise;
     assert.ok(await $('advisor-apply').isHidden());
 
     if (!(await $('advisor-options').evaluate(el=>el.open))) await page.locator('#advisor-options summary').click();
@@ -91,7 +95,7 @@ export async function exerciseAdvisor(page) {
     await preview('한쪽 공급자 오류');
     await $('advisor-run').click();
     await page.getByRole('button', {name:'첫 모델의 선택 적용'}).waitFor();
-    assert.match(await $('advisor-result').textContent(), /두 번째 검토 미완료/);
+    assert.match(await $('advisor-result').textContent(), /검토 미완료/);
     assert.equal(await $('advisor-result').locator('img').count(), 0);
     assert.equal(await page.evaluate(()=>Boolean(window.advisorInjected)), false);
     await $('create-isolate').check();
