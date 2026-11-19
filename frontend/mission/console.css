@@ -12,9 +12,40 @@
 .console-nav summary {
   color: var(--text);
 }
+.console-nav .theme-switch {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .4rem .65rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+.theme-switch-track {
+  display: inline-flex;
+  align-items: center;
+  width: 2rem;
+  height: 1.15rem;
+  padding: 2px;
+  border-radius: 1rem;
+  background: #637280;
+}
+.theme-switch-track::after {
+  content: "";
+  width: .85rem;
+  height: .85rem;
+  border-radius: 50%;
+  background: white;
+}
+.theme-switch[aria-checked="true"] .theme-switch-track {
+  justify-content: flex-end;
+  background: var(--mint);
+}
+.theme-switch[aria-checked="true"] .theme-switch-track::after {
+  background: #13382e;
+}
 .console-preferences {
   position: relative;
-  margin-left: auto;
 }
 .console-preferences summary,
 .workspace-modes button {
