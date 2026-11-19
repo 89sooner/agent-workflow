@@ -186,8 +186,11 @@ try {
   assert.equal(await page.locator('body').getAttribute('data-view'), 'tasks');
   assert.equal(await page.locator('.execution-options').getAttribute('open') !== null, true);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'option-timeout');
-  assert.match(await page.locator('#error').textContent(), /실행 옵션/);
+  await page.locator('#refresh').click();
+  await page.locator('#refresh:enabled').waitFor();
+  assert.match(await page.locator('#option-error').textContent(), /실행 옵션/);
   await page.locator('#option-timeout').fill('1234');
+  assert.equal(await page.locator('#option-error').isHidden(), true);
   await page.locator('#option-repairs').fill('0');
   await page.locator('#option-recoveries').fill('2');
   await page.getByRole('button', { name: '워크플로 실행', exact: true }).click();

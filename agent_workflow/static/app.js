@@ -409,6 +409,9 @@ function renderJobs() {
   if (!jobs.length) fragment.append(node('p', '아직 실행 기록이 없습니다. 작업을 선택하고 첫 실행을 시작하세요.', 'empty-inline'));
   replaceKeepingFocus($('jobs'), fragment);
 }
+document.querySelector('.execution-options').addEventListener('input', () => {
+  if (Array.from(document.querySelectorAll('.option-grid input')).every(input => input.checkValidity())) notice('option-error', '');
+});
 async function queue(taskId, action) {
   if (state.tasks.find(task => task.id === taskId)?.hold) { notice('error', '작업이 수동 보류 중입니다. 보류 사유를 확인하고 해제한 뒤 실행하세요.'); return; }
   const payload = { task_id: taskId, action };
@@ -418,7 +421,7 @@ async function queue(taskId, action) {
       if (!input.checkValidity()) {
         showView('tasks', false);
         input.closest('details').open = true;
-        notice('error', '실행 옵션의 허용 범위를 확인해 주세요. 값을 수정한 뒤 다시 실행할 수 있습니다.');
+        notice('option-error', '실행 옵션의 허용 범위를 확인해 주세요. 값을 수정한 뒤 다시 실행할 수 있습니다.');
         input.focus(); input.scrollIntoView({ block: 'center', behavior: 'instant' }); input.reportValidity();
         return;
       }
