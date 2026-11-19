@@ -515,6 +515,7 @@ async function refresh() {
     if (generation !== state.generation) return;
     state.connected = true;
     state.readOnly = result.read_only === true;
+    if (state.readOnly && $('create-dialog').open) $('create-dialog').close();
     $('new-task').disabled = state.readOnly;
     state.tasks = Array.isArray(result.tasks) ? result.tasks : []; state.jobs = Array.isArray(result.jobs) ? result.jobs : []; state.token = result.csrf_token;
     state.profiles = Array.isArray(result.profiles) ? result.profiles : [];
@@ -543,10 +544,11 @@ $('theme-toggle').addEventListener('click', () => {
 function renderCheckGroups(profile) {
   const options = $('check-group-options');
   const selected = new Set();
-  if (options.dataset.profile === profile?.name) {
+  const scope = JSON.stringify([state.ledger, profile?.name, profile?.digest]);
+  if (options.dataset.profile === scope) {
     for (const input of options.querySelectorAll('input:checked')) selected.add(input.value);
   }
-  options.dataset.profile = profile?.name || '';
+  options.dataset.profile = scope;
   const groups = Object.entries(profile?.config?.check_groups || {});
   const fragment = document.createDocumentFragment();
   for (const [name, commands] of groups) {
@@ -562,6 +564,14 @@ function renderCheckGroups(profile) {
 function profileHint() {
   const profile = state.profiles.find(item => item.name === $('create-profile').value);
   renderCheckGroups(profile);
+  const scope = $('check-group-options').dataset.profile;
+  if (recommendationScope !== scope) {
+    checkAdvisor?.reset();
+    $('advisor-options').hidden = !checkAdvisor || !profile;
+    recommendationScope = scope;
+    $('create-recommendation').value = ''; clearRecommendation();
+    if ($('create-dialog').open && $('recommendation-picker').open) loadRecentRecommendations();
+  }
   $('profile-hint').textContent = profile ? `${profile.config.project} · 구현 ${profile.config.owner} / 리뷰 ${profile.config.reviewer}` : 'CLI의 profile save로 프로젝트 설정을 먼저 등록하세요.';
 }
 function renderProfiles() {
@@ -598,35 +608,92 @@ $('new-task').addEventListener('click', () => {
   closeSidebar(false); notice('create-error', ''); $('create-dialog').showModal();
 });
 let loadedRecommendation = null;
+let recommendationScope = '';
+let recentGeneration = 0;
 let recommendationGeneration = 0;
+let recentRecords = [];
+
+async function loadRecentRecommendations() {
+  const generation = ++recentGeneration, scope = recommendationScope;
+  const profile = $('create-profile').value, select = $('recent-recommendation');
+  const ledger = state.ledger;
+  const current = () => generation === recentGeneration && scope === recommendationScope && ledger === state.ledger
+    && $('create-dialog').open && $('recommendation-picker').open && !state.readOnly;
+  recentRecords = [];
+  select.disabled = true; select.replaceChildren(new Option('선택하세요', ''));
+  if (!current() || !profile) return;
+  notice('recent-notice', '최근 추천을 불러오는 중…');
+  try {
+    const result = await request('/api/recommendations?profile=' + encodeURIComponent(profile));
+    if (!current()) return;
+    recentRecords = result.recommendations;
+    for (const record of recentRecords) {
+      const groups = record.suggested_groups.join(', ') || '기본 검사만';
+      select.add(new Option(date(record.created_at) + ' · ' + groups + ' · ' + record.id.slice(-8), record.id));
+    }
+    select.value = recentRecords.some(r => r.id === loadedRecommendation?.id) ? loadedRecommendation.id : '';
+    select.disabled = !recentRecords.length;
+    notice('recent-notice', recentRecords.length ? '' : '이 프로필의 최근 추천이 없습니다.');
+  } catch (error) {
+    if (!current()) return;
+    recentRecords = [];
+    select.disabled = true; select.replaceChildren(new Option('선택하세요', ''));
+    notice('recent-notice', '최근 목록을 불러오지 못했습니다. 추천 ID를 직접 입력하거나 기본 설정으로 등록하세요.');
+  }
+}
+function applyRecommendation(record) {
+  loadedRecommendation = record;
+  $('load-recommendation').hidden = true;
+  $('recommendation-summary').textContent = '연결한 추천 · ' + record.id.slice(-8);
+  for (const box of $('check-group-options').querySelectorAll('input')) box.checked = record.suggested_groups.includes(box.value);
+  $('recommendation-hint').textContent = '추천 묶음 · ' + (record.suggested_groups.join(', ') || '기본 검사만') + ' · 추천 당시와 같은 완료 조건을 입력하세요.';
+  $('recommendation-hint').hidden = false;
+  notice('create-error', '');
+}
+$('recommendation-picker').addEventListener('toggle', () => {
+  if ($('recommendation-picker').open) loadRecentRecommendations();
+  else recentGeneration++;
+});
+$('recent-recommendation').addEventListener('change', () => {
+  const record = recentRecords.find(item => item.id === $('recent-recommendation').value);
+  $('create-recommendation').value = record?.id || '';
+  clearRecommendation();
+  if (record) applyRecommendation({...record, profile: $('create-profile').value});
+});
 function clearRecommendation() {
   recommendationGeneration++;
   loadedRecommendation = null;
+  $('recommendation-summary').textContent = '저장한 추천 사용 (선택)';
   $('recommendation-hint').hidden = true;
   $('load-recommendation').hidden = !$('create-recommendation').value.trim();
 }
-$('create-recommendation').addEventListener('input', clearRecommendation);
+function resetSavedRecommendation() {
+  $('create-recommendation').value = ''; $('recent-recommendation').value = '';
+  clearRecommendation();
+}
+$('create-recommendation').addEventListener('input', () => {
+  $('recent-recommendation').value = ''; clearRecommendation();
+});
 $('load-recommendation').addEventListener('click', async () => {
   const id = $('create-recommendation').value.trim(), profile = $('create-profile').value;
-  const generation = ++recommendationGeneration;
+  const generation = ++recommendationGeneration, ledger = state.ledger;
   try {
     const record = await request('/api/recommendations/' + encodeURIComponent(id));
-    if (generation !== recommendationGeneration || $('create-profile').value !== profile) return;
+    if (generation !== recommendationGeneration || !$('create-dialog').open || $('create-profile').value !== profile || state.ledger !== ledger) return;
     if (record.profile !== profile) throw new Error('현재 선택한 프로젝트 프로필과 추천이 다릅니다.');
-    loadedRecommendation = record;
-    for (const box of $('check-group-options').querySelectorAll('input')) box.checked = record.suggested_groups.includes(box.value);
-    $('recommendation-hint').textContent = '추천 묶음 · ' + (record.suggested_groups.join(', ') || '기본 검사만');
-    $('recommendation-hint').hidden = false;
-    notice('create-error', '');
+    $('recent-recommendation').value = recentRecords.some(item => item.id === id) ? id : '';
+    applyRecommendation(record);
   } catch (error) {
-    if (generation !== recommendationGeneration || $('create-profile').value !== profile) return;
+    if (generation !== recommendationGeneration || !$('create-dialog').open || $('create-profile').value !== profile || state.ledger !== ledger) return;
     clearRecommendation(); notice('create-error', error.message);
   }
 });
-$('create-dialog').addEventListener('close', () => { recommendationGeneration++; });
+$('create-dialog').addEventListener('close', () => {
+  recommendationGeneration++; recentGeneration++;
+  $('recommendation-picker').open = false;
+});
 $('create-close').addEventListener('click', () => $('create-dialog').close());
 $('create-profile').addEventListener('change', () => {
-  $('create-recommendation').value = ''; clearRecommendation();
   profileHint();
   $('create-isolate').checked = state.profiles.find(item => item.name === $('create-profile').value)?.config?.workspace?.isolate !== false;
 });
@@ -794,6 +861,7 @@ function renderConnections(result) {
   try { localStorage.setItem('agent-workflow-ledger', state.ledger); } catch (_) {}
 }
 $('workspace-ledger').addEventListener('change', () => {
+  if ($('create-dialog').open) $('create-dialog').close();
   state.ledger = $('workspace-ledger').value; state.generation++; state.tasks = []; state.jobs = []; state.profiles = []; state.readOnly = true; state.selected = null; state.detail = null; state.project = ''; state.projectData = null;
   state.listKey = ''; state.detailKey = ''; state.jobsKey = '';
   try { localStorage.setItem('agent-workflow-ledger', state.ledger); } catch (_) {}
@@ -802,5 +870,17 @@ $('workspace-ledger').addEventListener('change', () => {
 $('project-room').addEventListener('click', () => { state.selected = null; state.detail = null; state.detailKey = ''; renderList(); renderDetail(); });
 
 setSidebar(false); applyPreferences(); showView(state.view, false);
+const checkAdvisor = window.WorkflowCheckAdvisor?.mount({
+  profile: () => $('create-profile').value,
+  criteria: () => $('create-criteria').value.split('\n').map(line => line.trim()).filter(Boolean),
+  canManage: () => state.connected && !state.busy && !state.readOnly && Boolean(state.token) && $('create-dialog').open,
+  request: (path, payload) => request(path, {method:'POST', headers:{
+    'Content-Type':'application/json', 'X-Workflow-Token':state.token
+  }, body:JSON.stringify(payload)}),
+  applyGroups: names => {
+    resetSavedRecommendation();
+    for (const box of $('check-group-options').querySelectorAll('input')) box.checked = names.includes(box.value);
+  }
+});
 refresh(); setInterval(() => { if (!document.hidden) refresh(); }, 4000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });

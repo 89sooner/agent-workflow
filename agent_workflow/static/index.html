@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="/static/scene3d.css">
   <link rel="stylesheet" href="/static/saas.css">
   <script src="/static/observatory.js" defer></script>
+  <script src="/static/recommendation-advisor.js" defer></script>
   <script src="/static/app.js" defer></script>
 </head>
 <body data-view="observatory">
@@ -84,9 +85,16 @@
       <p>저장한 프로젝트 설정으로 작업 공간과 검사 조건을 준비합니다.</p>
       <label for="create-profile">프로젝트 설정<select id="create-profile" required><option value="">설정을 불러오는 중</option></select></label>
       <p id="profile-hint" class="muted"></p>
-      <label for="create-recommendation">저장한 추천 ID <small>선택</small><input id="create-recommendation" autocomplete="off"></label>
-      <button id="load-recommendation" class="button small" type="button" hidden>추천 묶음 불러오기</button>
-      <p id="recommendation-hint" class="muted" hidden></p>
+      <details id="recommendation-picker">
+        <summary id="recommendation-summary">저장한 추천 사용 (선택)</summary>
+        <div class="recommendation-fields">
+          <label for="recent-recommendation">최근 추천<select id="recent-recommendation" disabled></select></label>
+          <p id="recent-notice" role="status" hidden></p>
+          <label for="create-recommendation">추천 ID 직접 입력<input id="create-recommendation" autocomplete="off"></label>
+          <button id="load-recommendation" class="button small" type="button" hidden>추천 묶음 불러오기</button>
+          <p id="recommendation-hint" role="status" hidden></p>
+        </div>
+      </details>
       <fieldset id="create-check-groups" hidden>
         <legend>작업에 추가할 검사 묶음</legend>
         <div id="check-group-options"></div>
@@ -94,6 +102,15 @@
       <label for="create-id">작업 ID <small>비우면 자동 생성</small><input id="create-id" pattern="[A-Za-z0-9][A-Za-z0-9_.\-]{0,79}" placeholder="자동 생성" autocomplete="off"></label>
       <label for="create-goal">끝내려는 작업<textarea id="create-goal" required rows="2" maxlength="2000"></textarea></label>
       <label for="create-criteria">완료 조건 <small>한 줄에 하나씩 입력</small><textarea id="create-criteria" required rows="3" maxlength="3000"></textarea></label>
+      <details id="advisor-options" hidden>
+        <summary>AI로 검사 묶음 추천받기 <small>선택</small></summary>
+        <button id="advisor-preview" type="button" class="button small">보낼 내용 미리보기</button>
+        <p id="advisor-providers"></p>
+        <pre id="advisor-input" tabindex="0" aria-label="모델에 보낼 입력" hidden></pre>
+        <button id="advisor-run" type="button" class="button small" hidden>모델에 보내 추천받기</button>
+        <div id="advisor-result" role="status" aria-live="polite"></div>
+        <button id="advisor-apply" type="button" class="button small" hidden>이 작업에 추천 묶음 적용</button>
+      </details>
       <div class="agent-name-fields"><label for="create-agent-name">구현 담당 이름 <small>선택</small><input id="create-agent-name" maxlength="120" placeholder="예: 주문 화면 담당"></label><label for="create-reviewer-name">리뷰 담당 이름 <small>선택</small><input id="create-reviewer-name" maxlength="120" placeholder="예: 주문 검토 담당"></label></div>
       <label class="checkbox-label"><input id="create-isolate" type="checkbox" checked>별도 작업 폴더와 브랜치에서 진행</label>
       <div id="create-error" class="notice error" role="alert" hidden></div>

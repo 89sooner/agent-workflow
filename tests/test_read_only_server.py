@@ -64,13 +64,15 @@ class ReadOnlyServerTests(unittest.TestCase):
                 self.assertEqual(state['tasks'][0]['id'], 'READ-1')
                 self.assertEqual(len(state['jobs']), 2)
                 self.assertEqual(state['profiles'], [])
+                self.assertEqual(get('/api/recommendations?profile=unknown')['recommendations'], [])
                 self.assertEqual(state['notifications'], [])
                 self.assertTrue(get('/api/observability?task_id=READ-1')['legacy'])
                 with writer.db:
                     task['goal'] = 'live update from existing writer'
                     writer.db.execute('UPDATE tasks SET data=?', (json.dumps(task),))
                 self.assertEqual(get('/api/state')['tasks'][0]['goal'], task['goal'])
-                for path in ['/api/queue', '/api/stop', '/api/hold', '/api/tasks', '/api/resume']:
+                for path in ['/api/queue', '/api/stop', '/api/hold', '/api/tasks', '/api/resume',
+                             '/api/check-advisor/preview', '/api/check-advisor/run']:
                     request = Request(url + path, data=b'{}', headers={'X-Workflow-Token': state['csrf_token']})
                     with self.assertRaises(HTTPError) as error:
                         urlopen(request, timeout=5)

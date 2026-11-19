@@ -1,6 +1,7 @@
 // Browser regression checks use intercepted API fixtures, never real queue mutations.
 // Run: node tests/ui_scenarios.mjs [http://127.0.0.1:8776]
 import assert from 'node:assert/strict';
+import {exerciseAdvisor} from './advisor_scenarios.mjs';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -32,6 +33,9 @@ let tasks = [task, stale], jobs = [], fail = false;
 let projectExecutions = null, readOnly = false;
 let profiles = [{ name: 'fixture-project', config: { check_groups: { ui: [['node', '--version']], docs: [['python3', '--version']] }, project: '/fixture/project', owner: 'claude', reviewer: 'codex' } }];
 let expectedGroups = null;
+const recentQueries = [];
+let recentMode = 'list', finishOldList;
+const delayedRecentList = new Promise(resolve => { finishOldList = resolve; });
 let finishStaleLookup;
 const delayedLookup = new Promise(resolve => { finishStaleLookup = resolve; });
 const requests = [];
@@ -43,6 +47,17 @@ await page.route('**/api/**', async (route) => {
   if (path === '/api/project-observability') return route.fulfill({ json: { schema_version: 1, tasks, agents: [], events: [], executions: projectExecutions ?? jobs } });
   if (path === '/api/state') return route.fulfill({ json: { tasks, jobs, profiles, notifications: [], daemon: { running: true }, version: 'fixture', csrf_token: 'fixture-token', read_only: readOnly } });
   if (path.startsWith('/api/job-log/')) return route.fulfill({ json: { text: '<script>window.unsafe=true</script>\nfixture log output', truncated: false } });
+  if (path === '/api/recommendations') {
+    const query = new URL(req.url()).searchParams;
+    recentQueries.push([query.get('profile'), query.get('ledger')]);
+    if (recentMode === 'delayed') {
+      await delayedRecentList;
+      return route.fulfill({json:{recommendations:[{id:'REC-outdated-list',suggested_groups:['docs'],created_at:'2026-11-01T09:00:00Z'}]}});
+    }
+    if (recentMode === 'error') return route.fulfill({status:404,json:{error:'old server'}});
+    return route.fulfill({json:{recommendations:recentMode === 'empty' ? [] : [
+      {id:'REC-recent',suggested_groups:['ui'],created_at:'2026-11-19T09:00:00Z',profile_digest:'fixture'}]}});
+  }
   if (path === '/api/recommendations/REC-old') {
     await delayedLookup;
     return route.fulfill({status:400, json:{error:'expired lookup'}});
@@ -179,7 +194,34 @@ try {
   console.log('PASS 375/390/768/1440 widths, mobile accessible refresh, reduced motion');
 
   await page.locator('#filter').selectOption('all');
+  await exerciseAdvisor(page);
   await page.locator('#new-task').click();
+  assert.equal(recentQueries.length, 0);
+  const picker = page.locator('#recommendation-summary');
+  const recentSelect = page.locator('#recent-recommendation');
+  recentMode = 'delayed';
+  await Promise.all([page.waitForRequest(req => new URL(req.url()).pathname === '/api/recommendations'), picker.click()]);
+  await page.locator('#create-close').click();
+  await page.locator('#new-task').click();
+  recentMode = 'empty';
+  await picker.click();
+  await page.getByText('이 프로필의 최근 추천이 없습니다.', {exact:true}).waitFor();
+  assert.equal(await recentSelect.isDisabled(), true);
+  assert.equal(await page.locator('#create-submit').isEnabled(), true);
+  assert.deepEqual(recentQueries.at(-1), ['fixture-project', 'fixture']);
+  const staleList = page.waitForResponse(res => new URL(res.url()).pathname === '/api/recommendations');
+  finishOldList();
+  await (await staleList).finished();
+  assert.equal(await recentSelect.locator('option[value="REC-outdated-list"]').count(), 0);
+  await picker.click();
+  recentMode = 'error';
+  await picker.click();
+  await page.getByText(/최근 목록을 불러오지 못했습니다/).waitFor();
+  assert.equal(await page.locator('#create-submit').isEnabled(), true);
+  await picker.click();
+  recentMode = 'list';
+  await picker.click();
+  await recentSelect.locator('option[value="REC-recent"]').waitFor({state:'attached'});
   await page.locator('#create-recommendation').fill('REC-old');
   await Promise.all([page.waitForRequest(req => req.url().includes('/REC-old')), page.locator('#load-recommendation').click()]);
   await page.locator('#create-recommendation').fill('REC-demo');
@@ -189,6 +231,9 @@ try {
   finishStaleLookup();
   await (await staleResponse).finished();
   assert.equal(await page.getByRole('checkbox', {name:'ui (1개 검사)'}).isChecked(), true);
+  assert.equal(await page.locator('#create-recommendation').inputValue(), 'REC-demo');
+  await recentSelect.selectOption('REC-recent');
+  assert.equal(await page.locator('#create-recommendation').inputValue(), 'REC-recent');
   await page.locator('#create-id').fill('UI-NEW');
   await page.locator('#create-goal').fill('새 작업 등록과 실행 제어');
   await page.locator('#create-criteria').fill('목표에 맞는 검사\n독립 리뷰 통과');
@@ -199,7 +244,7 @@ try {
   assert.deepEqual(requests.at(-1).body.criteria, ['목표에 맞는 검사', '독립 리뷰 통과']);
   assert.equal(requests.at(-1).body.isolate, true);
   assert.deepEqual(requests.at(-1).body.check_groups, ['ui']);
-  assert.equal(requests.at(-1).body.recommendation_id, 'REC-demo');
+  assert.equal(requests.at(-1).body.recommendation_id, 'REC-recent');
   await page.getByText('검사 추천과 실제 작업 결과', {exact:true}).click();
   await page.getByRole('group', {name:'실제로 필요했던 검사 묶음'}).getByRole('checkbox', {name:'ui', exact:true}).check();
   events = [...events, {at:'2026-10-09T00:00:00Z',kind:'checkpoint',data:{summary:'updated while editing'}}];
@@ -208,7 +253,7 @@ try {
   assert.equal(await page.locator('#recommendation-detail').evaluate(el => el.open), true);
   assert.equal(await page.getByRole('group', {name:'실제로 필요했던 검사 묶음'}).getByRole('checkbox', {name:'ui', exact:true}).isChecked(), true);
   await page.getByRole('button', {name:'필요 묶음 저장'}).click();
-  await page.waitForFunction(() => document.getElementById('action-message').textContent.includes('평가를 저장'));
+  await page.locator('#action-message', {hasText:'평가를 저장'}).waitFor();
   assert.deepEqual(requests.at(-1).body, {task_id:'UI-NEW', expected_groups:['ui']});
   await page.locator('#nav-tasks').click();
   await page.locator('.execution-options summary').click();
