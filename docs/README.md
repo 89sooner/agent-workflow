@@ -1,38 +1,42 @@
-# 문서 안내
+# 문서 찾기
 
-2026년 11월 20일 갱신. [최신 사용·운영 매뉴얼](USER_GUIDE.ko.md)에서 전체 기능을 찾고, [상세 사용 사례](USE_CASES.ko.md)에서 필요한 절차를 따라 할 수 있다.
+[처음 설치하기](USER_GUIDE.ko.md#setup) · [8776 관리 화면 열기](http://127.0.0.1:8776/) · [전체 CLI 명령](USER_GUIDE.ko.md#commands) · [저장소 홈](../README.md)
 
-| 문서 | 현재 역할 |
+## 일상 개발
+
+| 필요한 결과 | 절차와 예제 |
 |---|---|
-| [사내 준비 검증](READINESS_VALIDATION_2026-11-05.ko.md) | 실제 병렬 호스트·24명 성능·격리 복구와 파일럿 선택 전환 결정 |
-| [에이전트 통신 언어](AGENT_COMMUNICATION.ko.md) | ASD-STE100 기본 지시, 검토·피드백·인계, 원문 보존과 관측 전용 범위 |
-| [통합 관제실 사용 안내](OBSERVATORY_REL01_USAGE.ko.md) | 통합 화면·진단·대기 정렬·알림; 운영 모드와 파일럿 미완료 구분 |
-| [관제실 개선 구현 계획](OBSERVATORY_IMPLEMENTATION_PLAN.ko.md) | 조사 기반 REL-01~04, FR·WP·수용 기준·운영 보존; 검토 상태 |
-| [유사 앱 조사와 개선 후보](SIMILAR_APPS_RESEARCH_2026-11-05.ko.md) | 2026-11-05 공식 자료 조사, 기존 기능 비교와 P0~P2 제안; 구현 계획 승인과 구분 |
-| [화면에서 프로젝트 연결](CONNECTION_SETUP.ko.md) | UX-01~03: 첫 연결, 빈 화면·오류 진단, 관측 설정과 실행 권한 |
-| [OpenCode 관측](OPENCODE_OBSERVATION.ko.md) | 연결·자동 세션 발견·인증·지원 범위; 소스 통합과 운영 적용 구분 |
-| [서비스 사용성 개선 계획](USABILITY_SERVICE_PLAN.ko.html) | 실제 화면 진단, 첫 연결·일상 관리 개선 우선순위와 수용 기준 |
-| [작업자 3D·이름표·성능](DETAILED_WORKERS.ko.md) | 확대·선택·이름표 충돌 회피, 1/4/12/24명 합성 브라우저 검증 |
-| [React 실행 관제실](REACT_MISSION_CONTROL.ko.md) | 기본 주소 `/` · `/mission`. 새 작업 등록, 추천, 작업·실행 관리, 이름·그래프·3D·이력 재생 |
-| [프로젝트 연결](PROJECT_OBSERVATORY.ko.md) | 원장 자동 발견, connect/start/watch, 이름 등록과 관측 범위 |
-| [운영 절차](OPERATIONS.ko.md) | 8776/8777 배치, 큐·직접 실행 확인, 백업·반영·health·복구 |
-| [이전 SaaS 화면 기록](SAAS_OBSERVATORY.ko.md) | 2026-11-04 정적 화면의 구현·검증 자료 |
-| [관측 API와 증거](OBSERVABILITY.ko.md) | task/job/run/span/event, 상태·완료·재생·로그 계약 |
-| [자동화](AUTOMATION_V0.3.ko.md) | profile, 격리 작업, 검증, 리뷰, 큐, release 명령 |
-| [후속 진행 현황](FOLLOWUP_STATUS.ko.md) | UX-01~03 완료·남은 범위·다음 3D 형상 작업·배포/검증 구분 |
-| [v0.2 기본 개념과 파일럿](USER_GUIDE_V0.2.ko.md) | 2026년 10월 당시의 사용 기록 |
-| [초기 구현 계획](IMPLEMENTATION_PLAN.md) | 2026-10의 구현 이력; 현재 미완료 목록으로 사용하지 않음 |
-| [조사 근거](OBSERVABILITY_RESEARCH.ko.md) | 2026-10-30 조사 결과; 최신 제품 조사로 간주하지 않음 |
-| [초기 구성도](workflow-blueprint.html) | 2026-10-08 설계 시뮬레이션; 실제 관측 화면이 아님 |
+| Katakuri 목표 등록·백그라운드 실행 | [화면에서 시작](KATAKURI_GOAL.ko.md#web) · [CLI로 시작](KATAKURI_GOAL.ko.md#cli) · [작업 범위에 맞는 프로필](../profiles/README.md) |
+| 멈춘 목표의 다음 행동 결정 | [근거 제출과 예산 조정](KATAKURI_GOAL.ko.md#resume) · [완료 판정 기준](KATAKURI_GOAL.ko.md#acceptance) |
+| Claude 작업을 Codex에서 이어받기 | [마감과 재개 명령](USER_GUIDE.ko.md#sessions) · [인계 실습](USE_CASES.ko.md#handoff) |
+| 테스트 선택·추천·측정 | [프로필과 검사 묶음](USER_GUIDE.ko.md#profiles) · [검사 추천 실습](USE_CASES.ko.md#recommend) · [추천 품질 평가](USE_CASES.ko.md#measure-checks) |
+| 구현부터 리뷰까지 맡기기 | [수행 단계와 완료 증거](USER_GUIDE.ko.md#execution) · [실행 예제](USE_CASES.ko.md#implement) · [에이전트 지시·인계 언어](AGENT_COMMUNICATION.ko.md) |
+| 순차 실행·보류·재개 | [큐와 작업 의존성](USER_GUIDE.ko.md#queue) · [중단에서 복구하는 예제](USE_CASES.ko.md#dependencies) |
+| 작업이 병합·배포됐는지 확인 | [릴리스 단계와 결과](USER_GUIDE.ko.md#release) · [상태 조회 예제](USE_CASES.ko.md#deployment) |
 
-`verification*.json`, `unit-tests*.log`와 기존 이미지는 당시 검증 증거이며 현재 실행 결과로 덮어쓰지 않는다.
-새 검증 결과는 별도 시점·SHA로 기록한다. 상세 로컬 운영 증거는 `artifacts/`에 보존하며,
-공개 저장소에는 운영 DB·로그·비공개 프롬프트·인증 정보를 올리지 않는다.
+## 화면과 세션 관측
 
-- [상태별 작업 공간](STATE_ROOMS.ko.md): 상태 분류, 휴게 의자, 연결 미확인·과거 기록 구분, 선택 확대.
+| 필요한 화면 또는 정보 | 사용법 |
+|---|---|
+| React 작업 등록·실행 제어·테마 | [화면 조작](REACT_MISSION_CONTROL.ko.md#controls) · [새 작업과 AI 검사 추천](REACT_MISSION_CONTROL.ko.md#register) · [작업·실행 관리](REACT_MISSION_CONTROL.ko.md#manage) |
+| 프로젝트를 연결하거나 빈 화면 진단 | [처음 연결과 문제 해결](CONNECTION_SETUP.ko.md) · [원장 발견과 CLI 연결](PROJECT_OBSERVATORY.ko.md) |
+| 일반 Claude·Codex·OpenCode 세션 보기 | [플러그인 설치·진단·해제](NATIVE_PLUGINS.ko.md) · [OpenCode 서버 연결](OPENCODE_OBSERVATION.ko.md) |
+| 알림, 세션 계층, 북마크, 시간과 근거 | [통합 화면 사용법](OBSERVATORY_REL01_USAGE.ko.md) · [실행 기록·로그·재생](OBSERVABILITY.ko.md) |
+| 3D 작업자와 방의 상태 해석 | [작업 공간의 상태](STATE_ROOMS.ko.md) · [작업자 선택·확대](DETAILED_WORKERS.ko.md) |
 
-- [WP 없는 일상 세션 파일럿](NATIVE_PILOT.ko.md): Claude 훅·OpenCode 통합 관측, 확인 요청함, 별도 이력·재방문.
+## 서버 운영과 도구 개발
 
-WP 없는 Codex 관측과 Claude Code·OpenCode·Codex 플러그인 설치/진단/해제: [세 도구 플러그인 안내](NATIVE_PLUGINS.ko.md). 기존 관리형 WP 기능은 유지됩니다.
+- 관리 서버를 변경할 때는 [포트와 원장](OPERATIONS.ko.md#servers), [백업·재시작·확인](OPERATIONS.ko.md#rollout), [복구](OPERATIONS.ko.md#rollback) 순서로 확인합니다.
+- 작업 실패나 환경 이전에는 [CLI 복구 안내](USER_GUIDE.ko.md#ops)를 사용합니다. 제품 코드를 변경할 때는 [개발 환경과 검사 명령](DEVELOPMENT.ko.md), [관측 API 계약](OBSERVATORY_API_CONTRACT.ko.md)을 참고합니다.
 
-- [2026-11-05 통합 관제실 검증·미완료 조건](OBSERVATORY_VALIDATION_2026-11-05.ko.md)
+## 이전 버전과 검증 기록
+
+| 자료 | 찾아볼 내용 |
+|---|---|
+| [v0.2 사용 기록](USER_GUIDE_V0.2.ko.md) · [v0.3 자동화](AUTOMATION_V0.3.ko.md) · [후속 작업 기록](FOLLOWUP_STATUS.ko.md) | 초기 파일럿, 작업 프로필, 복구와 릴리스 도입 과정 |
+| [일상 세션 파일럿](NATIVE_PILOT.ko.md) · [이전 SaaS 화면](SAAS_OBSERVATORY.ko.md) | 초기 연결 절차와 당시 화면 |
+| [초기 계획](IMPLEMENTATION_PLAN.md) · [구성도](workflow-blueprint.html) · [관제실 계획](OBSERVATORY_IMPLEMENTATION_PLAN.ko.md) · [사용성 계획](USABILITY_SERVICE_PLAN.ko.html) | 설계 시점의 요구사항과 수용 기준 |
+| [관측 설계 조사](OBSERVABILITY_RESEARCH.ko.md) · [유사 앱 조사](SIMILAR_APPS_RESEARCH_2026-11-05.ko.md) | 설계 결정을 내릴 때 사용한 비교 자료 |
+| [통합 관제실 검증](OBSERVATORY_VALIDATION_2026-11-05.ko.md) · [준비 검증](READINESS_VALIDATION_2026-11-05.ko.md) · [파일럿 진행표](../pilots/READINESS_PILOT.ko.md) | 검증 당시의 증거, 적용 범위와 남은 조건 |
+
+이 디렉터리의 `verification*.json`, `unit-tests*.log`, `images/`에는 해당 시점의 결과가 보관되어 있습니다.

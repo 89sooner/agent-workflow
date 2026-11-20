@@ -2,15 +2,17 @@
 
 이 문서는 **무엇을 입력하고, 어느 결과를 보고, 어떤 경우에 다음 단계로 넘어가는지** 설명한다. 설치와 전체 명령 목록은 [사용 매뉴얼](USER_GUIDE.ko.md)에 있다.
 
-| 지금 할 일 | 읽을 사례 |
+| 지금 할 일 | 바로 가기 |
 |---|---|
-| 처음 등록한 검사가 실제로 동작하는지 확인 | 1. 임시 Git 프로젝트에서 처음부터 마감까지 |
-| 어떤 테스트를 추가할지 결정 | 2. 단일 모델 추천 / 3. 독립 모델과 비교 / 4. 추천 품질 측정 |
-| Claude에서 멈춘 일을 Codex에서 재개 | 5. 세션 인계와 증거의 최신성 |
-| 실제 프로젝트의 백테스트나 화면을 변경 | 6. 프로젝트별 검사 선택 |
-| 구현과 독립 코드 리뷰를 맡기거나 대기열에서 복구 | 7. 관리형 작업 / 8. 선행 작업과 대기열 |
-| 배포가 됐는지, 재시도해도 되는지 확인 | 9. 병합·배포·상태 점검 |
-| 등록하지 않은 세션 관측 또는 반복 업무 분석 | 10. 프로젝트 연결·관측 / 11. 사용 패턴 분석 |
+| 처음 사용할 때 | [임시 프로젝트에서 검증과 마감](#demo) |
+| 검사를 선택하거나 추천을 평가할 때 | [검사 묶음 추천](#recommend) · [두 모델의 검사 선택 비교](#dual-review) · [추천 품질 측정](#measure-checks) |
+| 하던 작업을 이어갈 때 | [Claude에서 Codex로 인계](#handoff) |
+| 코드 변경을 맡길 때 | [프로젝트별 검사 선택](#profile-examples) · [구현과 독립 리뷰](#implement) |
+| 실행·배포를 확인할 때 | [큐·선행 작업·중단 복구](#dependencies) · [병합·배포 상태 조회](#deployment) |
+| 여러 세션에서 반복 업무를 찾을 때 | [일상 세션 관측](#observe) · [입력 패턴 분석](#patterns) |
+| Katakuri 목표를 한 번 등록하고 끝까지 실행 | [목표 모드 사용법](KATAKURI_GOAL.ko.md) |
+
+<a id="demo"></a>
 
 ## 1. 임시 Git 프로젝트에서 처음부터 마감까지
 
@@ -68,6 +70,8 @@ aw release-status LIMIT-20
 
 **기대 결과.** `verification.passed`와 `verification_is_current`가 모두 참이고 `finish` 후 작업이 `completed`가 된다. 릴리스 조회 결과는 `local_completion=succeeded`, `merge=not_configured`다. 실패를 연습하려면 마감 **전**에 화면 파일을 19로 두고 `check`를 실행한다. `show`에서 실패한 명령을 확인하고 값을 바로잡은 뒤 다시 검사한다. 이 실습에서 선택한 `reviewer=none`은 독립 코드 리뷰를 수행하지 않는다.
 
+<a id="recommend"></a>
+
 ## 2. 변경 내용에 맞는 검사 추천 받기
 
 **웹에서 기록 없이 사용하기.** React 관제실 `/` 또는 `/mission` 상단에서 **새 작업 등록**을 열고 프로필·목표·완료 조건을 입력한다. 추천이 필요 없으면 필요한 검사 묶음을 직접 선택하거나 공통 검사만으로 등록한다. **AI로 검사 묶음 추천받기 → 보낼 내용 미리보기**는 모델 사용량을 쓰지 않는다. 보낼 변경과 완료 조건, 공급자를 확인한 뒤 **모델에 보내 추천받기**를 누른다. 모델의 선택과 이유를 검토하고 **추천 묶음 선택**을 누르면 폼에 반영된다. 추천 저장이나 시간 측정 없이 작업을 등록할 수 있다. 보낼 입력이 바뀌었다는 메시지가 나오면 새 미리보기를 확인한다. 이전에 저장해 둔 추천은 **저장한 추천 사용**에서 최근 12건 중 하나를 선택할 수 있고, 오래된 추천은 ID로 조회할 수 있다. 다른 원장을 보는 중이면 **관리 원장에서 새 작업 등록**으로 기본 원장에 전환할 수 있다. 읽기 전용 서버는 관측·조회에 사용한다.
@@ -89,6 +93,8 @@ aw recommend-checks limit-demo --criterion '20이 허용 범위에 있고 표시
 정상 응답에서 `primary.reason`, `suggested_groups`, `checks`를 읽는다. `checks`에는 기본 검사가 포함된다. 실제 명령은 작업 등록 뒤 `check`가 실행한다. 추천을 원장에 연결하려면 사례 3의 `--record`와 사례 4의 `--recommendation`을 사용한다. 단발 JSON 출력만 필요한 경우에는 이 예제처럼 `--record`를 생략한다. 기존 작업의 검사 계약을 바꾸려면 해당 작업에서 `check-add`를 사용하고 새로운 검증 증거를 확보한다.
 
 **변형.** 브랜치에서 이미 커밋한 수정까지 포함하려면 `--base main` 또는 비교할 로컬 커밋 SHA를 쓴다. 연결된 별도 작업 트리는 `--project /path/to/worktree`로 지정한다. 다른 저장소를 가리키면 명령이 실패한다. 선택 가능한 묶음이 없는 프로필은 공통 검사만 반환하며 모델을 호출하지 않는다.
+
+<a id="dual-review"></a>
 
 ## 3. 여러 구성요소의 변경을 두 모델이 독립적으로 검토하기
 
@@ -112,6 +118,8 @@ aw recommend-checks limit-demo --criterion '범위와 화면 표시가 일치한
 | `status=review_incomplete` | 첫 선택만 남고 두 번째 호출이 실패했다. 종료 코드 3과 `review.error`를 확인한다. 두 모델의 합의로 취급하지 않는다. |
 
 두 번째 모델은 **검사 선택**을 검토한다. 관리형 작업의 독립 **코드 리뷰**는 사례 7의 절차에서 실제 변경 및 검사 결과를 본다. 추천 결과만으로 작업 완료나 릴리스 상태가 바뀌지 않는다.
+
+<a id="measure-checks"></a>
 
 ## 4. 추천 품질을 실제 작업에서 측정하기
 
@@ -167,6 +175,8 @@ aw start '표시값 확인' --project . --recommendation "$rec_id" --no-isolate 
 
 자동으로 한 모델만 부르는 작업은 이중 검토의 효과를 관측할 수 없다. 필요한 업무 유형에서 검토자를 가끔 직접 지정해 비교 표본을 갱신한다. 초기 표본은 개인의 기준을 조정하는 용도로 쓰고 실제 결함 발견·전체 생산성 평가는 별도로 확인한다.
 
+<a id="handoff"></a>
+
 ## 5. Claude에서 마감하고 다음 Codex 세션에서 재개하기
 
 **상황.** 짧게 고친 작업에 관리형 작업 ID가 없다. 프로젝트 디렉터리에서 다음과 같이 실행한다.
@@ -213,6 +223,8 @@ agent-workflow resume-time report
 
 보고서의 `manual`과 `pickup`에서 `finished`, `median_elapsed_ms`, `reexplanations`, `wrong_picks`를 비교한다. 예컨대 평소 100초, pickup 50초라면 `median_saved_ms=50000`이다. `close.median_elapsed_ms`는 초안 타이머를 켠 경우에만 나오며 `close.median_tool_ms`는 새 메모의 Git 조회와 Markdown 쓰기에 걸린 시간이다. 둘은 밀리초 단위다. 평소 방식에서도 마감 메모를 쓰던 사람이라면 실제로 더 들어간 준비 비용만 별도로 고려한다. 반복해 기억한 같은 작업·다른 규모의 작업·장시간 방치한 시계는 비교를 왜곡할 수 있다.
 
+<a id="profile-examples"></a>
+
 ## 6. Katakuri 백테스트나 agent-workflow 화면을 바꿨을 때
 
 `agent-workflow` 소스 루트에서 다음 프로필 중 하나를 등록한다. `profile save`는 같은 이름의 저장 프로필을 갱신하므로 개인 프로필을 유지하려면 새 이름을 사용한다.
@@ -230,6 +242,8 @@ agent-workflow profile checks aw-dev --check-group dashboard
 
 GitHub의 `Workflow verification`을 확인할 때는 Chromium 설치 단계와 대시보드 수용 검사 단계를 각각 확인한다. 브라우저 작업은 Playwright 1.51.1이 지원하는 Ubuntu 24.04 러너를 사용한다. 실행 옵션을 고치고 있다면 로컬 새로고침이나 주기적인 상태 조회 뒤에도 잘못된 값의 오류가 표시되는지 확인한다.
 
+<a id="implement"></a>
+
 ## 7. 구현과 독립 코드 리뷰를 실제로 맡기기
 
 **준비.** Git 프로젝트, 로그인한 모델 CLI, 완료 조건, 실제 실행 가능한 검사 명령이 필요하다. 예시는 `aw-dev`를 등록한 저장소에서 실행한다.
@@ -245,6 +259,8 @@ agent-workflow run VIEW-21 --dry-run
 
 직접 구현하는 경우에는 `checkpoint`, `check`, `brief --role review`, `review-import`, `finish`를 순서대로 쓴다. 같은 공급자의 새 독립 세션을 원할 때의 `codex-session`은 실제 네이티브 실행 영수증이 필요하다. 직접 작성한 리뷰 JSON을 이 영수증으로 대체할 수 없다. [검토 입력과 명령 형식](../skills/agent-workflow/references/commands.md)
 
+<a id="dependencies"></a>
+
 ## 8. 작업 A가 끝난 뒤에만 B를 실행하고 중단에서 복구하기
 
 **준비.** 실제 목표와 검사를 가진 A·B가 같은 원장에 등록돼 있어야 한다. 아래는 작업 ID가 `API-1`, `WEB-2`인 경우다.
@@ -259,6 +275,8 @@ A의 실제 병합이 B의 입력이라면 `merged`와 해당 릴리스 설정�
 
 `batch pause feature-set`은 이후 예약을 멈춘다. 이미 실행 중인 개별 작업에는 `stop JOB_ID`를 사용한다. 중단 이유와 로그를 확인한 후 `resume JOB_ID`가 동일 설정으로 다시 큐에 넣는지 `jobs`로 확인한다. 작업 단위 보류는 `hold TASK_ID --reason '선행 결과 확인 중'`과 `unhold TASK_ID`로 관리한다.
 
+<a id="deployment"></a>
+
 ## 9. “배포됐어?”라는 질문에 답하기
 
 먼저 `agent-workflow release-status TASK_ID`를 실행한다. 조회는 작업 폴더가 없어도 남은 원장 기록을 읽을 수 있다.
@@ -272,11 +290,15 @@ A의 실제 병합이 B의 입력이라면 `merged`와 해당 릴리스 설정�
 
 릴리스를 새로 구성할 때는 원격 저장소, 기준·작업 브랜치, 허용 경로, 배포·점검 명령을 작업별로 지정한다. `pipeline ID --dry-run`에서 대상을 확인한 뒤 실행하며, 불확실한 적용을 다시 수행하기로 결정한 경우에만 `release ID --retry-deploy`를 쓴다. `release-status`의 기록 시각과 리비전은 현재 서비스의 실시간 응답을 뜻하지 않는다. [릴리스 설정 예제](../skills/agent-workflow/references/commands.md)
 
+<a id="observe"></a>
+
 ## 10. 여러 프로젝트와 일반 세션 관측하기
 
 **원장이 여러 개인 경우.** 관심 프로젝트에서 `connect`로 작업 원장을 연결한다. 발견 후보가 여럿이면 `--ledger`와 `--registration-home`을 지정한다. 이후 `start '작업 목표' --criterion '확인 기준'`이 반환하는 `state_home`과 작업 ID를 기록한다. 다른 원장의 상세 조회는 `agent-workflow --home 경로 show ID`를 사용한다.
 
 **관측만 하는 경우.** `watch --port 8877`로 띄운 관제실의 프로젝트 연결 화면에서 원장이나 OpenCode 서버를 연결한다. /mission의 작업자·활동·근거에서 마지막 수신 시각과 출처를 확인한다. WP 없는 Claude·Codex 세션을 보려면 해당 프로젝트의 네이티브 관측 설정과 신뢰 절차가 필요하다. 화면이 비어 있으면 worker를 추가로 시작하기 전에 대상 프로젝트 경로, 공급자 등록, 마지막 이벤트를 확인한다. [세션 연결 및 진단](CONNECTION_SETUP.ko.md)
+
+<a id="patterns"></a>
 
 ## 11. 다음에 자동화할 일을 입력 기록에서 찾기
 
