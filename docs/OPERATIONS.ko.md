@@ -1,6 +1,10 @@
 # 관제실 운영 반영과 복구
 
-2026년 11월 20일 갱신. 현재 WSL 로컬 배치와 변경 전 점검을 설명한다.
+[문서 찾기](README.md) · [포트와 원장](#servers) · [운영 반영](#rollout) · [실패와 복구](#rollback)
+
+이 절차는 관제실 프로그램을 업데이트할 때 사용한다. 특정 개발 작업의 배포 여부는 [작업별 릴리스 상태](USER_GUIDE.ko.md#release)에서 확인한다.
+
+<a id="servers"></a>
 
 ## 대상과 경계
 
@@ -32,7 +36,9 @@ process_identity·read_only를 확인하고 `/proc/<pid>/cmdline`, cwd, 실제 �
 `connections.json`과 `opencode.json`은 해당 관제실의 home에 저장된다. 기존 연결을 유지하려면
 업그레이드·이전 시 이 파일도 보존한다. OpenCode 인증 환경변수는 새 서버 프로세스에 별도로 전달한다.
 읽기 전용 연결을 위해 기존 관리 서버를 중단할 필요는 없다. 별도 observer home과 빈 포트의
-`watch`에서 연결 UI를 사용할 수 있다. 2026-11-05 사용자는 이번 통합 관제실 변경의 운영 반영도 승인했다. 배포 전후 상태와 실제 브라우저 결과를 별도로 기록한다.
+`watch`에서 연결 UI를 사용할 수 있다. 배포 전후 상태와 실제 브라우저 결과를 별도로 기록한다.
+
+<a id="rollout"></a>
 
 ## 반영 순서
 
@@ -41,19 +47,19 @@ process_identity·read_only를 확인하고 `/proc/<pid>/cmdline`, cwd, 실제 �
    통과로 바꾸거나 native receipt를 수작업으로 만들지 않는다.
 2. 실제 `origin`과 `main`을 fetch한다. 보호 규칙과 CI를 확인한 PR을 병합하고 병합 SHA를 고정한다.
 3. 운영 checkout의 미커밋 변경을 확인한다. 사용자의 변경을 reset/clean으로 제거하지 않는다.
-4. 읽기 전용 SQL로 두 원장의 queued/running jobs, 활성 batch를 확인한다. jobs가 비어 있어도
-   `run/check/pipeline/release` 직접 실행이 있을 수 있으므로 실제 프로세스까지 확인한다.
+4. 대상 원장의 queued/running jobs와 활성 batch를 읽기 전용으로 확인한다. jobs가 비어 있어도
+   `run/check/pipeline/release` 및 `katakuri-goal run` 직접 실행이 있을 수 있으므로 실제 프로세스까지 확인한다.
    진행 작업을 임의 중단하지 않고 완료 또는 안전한 반영 시점을 기다린다.
 5. SQLite online backup으로 DB와 스키마를 보존하고 이전 소스 SHA, 서버 PID/identity/cwd/모드,
    jobs·batches 스냅샷을 남긴다. 활성 WAL이 있는 DB를 파일 하나만 복사하지 않는다.
-6. 8776·8777의 정확히 확인된 서버만 정상 종료한다. 8765와 다른 에이전트는 유지한다.
+6. 요청한 포트의 리스너·PID·시작 식별자·명령·원장이 일치하는 서버를 정상 종료한다. 8765와 다른 에이전트는 유지한다.
    운영 checkout을 검증한 `origin/main` SHA로 fast-forward한다.
 7. 재시작 직전 큐·batch를 재확인한다. 새 대기 작업이 생겼으면 일반 `serve`를 무심코 시작하지 않는다.
-   8776은 원래 관리 모드, 8777은 원래 읽기 전용 모드로 시작한다. 변경된 state home을 쓰지 않는다.
+   대상 포트의 기존 모드로 시작한다(8776 관리, 8777 읽기 전용). 변경된 state home을 쓰지 않는다.
 8. `/`와 `/mission`이 동일한 React 셸을 제공하는지 확인한다. `/static/mission.js`, `mission.css`, 아이콘·라이선스의 HTTP 상태와 파일 해시, CSP, 기본 원장과 H 원장의 조회 범위를 대조한다. 8776에서 기본 원장의 **새 작업 등록**과 다른 원장의 **관리 원장에서 새 작업 등록**을 열고 기존 프로필이 표시되는지 확인한다. 프로덕션 확인은 폼을 닫거나 로컬 미리보기 단계에서 끝낼 수 있다. 실제 브라우저에서 작업·이전 run·그래프·3D·이력을 선택한다.
    연결 UI의 지원 범위, 빈 화면·오류 안내, 각 서버의 설정/관리 권한도 확인한다.
    신규 연결 저장 검사는 운영 서버 대신 별도 observer/fixture에서 먼저 수행한다.
-9. 운영 HEAD = `origin/main` = 배포 목표 SHA인지 확인하고, 실제 8776/8777 URL과 health를 기록한다.
+9. 운영 HEAD = `origin/main` = 배포 목표 SHA인지 확인하고, 반영한 포트의 URL과 health를 기록한다.
    합성 fixture 결과, 실제 원장 조회, 원격 CI, 독립 리뷰, 운영 반영은 별도 증거로 남긴다.
 
 ## 시작 명령의 의미
@@ -71,6 +77,8 @@ python3 -m agent_workflow --home /tmp/katakuri-h-local-queue-workflow-20261029  
 `serve --read-only`도 server.json/server.lock을 관리하므로 같은 home의 서버는 하나만 띄운다.
 별도 미리보기가 필요하면 별도 observer home에서 연결하고 `watch`를 사용한다.
 
+<a id="rollback"></a>
+
 ## 실패와 복구
 
 - 병합 전 검사/리뷰/CI 실패: 운영 소스를 바꾸지 않고 원인을 수정한다.
@@ -87,7 +95,11 @@ python3 -m agent_workflow --home /tmp/katakuri-h-local-queue-workflow-20261029  
 
 배포 전후 Python·서버·worker 코드가 같고 /api/capabilities 등 필요한 API가 정상 제공되는 경우에는 서버 재시작 없이 checkout을 fast-forward할 수 있다. 서버는 요청마다 정적 자산을 읽고 no-store로 제공한다. 이때도 원장 온라인 백업·jobs/batches·직접 실행·프로세스 식별자를 기록하고 배포 후 HTTP 해시 및 실제 브라우저를 검사한다. 서버·worker PID와 시작 식별자가 그대로인지 확인한다. 기존 탭은 새로고침해야 새 JS를 불러온다. API 미지원이나 Python 변경이 있으면 이 절차로 전체 배포를 완료했다고 판단하지 않는다.
 
-## 통합 관제실 릴리스의 운영 조건
+## 과거 반영 기록
+
+아래는 2026년 11월 5~6일 통합 관제실 릴리스의 대상과 검증 결과다.
+
+### 당시 운영 조건
 
 - 원래 모드와 home을 유지한다. 8776은 관리 모드와 기존 기본 home, 8777은 H home의 엄격한 읽기 전용 모드다.
 - 8776 `/overview`는 명시적으로 연결한 기본 원장과 H 원장을 함께 조회한다. 원장 DB를 합치지 않는다. 8777 `/mission`은 기존 H 직접 관측 URL을 유지한다.
@@ -97,7 +109,7 @@ python3 -m agent_workflow --home /tmp/katakuri-h-local-queue-workflow-20261029  
 - 작업 원장: `/tmp/aw-observatory-release-state-20261105`, 작업 `AW-OBS-PUBLISH-20261105`. 실제 배포/health·브라우저 증거: `/tmp/aw-observatory-deploy-20261105/`. 토큰·DB·전체 로그는 공개 Git에 포함하지 않는다.
 - 기능 사용법: [통합 관제실 사용 안내](OBSERVATORY_REL01_USAGE.ko.md). 개발 검증과 잔여 조건: [검증 기록](OBSERVATORY_VALIDATION_2026-11-05.ko.md). 사용자 파일럿은 미완료, 비용 기능은 보류다.
 
-## 2026-11-06 격리 복구 리허설
+### 2026-11-06 격리 복구 리허설
 
 [준비 검증 기록](READINESS_VALIDATION_2026-11-05.ko.md)에 실제 리허설 결과를 남겼다.
 운영 기본·H 원장과 실제 관측 원장을 읽기 전용 online backup으로 복제하고,
@@ -113,7 +125,7 @@ python3 -m agent_workflow --home /tmp/katakuri-h-local-queue-workflow-20261029  
 새 기록을 보존하면서 과거 백업으로 자동 복원해도 된다는 승인은 아니다.
 실제 운영 복원은 장애 범위·마지막 정상 시점·이후 기록을 확인한 뒤 결정한다.
 
-## 2026-11-06 준비 검증 변경의 운영 반영
+### 2026-11-06 준비 검증 변경의 운영 반영
 
 실제 병렬 호스트 관측, OpenCode 2.x의 명시적 V2 패키지 진입점, 최대 24명 3D
 instancing·가구 공유·거리별 세부 형상·MSAA 조정과 복구 도구를 이번 릴리스에 포함한다.

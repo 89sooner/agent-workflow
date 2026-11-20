@@ -1,11 +1,13 @@
 # Agent Workflow 사용·운영 매뉴얼
 
-**어제 하던 일을 이어갈 때는 Git 저장소에서 `agent-workflow pickup`을 실행한다.** 작업 요약과 다음 행동을 확인할 수 있고, 같은 작업 트리·브랜치의 등록 작업이 있으면 현재 코드에서 검사가 여전히 유효한지도 확인할 수 있다. 새 기능을 구현부터 검사·독립 리뷰까지 맡길 때는 목표와 검사를 작업으로 등록한다.
+[문서 찾기](README.md) · [실전 사용 사례](USE_CASES.ko.md) · [CLI 명령 찾기](#commands)
 
-2026-11-20 로컬 소스 기준. 패키지 버전은 `agent-workflow --version`, 설치본의 실제 옵션은 `agent-workflow 명령 --help`에서 확인한다. 기존 릴리스에 같은 버전 문자열이 있을 수 있으므로 새 명령의 제공 여부는 도움말로 확인한다. 이 문서는 개발자·프로젝트 담당자·로컬 관제실 운영자를 위한 안내서다. 업무별로 준비물, 실행 순서, 기대 결과와 실패 후 조치가 필요한 경우 [상세 사용 사례](USE_CASES.ko.md)를 사용한다. 당시 파일럿과 제약은 [v0.2 기록](USER_GUIDE_V0.2.ko.md)에 보존했다.
+작업하던 Git 폴더에서 `agent-workflow pickup`을 실행하면 마지막 메모와 다음 행동을 확인할 수 있다. 아래에서 오늘 필요한 절차로 이동한다.
 
 | 하려는 일 | 시작할 곳 |
 |---|---|
+| 처음 설치하고 로컬 데모 확인 | [설치와 첫 확인](#setup) |
+| Katakuri에 최종 목표를 맡기거나 같은 목표 재개 | [목표 등록](KATAKURI_GOAL.ko.md#web) · [근거 제출과 예산 조정](KATAKURI_GOAL.ko.md#resume) |
 | 오늘 작업을 닫고 다른 에이전트로 이어가기 | [등록 없는 세션](#sessions) |
 | 어떤 검사를 붙일지 결정하고 작업 등록 | [프로필과 추천](#profiles) |
 | 대화형으로 진행하거나 두 에이전트에게 맡기기 | [구현·검사·리뷰](#execution) |
@@ -335,7 +337,7 @@ GitHub 경로에서는 검증된 변경을 커밋하고 원격 작업 브랜치�
 
 ## 9. CLI 찾아보기
 
-현재 CLI의 최상위 명령 51개를 용도별로 묶었다. 공통 형식은 `agent-workflow [--home PATH] 명령 …`이다. 명령의 필수 옵션·허용값은 설치본에서 `--help`로 확인한다.
+공통 형식은 `agent-workflow [--home PATH] 명령 …`이다. 명령의 필수 옵션·허용값은 설치본에서 `--help`로 확인한다.
 
 | 목적 | 명령과 용도 |
 |---|---|
@@ -346,6 +348,7 @@ GitHub 경로에서는 검증된 변경을 커밋하고 원격 작업 브랜치�
 | 준비·담당 | `prepare` 환경 준비, `assign` 구현·검토자 변경, `execution-config` 모델·한도 설정 |
 | 대화형 수행 | `brief` 역할별 입력, `checkpoint` 진행 기록·다음 행동, `check` 검사 실행, `result-schema` 리뷰 스키마, `review-import` 독립 검토 결과 등록, `finish` 로컬 완료 |
 | 자동 수행·인계 | `run`·`pipeline` 유한 자동 실행, `handoff` 인계 파일, `finalize` 작업일지와 설정된 내보내기, `cleanup` 환경 정리 |
+| Katakuri 목표 | `katakuri-goal create/run/status/supply/budget`으로 목표를 등록·실행하고, 대기 근거와 누적 한도를 관리한다. [명령 예제](KATAKURI_GOAL.ko.md#cli) |
 | 대기열·보류 | `queue`, `jobs`, `cancel`, `stop`, `resume`으로 실행 관리. `hold`, `unhold`로 개별 작업 보류·해제. `notifications`로 결과 알림 기록 조회 |
 | 순차 작업 | `depends` 선행 작업과 조건 등록, `batch create/show/list/start/pause`로 작업 묶음 관리 |
 | 릴리스 | `release-config` 대상 등록, `release-clear` 시작 전 설정 해제, `release` 릴리스 수행·재개, `release-status` 기록된 결과 조회 |

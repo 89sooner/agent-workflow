@@ -34,6 +34,23 @@ def main():
                 "check_groups": {"ui": [[sys.executable, "-c", "print('ui check')"]],
                                  "docs": [[sys.executable, "-c", "print('docs check')"]]},
             })
+            from agent_workflow import katakuri_goal as kg
+            kb = root / "katakuri-band-fixture"
+            kb.mkdir()
+            git(kb, "init", "-q")
+            for name in ["AGENTS.md", kg.DIRECTIVE, kg.HANDOFF, "app.py"]:
+                path = kb / name
+                path.parent.mkdir(exist_ok=True)
+                path.write_text("fixture")
+            git(kb, "add", ".")
+            git(kb, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "fixture")
+            profiles.save(store, "kb-ui", {"project": str(kb), "allowed_paths": ["app.py"],
+                          "checks": [[sys.executable, "-c", "print('offline')"]]})
+            waiting = kg.create(store, "KG-INPUT", "kb-ui", "외부 근거 확인", ["관측 기록이 있다"])
+            waiting["katakuri_goal"]["items"][0].update(state="waiting", next_action="정제된 기록 필요")
+            waiting["katakuri_goal"]["phase"] = "waiting"
+            waiting["status"] = "blocked"
+            store.save(waiting, "fixture_goal_waiting")
             remote = root / "bare"
             remote.mkdir()
             git(remote, "init", "--bare", "-q")

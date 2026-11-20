@@ -16,7 +16,7 @@ import sys
 import time
 import uuid
 
-from .core import Store, WorkflowError, ensure_not_held, now
+from .core import Store, WaitingForInput, WorkflowError, ensure_not_held, now
 
 
 def init_queue(store):
@@ -228,7 +228,11 @@ def _run_job(store, job, stop_event):
                     error = "데몬 종료 요청으로 실행을 중단했습니다."
                     break
             else:
-                status = "succeeded" if process.returncode == 0 else "failed"
+                if process.returncode == WaitingForInput.exit_code:
+                    status = "waiting_for_input"
+                    error = store.get(job["task_id"]).get("blocker")
+                else:
+                    status = "succeeded" if process.returncode == 0 else "failed"
             code = process.returncode
     except BaseException as exc:
         if process is not None and process.poll() is None:

@@ -3,12 +3,17 @@
 프로필은 프로젝트의 검사, 변경 범위, 역할, 작업 폴더, 실행 한도를 묶는다.
 파일을 저장소에 추가하는 것만으로 실행되지는 않는다. 사용할 파일을 명시적으로 등록한다.
 
+[문서 찾기](../docs/README.md) · [프로필 등록과 검사 선택](../docs/USER_GUIDE.ko.md#profiles)
+
 ## 업무별 검사 묶음
 
 | 프로필 파일 | 공통 검사 | 선택할 수 있는 묶음 |
 |---|---|---|
 | [agent-workflow-development.json](agent-workflow-development.json) | 작업 등록·실행 회귀 테스트 | `handoff`, `release`, `dashboard` |
 | [katakuri-backtest-tests.json](katakuri-backtest-tests.json) | Katakuri 백테스트 드라이버의 합성 입력 검사 | `viewer`로 같은 데이터의 뷰어 표현도 검사 |
+| [katakuri-offline-engine.json](katakuri-offline-engine.json) | 파일 기반 엔진 CLI의 종목·버전별 입력, 출력과 보관 자료 검증 | 공통 검사만 사용 |
+
+`kb-backtest-tests`의 수정 범위는 테스트 파일 두 개다. 오프라인 엔진의 CLI 구현·명세·테스트를 함께 수정할 때는 `katakuri-offline-engine.json`을 사용한다. [목표 등록 예제](../docs/KATAKURI_GOAL.ko.md#cli)
 
 다음 명령은 이 저장소 루트에서 실행합니다. Katakuri 프로필은 현재 WSL의 프로젝트 경로를 사용합니다. 작업 범위는 두 회귀 테스트 파일의 정비로 지정했으며, 뷰어 묶음은 외부 시세 파일이 필요한 시험을 제외합니다. 이 프로필은 주문 전송과 서비스 배포를 수행하지 않습니다.
 

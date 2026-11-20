@@ -10,7 +10,7 @@ from . import profiles
 
 def create_from_profile(store, task_id, name, goal, criteria, refs=(), checks=(), owner=None,
                         reviewer=None, scope="지정 목표의 로컬 구현·검증", isolate=None, *, check_groups=None,
-                        expected_project=None, recommendation_id=None):
+                        expected_project=None, recommendation_id=None, katakuri_goal=None):
     if store.db.execute("SELECT 1 FROM tasks WHERE id=?", (task_id,)).fetchone():
         raise WorkflowError("이미 존재하는 작업 ID: " + task_id)
     record = profiles.get(store, name)
@@ -60,13 +60,14 @@ def create_from_profile(store, task_id, name, goal, criteria, refs=(), checks=()
             if recommendation_id is not None and before["dirty"]:
                 raise WorkflowError("추천한 미커밋 변경은 새 작업 트리에 없습니다. 현재 트리에서 --no-isolate로 등록하세요.")
             root.mkdir(parents=True, exist_ok=True)
-            git(original, "worktree", "add", "-b", branch, str(project), before["head"])
+            options = ["-c", "core.autocrlf=false", "-c", "core.eol=lf"] if katakuri_goal else []
+            git(original, *options, "worktree", "add", "-b", branch, str(project), before["head"])
         workspace = {"managed": True, "source": str(original), "path": str(project),
                      "branch": branch, "base_head": before["head"], "source_dirty": before["dirty"], "prepared": False}
     try:
         task = create_task(store, task_id, project, goal, criteria,
                            [*cfg["refs"], *refs], plan["checks"], owner, reviewer, scope,
-                           metadata={"profile": profile,
+                           metadata={**({"katakuri_goal": katakuri_goal} if katakuri_goal else {}), "profile": profile,
                                      "project_config": copy.deepcopy(cfg), "execution": cfg["execution"], "workspace": workspace},
                            before_snapshot=None if isolated else verify)
     except BaseException:

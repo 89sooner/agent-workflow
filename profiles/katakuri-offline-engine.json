@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "project": "/home/roqkf/katakuri-band",
+  "owner": "claude",
+  "reviewer": "codex-session",
+  "refs": ["tools/offline_engine.md"],
+  "allowed_paths": ["tools/offline_engine.py", "tools/offline_engine.md", "tests/test_offline_engine.py"],
+  "base_check_description": "종목·버전별 파일 입력, 고정 재현 자료와 오프라인 엔진 CLI 계약 검사",
+  "checks": [["python3", "-B", "-m", "pytest", "-p", "no:cacheprovider", "-q", "tests/test_offline_engine.py"]],
+  "execution": {"max_agent_calls": 24, "max_seconds": 10800, "timeout": 900}
+}
