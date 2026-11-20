@@ -75,19 +75,19 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
         <a href="/">실행 관제실</a>
         <a href="/overview">프로젝트 통합 관제실</a>
         <a href="/sessions">일상 세션</a>
+        <button
+          type="button"
+          className="theme-switch"
+          role="switch"
+          aria-checked={theme === "dark"}
+          onClick={() => setTheme(current => current === "dark" ? "light" : "dark")}
+        >
+          다크 모드
+          <span className="theme-switch-track" aria-hidden="true" />
+        </button>
         <details className="console-preferences">
           <summary>화면 설정</summary>
           <div>
-            <label>
-              화면 테마{" "}
-              <select
-                value={theme}
-                onChange={(e) => setTheme(e.target.value as Theme)}
-              >
-                <option value="dark">다크</option>
-                <option value="light">라이트</option>
-              </select>
-            </label>
             <label>
               <input
                 type="checkbox"
