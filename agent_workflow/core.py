@@ -18,6 +18,12 @@ class WorkflowError(Exception):
     pass
 
 
+class WaitingForInput(WorkflowError):
+    """The worker yielded normally. A new external input can unblock the task."""
+
+    exit_code = 4
+
+
 class StaleTaskError(WorkflowError):
     pass
 
@@ -280,7 +286,7 @@ def create_task(store, task_id, project, goal, criteria, refs, checks, owner, re
         raise WorkflowError("목표와 최소 한 개의 완료 조건이 필요합니다.")
     if owner not in {"codex", "claude"} or reviewer not in {"codex", "claude", "codex-session", "none"}:
         raise WorkflowError("지원하는 구현·검토 담당을 지정하세요.")
-    if metadata is not None and set(metadata) - {"profile", "project_config", "execution", "workspace"}:
+    if metadata is not None and set(metadata) - {"profile", "project_config", "execution", "workspace", "katakuri_goal"}:
         raise WorkflowError("작업 설정 메타데이터 항목이 잘못됐습니다.")
     if reviewer != "none" and reviewer == owner:
         raise WorkflowError("실행 담당과 독립 검토자는 달라야 합니다.")
@@ -306,6 +312,13 @@ def create_task(store, task_id, project, goal, criteria, refs, checks, owner, re
 
 
 def ready_for_completion(task, current):
+    goal = task.get("katakuri_goal")
+    audit = (goal or {}).get("audit") or {}
+    if goal and (audit.get("fingerprint") != current["fingerprint"] or not references_current(task, audit)
+                 or audit.get("reviewer") != task["reviewer"] or not all(r["accepted"] for r in audit.get("rows", []))
+                 or len(audit.get("rows", [])) != len(task["criteria"]) or goal["phase"] != "complete" or task["reviewer"] == "none"
+                 or not all(i["state"] == "proposed" for i in goal["items"])):
+        raise WorkflowError("목표 실행기의 전체 조건 검증·독립 리뷰가 필요합니다.")
     from .policy import protected_current
     if not protected_current(task):
         raise WorkflowError("금지 경로의 기준 증거가 없거나 내용이 변경됐습니다. 작업 범위를 확인하세요.")

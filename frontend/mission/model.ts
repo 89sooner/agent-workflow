@@ -14,6 +14,7 @@ export const labels: Record<string, string> = {
   ended: "기록 종료",
   assigned: "배정됨",
   queued: "실행 대기",
+  waiting_for_input: "근거 대기",
   interrupted: "중단됨",
   cancelled: "취소됨",
   completed: "로컬 완료",

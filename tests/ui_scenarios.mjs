@@ -248,6 +248,30 @@ try {
   await page.getByRole('button',{name:'기록 새로고침'}).click();
   await panel().getByText(/작업 폴더 상태 확인 불가/).waitFor({state:'hidden'});
 
+  await $('new-task').click();
+  await $('create-profile').selectOption('kb-ui');
+  await page.getByLabel('Katakuri 목표 연속 실행').check();
+  assert.equal(await $('create-isolate').isDisabled(),true);
+  await $('create-goal').fill('오프라인 CLI 회귀 검증');
+  await $('create-id').fill('KG-UI');
+  const goal = (await clickPost('작업 등록','/api/katakuri-goals')).task;
+  assert.equal(goal.katakuri_goal.phase,'planning');
+  await openManagement();
+  const goalPanel = page.getByRole('region',{name:'Katakuri 목표 진행'});
+  await goalPanel.getByText('누적 예산 조정').click();
+  await goalPanel.getByLabel('총 모델 호출 수').fill('30');
+  await clickPost('예산 저장','/api/katakuri-goals/budget');
+  assert.equal((await task('KG-UI')).katakuri_goal.max_agent_calls,30);
+  assert.equal((await jobs('KG-UI')).length,0);
+  await choose('KG-INPUT');
+  await openManagement();
+  await page.getByLabel('제출할 근거').fill('fixture-only observation for this criterion');
+  await clickPost('근거 저장','/api/katakuri-goals/input');
+  const supplied = (await task('KG-INPUT')).katakuri_goal;
+  assert.equal(supplied.criteria[0].state,'pending');
+  assert.equal(supplied.agent_calls,0);
+  console.log('PASS goal-only creation, progress, budget editing and supplying new evidence');
+  await choose('OBS-TRACE');
   for(const width of [375,768,1440]){
     await page.setViewportSize({width,height:heightFor(width)});
     if(width===375){

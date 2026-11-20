@@ -28,6 +28,14 @@ The controller adds this policy to generated briefs and resume prompts.
 Observation-only plugins do not change an external session's instructions.
 See [the communication policy](../../docs/AGENT_COMMUNICATION.ko.md).
 
+## Katakuri goals
+
+Use `katakuri-goal create ID --profile NAME --goal TEXT` for a new Katakuri development goal.
+Pass each explicit acceptance criterion with `--criterion`. Use `queue ID` for background execution.
+For an existing goal, inspect `katakuri-goal status ID`. Use the same ID to resume.
+Use `katakuri-goal supply ID --criterion N --ref FILE --queue` for new, sanitized external evidence.
+See [the operator guide](../../docs/KATAKURI_GOAL.ko.md).
+
 ## Git sessions without a task ID
 
 - For a lightweight session close (세션 마감, 다음 세션에 이어가기), summarize actual work and observed verification.

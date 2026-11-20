@@ -113,6 +113,7 @@ interface Recommendation {
   unnecessary_review_check_seconds?: number | null;
 }
 interface TaskDetail {
+  katakuri_goal?: GoalProgress | null;
   task: TaskRecord;
   observed_git?: {
     error?: string;
@@ -515,6 +516,202 @@ function TaskControls({
   );
 }
 
+interface GoalProgress {
+  phase: string;
+  instrument: string | null;
+  milestone: string | null;
+  agent_calls: number;
+  max_agent_calls: number;
+  reported_tokens: number;
+  max_reported_tokens: number | null;
+  max_seconds: number;
+  seconds_used: number;
+  uncertain_seconds: number;
+  unreported_calls: number;
+  criteria: {
+    id: number;
+    text: string;
+    state: string;
+    summary: string;
+    next_action: string;
+  }[];
+  last_audit: {
+    rows: { criterion: number; accepted: boolean; evidence: string }[];
+  } | null;
+}
+
+const goalLabels: Record<string, string> = {
+  planning: "완료 조건 작성",
+  working: "구현",
+  checking: "검사",
+  reviewing: "독립 검토",
+  complete: "완료",
+  stopped: "중단",
+  waiting: "근거 대기",
+  pending: "실행 예정",
+  proposed: "검증 요청",
+  accepted: "수락",
+};
+
+function GoalPanel({
+  goal,
+  taskId,
+  editable,
+  mutate,
+}: {
+  goal: GoalProgress;
+  taskId: string;
+  editable: boolean;
+  mutate: Mutate;
+}) {
+  const [input, setInput] = useState("");
+  const [target, setTarget] = useState("");
+  const waiting = goal.criteria.filter((row) => row.state === "waiting");
+  const criterion =
+    waiting.find((row) => String(row.id) === target)?.id ?? waiting[0]?.id;
+  return (
+    <section className="mg-block" aria-label="Katakuri 목표 진행">
+      <h4>
+        Katakuri 목표 ·{" "}
+        {[goal.instrument, goal.milestone, goalLabels[goal.phase] ?? goal.phase]
+          .filter(Boolean)
+          .join(" · ")}
+      </h4>
+      <p>
+        모델 호출 {goal.agent_calls}/{goal.max_agent_calls} · 보고 토큰{" "}
+        {goal.reported_tokens}
+        {goal.max_reported_tokens !== null && `/${goal.max_reported_tokens}`}
+        {goal.unreported_calls > 0 &&
+          ` · 사용량 미확인 ${goal.unreported_calls}회`}
+        {" · "}실행 시간 {Math.ceil(goal.seconds_used + goal.uncertain_seconds)}
+        /{goal.max_seconds}초
+      </p>
+      <ol>
+        {goal.criteria.map((row) => (
+          <li key={row.id}>
+            {row.text} · {goalLabels[row.state] ?? row.state}
+            {row.summary && <p>{row.summary}</p>}
+            {row.next_action && row.state !== "accepted" && (
+              <p>{row.next_action}</p>
+            )}
+            {goal.last_audit?.rows.find((r) => r.criterion === row.id)
+              ?.evidence && (
+              <p>
+                최근 검토 근거 ·{" "}
+                {
+                  goal.last_audit.rows.find((r) => r.criterion === row.id)
+                    ?.evidence
+                }
+              </p>
+            )}
+          </li>
+        ))}
+      </ol>
+      {editable && criterion !== undefined && (
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (
+              await mutate(
+                "/api/katakuri-goals/input",
+                { task_id: taskId, criterion, evidence: input },
+                "근거를 저장했습니다. 워크플로 실행을 누르면 이어갑니다.",
+              )
+            )
+              setInput("");
+          }}
+        >
+          <label>
+            자료를 기다리는 조건
+            <select
+              value={criterion}
+              onChange={(e) => setTarget(e.target.value)}
+            >
+              {waiting.map((row) => (
+                <option value={row.id} key={row.id}>
+                  {row.id}. {row.text}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            제출할 근거
+            <textarea
+              required
+              maxLength={1500}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+            />
+          </label>
+          <button disabled={!input.trim()}>근거 저장</button>
+        </form>
+      )}
+      {editable && (
+        <details>
+          <summary>누적 예산 조정</summary>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const form = e.currentTarget;
+              const body: Record<string, unknown> = { task_id: taskId };
+              for (const [key, value] of new FormData(form))
+                if (value)
+                  body[key] =
+                    key === "clear_token_limit" ? true : Number(value);
+              if (
+                await mutate(
+                  "/api/katakuri-goals/budget",
+                  body,
+                  "누적 예산을 변경했습니다.",
+                )
+              )
+                form.reset();
+            }}
+          >
+            <label>
+              총 모델 호출 수
+              <input
+                name="max_agent_calls"
+                type="number"
+                min={1}
+                max={200}
+                placeholder={String(goal.max_agent_calls)}
+              />
+            </label>
+            <label>
+              총 실행 시간(초)
+              <input
+                name="max_seconds"
+                type="number"
+                min={1}
+                max={86400}
+                placeholder={String(goal.max_seconds)}
+              />
+            </label>
+            <label>
+              보고 토큰 한도
+              <input
+                name="max_reported_tokens"
+                type="number"
+                min={1}
+                max={1e12}
+                placeholder={String(goal.max_reported_tokens ?? "선택")}
+              />
+            </label>
+            {goal.max_reported_tokens !== null && (
+              <label>
+                <input name="clear_token_limit" type="checkbox" />
+                토큰 한도 해제
+              </label>
+            )}
+            <button>예산 저장</button>
+          </form>
+        </details>
+      )}
+    </section>
+  );
+}
+
 function TaskDetails({
   data,
   writable,
@@ -537,6 +734,15 @@ function TaskDetails({
       </div>
       <h3>{t.goal}</h3>
       <p className="mg-path">{t.project}</p>
+      {data.katakuri_goal && (
+        <GoalPanel
+          key={t.id}
+          goal={data.katakuri_goal}
+          taskId={t.id}
+          editable={writable && !pending && !busy && t.status !== "completed"}
+          mutate={mutate}
+        />
+      )}
       <dl className="mg-facts">
         <div>
           <dt>구현 / 검토</dt>

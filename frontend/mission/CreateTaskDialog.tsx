@@ -11,6 +11,7 @@ type Props = {
   onCreated: (id: string) => void;
 };
 type Profile = {
+  katakuri_goal_available?: boolean;
   name: string;
   digest: string;
   config: {
@@ -446,6 +447,10 @@ function CreateForm({
   const [linked, setLinked] = useState<Receipt | null>(null);
   const [pickerVersion, resetPicker] = useState(0);
   const [taskId, setTaskId] = useState("");
+  const [persistentGoal, setPersistentGoal] = useState(false);
+  const [tokenLimit, setTokenLimit] = useState("");
+  const [instrument, setInstrument] = useState("");
+  const [milestone, setMilestone] = useState("");
   const [goal, setGoal] = useState("");
   const [criteriaText, setCriteriaText] = useState("");
   const [ownerName, setOwnerName] = useState("");
@@ -464,7 +469,7 @@ function CreateForm({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected || pending.current) return;
-    if (!goal.trim() || !criteria.length) {
+    if (!goal.trim() || (!persistentGoal && !criteria.length)) {
       setError("작업 목표와 완료 조건을 입력하세요.");
       return;
     }
@@ -488,13 +493,18 @@ function CreateForm({
       }
       const id = taskId.trim() || generatedId.current;
       const result = await configure<{ task: { id: string } }>(
-        "/api/tasks",
+        persistentGoal ? "/api/katakuri-goals" : "/api/tasks",
         {
           id,
           profile: selected.name,
           goal: goal.trim(),
           criteria,
-          isolate,
+          isolate: persistentGoal || isolate,
+          ...(persistentGoal && instrument ? { instrument } : {}),
+          ...(persistentGoal && milestone ? { milestone } : {}),
+          ...(persistentGoal && tokenLimit
+            ? { max_reported_tokens: Number(tokenLimit) }
+            : {}),
           check_groups: groups,
           agent_names: {
             implement: ownerName.trim(),
@@ -527,6 +537,10 @@ function CreateForm({
           onChange={(event) => {
             const next = profiles.find((p) => p.name === event.target.value);
             setName(event.target.value);
+            setPersistentGoal(false);
+            setTokenLimit("");
+            setMilestone("");
+            setInstrument("");
             setIsolate(next?.config.workspace?.isolate !== false);
             setGroups([]);
             setTypedId("");
@@ -547,6 +561,59 @@ function CreateForm({
               {selected.config.project} · 구현 {selected.config.owner} / 리뷰{" "}
               {selected.config.reviewer}
             </p>
+            {selected.katakuri_goal_available && (
+              <>
+                <label className="create-check">
+                  <input
+                    type="checkbox"
+                    checked={persistentGoal}
+                    onChange={(e) => setPersistentGoal(e.target.checked)}
+                  />
+                  Katakuri 목표 연속 실행
+                </label>
+                {persistentGoal && (
+                  <div className="create-name-pair">
+                    <label>
+                      종목 (선택)
+                      <input
+                        value={instrument}
+                        pattern="[A-Za-z0-9][A-Za-z0-9_.\-]{0,79}"
+                        maxLength={80}
+                        onChange={(e) => setInstrument(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      단계 (선택)
+                      <select
+                        value={milestone}
+                        onChange={(e) => setMilestone(e.target.value)}
+                      >
+                        <option value="">지정하지 않음</option>
+                        {["M1", "M2", "M3", "M4", "M5", "M6"].map((m) => (
+                          <option key={m}>{m}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                )}
+                {persistentGoal && (
+                  <label>
+                    보고 토큰 상한 (선택)
+                    <input
+                      type="number"
+                      min={1}
+                      max={1000000000000}
+                      value={tokenLimit}
+                      onChange={(e) => setTokenLimit(e.target.value)}
+                    />
+                    <small>
+                      별도 작업 폴더에서 완료 조건별로 개발하고 검사·독립 리뷰를
+                      거칩니다. 외부 근거가 필요하면 대기합니다.
+                    </small>
+                  </label>
+                )}
+              </>
+            )}
             <label htmlFor="create-goal">작업 목표</label>
             <textarea
               id="create-goal"
@@ -557,11 +624,16 @@ function CreateForm({
               onChange={(e) => setGoal(e.target.value)}
             />
             <label htmlFor="create-criteria">
-              완료 조건 <small>한 줄에 하나씩 입력</small>
+              완료 조건{" "}
+              <small>
+                {persistentGoal
+                  ? "비우면 첫 실행에서 AI가 목표를 검증 가능한 조건으로 나눕니다."
+                  : "한 줄에 하나씩 입력"}
+              </small>
             </label>
             <textarea
               id="create-criteria"
-              required
+              required={!persistentGoal}
               rows={3}
               maxLength={3000}
               value={criteriaText}
@@ -670,7 +742,8 @@ function CreateForm({
               <input
                 id="create-isolate"
                 type="checkbox"
-                checked={isolate}
+                checked={persistentGoal || isolate}
+                disabled={persistentGoal}
                 onChange={(e) => setIsolate(e.target.checked)}
               />
               별도 작업 폴더와 브랜치에서 진행

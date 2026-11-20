@@ -126,6 +126,8 @@ def configure(store, task_id, remote, base, branch, paths, mode="github", repo=N
     t = store.get(task_id)
     with store.lock(t["project"]):
         t = store.get(task_id)
+        if t.get("katakuri_goal"):
+            raise WorkflowError("Katakuri 개발 목표에는 릴리스를 설정할 수 없습니다.")
         if (t.get("release") or {}).get("stage") not in (None, "configured"):
             raise WorkflowError("릴리스가 시작된 후 대상을 변경할 수 없습니다.")
         if t["baseline"]["dirty"]:

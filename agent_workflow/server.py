@@ -286,9 +286,13 @@ def handler(home, token, *, read_only=False, observer=False):
                                 task["release"] = {key: release.get(key) for key in ("stage", "error", "merge_commit", "integration_verification")}
                                 task["release"]["config"] = {"deploy": bool((release.get("config") or {}).get("deploy"))}
                     from .profiles import list_profiles
+                    from .katakuri_goal import supported
+                    registered = list_profiles(store)
+                    if not effective_read_only:
+                        registered = [{**p, "katakuri_goal_available": supported(p["config"])} for p in registered]
                     from .operations import notifications
                     return self.response({"tasks": tasks, "jobs": list_jobs(store),
-                                          "profiles": list_profiles(store), "notifications": notifications(store),
+                                          "profiles": registered, "notifications": notifications(store),
                                           "daemon": status(ledger_home), "version": __version__, "csrf_token": token,
                                           "read_only": effective_read_only, "ledger": ledger, "state_home": str(ledger_home)})
                 if path.startswith("/api/job-log/"):
@@ -324,7 +328,8 @@ def handler(home, token, *, read_only=False, observer=False):
                     events = [{"seq": r[0], "at": r[1], "kind": r[2], "data": json.loads(r[3])} for r in rows]
                     from .release_status import summarize_release
                     from .recommendation_records import task_summary
-                    return self.response({"task": task, "observed_git": current, "freshness": flags,
+                    from .katakuri_goal import status as goal_status
+                    return self.response({"task": task, "katakuri_goal": goal_status(task) if task.get("katakuri_goal") else None, "observed_git": current, "freshness": flags,
                                           "release_status": summarize_release(task),
                                           "recommendation": task_summary(store, task),
                                           "observation": observation,
@@ -411,15 +416,27 @@ def handler(home, token, *, read_only=False, observer=False):
                     else:
                         task = clear_hold(store, task_id)
                     return self.response({"task": task})
-                if self.path == "/api/tasks":
+                if self.path in {"/api/katakuri-goals/input", "/api/katakuri-goals/budget"}:
+                    from . import katakuri_goal as kg
+                    from .profiles import identifier, keys
+                    task_id = identifier(data.get("task_id"))
+                    if self.path.endswith("/input"):
+                        keys(data, {"task_id", "criterion", "evidence"}, "목표 근거")
+                        result = kg.supply_text(store, task_id, data.get("criterion"), data.get("evidence"))
+                    else:
+                        keys(data, {"task_id", "max_agent_calls", "max_seconds", "max_reported_tokens", "clear_token_limit"}, "목표 예산")
+                        result = kg.budget(store, task_id, data.get("max_agent_calls"), data.get("max_seconds"),
+                                           data.get("max_reported_tokens"), data.get("clear_token_limit", False))
+                    return self.response({"katakuri_goal": result})
+                if self.path in {"/api/tasks", "/api/katakuri-goals"}:
                     from .workspaces import create_from_profile
                     from .profiles import identifier, strings
                     task_id = identifier(data.get("id") or ("AW-" + __import__("uuid").uuid4().hex[:16]))
                     profile = identifier(data.get("profile"))
                     goal = data.get("goal")
-                    criteria = strings(data.get("criteria"), "criteria")
+                    criteria = strings(data.get("criteria", []), "criteria")
                     isolate = data.get("isolate")
-                    if not isinstance(goal, str) or not goal.strip() or not criteria:
+                    if not isinstance(goal, str) or not goal.strip() or (not criteria and self.path == "/api/tasks"):
                         raise WorkflowError("목표와 완료 조건이 필요합니다.")
                     if isolate is not None and type(isolate) is not bool:
                         raise WorkflowError("isolate는 boolean입니다.")
@@ -429,8 +446,16 @@ def handler(home, token, *, read_only=False, observer=False):
                         raise WorkflowError("담당 이름은 역할별 120자 이하의 문자열이어야 합니다.")
                     groups = strings(data["check_groups"], "check_groups") if "check_groups" in data else None
                     rec_id = identifier(data["recommendation_id"]) if "recommendation_id" in data else None
-                    task = create_from_profile(store, task_id, profile, goal, criteria, isolate=isolate,
-                                               check_groups=groups, recommendation_id=rec_id)
+                    if self.path == "/api/katakuri-goals":
+                        from .katakuri_goal import create
+                        if isolate is False:
+                            raise WorkflowError("Katakuri 목표는 별도 작업 트리에서 실행합니다.")
+                        task = create(store, task_id, profile, goal, criteria, groups, data.get("max_reported_tokens"),
+                                      instrument=data.get("instrument"), milestone=data.get("milestone"),
+                                      recommendation_id=rec_id)
+                    else:
+                        task = create_from_profile(store, task_id, profile, goal, criteria, isolate=isolate,
+                                                   check_groups=groups, recommendation_id=rec_id)
                     names = {role: name.strip() for role, name in names.items() if name.strip()}
                     if names:
                         task["agent_names"] = names

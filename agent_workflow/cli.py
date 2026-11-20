@@ -14,7 +14,7 @@ import sys
 
 from . import __version__
 from .communication import AGENT_COMMUNICATION_POLICY
-from .core import (Store, WorkflowError, atomic_write, complete, create_task,
+from .core import (Store, WaitingForInput, WorkflowError, atomic_write, complete, create_task,
                    encode, now, reference_fingerprint, references_current, snapshot)
 from .runner import RESULT_SCHEMA, brief, execute, record_review, run_checks
 from .workspaces import observed_snapshot
@@ -150,6 +150,31 @@ def parser():
     c.add_argument("--source", action="append", type=Path, help="history.jsonl 경로. 여러 번 지정할 수 있습니다.")
     c.add_argument("--since", type=date.fromisoformat, help="집계 시작일 (UTC, YYYY-MM-DD)")
     c.add_argument("--until", type=date.fromisoformat, help="집계 종료일 (UTC, 해당일 포함)")
+    c = commands.add_parser("katakuri-goal", help="Katakuri 오프라인 개발 목표 연속 실행")
+    actions = c.add_subparsers(dest="operation", required=True)
+    sub = actions.add_parser("create")
+    sub.add_argument("id")
+    sub.add_argument("--profile", required=True)
+    sub.add_argument("--goal", required=True)
+    sub.add_argument("--criterion", action="append", default=[])
+    sub.add_argument("--check-group", action="append", default=[])
+    sub.add_argument("--max-reported-tokens", type=int)
+    sub.add_argument("--instrument")
+    sub.add_argument("--milestone", choices=[f"M{i}" for i in range(1, 7)])
+    for operation in ("run", "status"):
+        actions.add_parser(operation).add_argument("id")
+    sub = actions.add_parser("supply", help="대기 조건에 새 오프라인 증거 연결")
+    sub.add_argument("id")
+    sub.add_argument("--criterion", type=int, required=True)
+    sub.add_argument("--ref", required=True)
+    sub.add_argument("--queue", action="store_true", help="근거 저장 후 데몬 실행 대기열에 등록")
+    sub = actions.add_parser("budget", help="누적 사용량을 보존하며 예산 조정")
+    sub.add_argument("id")
+    sub.add_argument("--max-agent-calls", type=int)
+    sub.add_argument("--max-seconds", type=int)
+    tokens = sub.add_mutually_exclusive_group()
+    tokens.add_argument("--max-reported-tokens", type=int)
+    tokens.add_argument("--clear-token-limit", action="store_true")
     c = commands.add_parser("recommend-checks", help="Git 변경과 완료 조건으로 등록된 검사 묶음 추천")
     c.add_argument("profile")
     c.add_argument("--criterion", action="append", required=True)
@@ -375,6 +400,29 @@ def parser():
 
 
 def dispatch(args):
+    if args.command == "katakuri-goal":
+        from . import katakuri_goal as kg
+        store = Store(args.home, read_only=args.operation == "status")
+        try:
+            if args.operation == "create":
+                return kg.status(kg.create(store, args.id, args.profile, args.goal, args.criterion,
+                                           args.check_group, args.max_reported_tokens,
+                                           instrument=args.instrument, milestone=args.milestone))
+            task = store.get(args.id)
+            kg.contract(task)
+            if args.operation == "run":
+                return kg.status(execute(store, args.id, task["execution"]["timeout"]))
+            if args.operation == "supply":
+                result = kg.supply(store, args.id, args.criterion, args.ref)
+                if args.queue:
+                    from .daemon import enqueue
+                    result["job"] = enqueue(store, args.id, "pipeline")
+                return result
+            if args.operation == "budget":
+                return kg.budget(store, args.id, args.max_agent_calls, args.max_seconds, args.max_reported_tokens, args.clear_token_limit)
+            return kg.status(task)
+        finally:
+            store.close()
     if args.command == "recommend-checks":
         from .check_advisor import recommend
         return recommend(args.home, args.profile, args.criterion, project=args.project, base=args.base,
@@ -608,6 +656,9 @@ def dispatch(args):
             if args.dry_run:
                 from .profiles import execution_config
                 policy = execution_config(task.get("execution"))
+                if task.get("katakuri_goal"):
+                    from .katakuri_goal import status
+                    return {**status(task), "checks": task["checks"], "dry_run": True}
                 recoveries = args.recoveries if args.recoveries is not None else task.get("execution", {}).get("recoveries", 0)
                 max_calls = min(max(0, policy["max_agent_calls"] - (task.get("usage") or {}).get("agent_calls", 0)),
                                 (1 if task["reviewer"] == "none" else 2) * (args.repairs + 1) + recoveries)
@@ -653,6 +704,8 @@ def dispatch(args):
                 task.update(verification=None, review=None, status="ready")
                 store.save(task, "check_added")
             elif args.command == "assign":
+                if task.get("katakuri_goal") and args.reviewer == "none":
+                    raise WorkflowError("목표의 독립 검토자를 지정하세요.")
                 if args.owner == args.reviewer:
                     raise WorkflowError("실행 담당과 검토자는 달라야 합니다.")
                 task.update(owner=args.owner, reviewer=args.reviewer, review=None, native_review_receipt=None, status="ready")
@@ -691,7 +744,7 @@ def main():
             raise SystemExit(3)
     except (WorkflowError, OSError, ValueError, subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
         print(f"agent-workflow: {exc}", file=sys.stderr)
-        raise SystemExit(2) from exc
+        raise SystemExit(WaitingForInput.exit_code if isinstance(exc, WaitingForInput) else 2) from exc
 
 
 if __name__ == "__main__":
