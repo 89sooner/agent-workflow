@@ -81,6 +81,24 @@ def relative_paths(value, name):
     return value
 
 
+def validate_goal_mode(policy, project):
+    from .goal_policy import TEXT_EXTENSIONS, checked_files
+
+    fields = {"version", "scope", "instructions", "input_extensions"}
+    keys(policy, fields, "goal_mode")
+    if set(policy) != fields or type(policy["version"]) is not int or policy["version"] != 1:
+        raise WorkflowError("goal_mode에는 version 1, scope, instructions, input_extensions가 필요합니다.")
+    if not isinstance(policy["scope"], str) or not policy["scope"].strip() or "\0" in policy["scope"]:
+        raise WorkflowError("goal_mode.scope에 프로젝트 목표의 작업 범위를 입력하세요.")
+    instructions = relative_paths(policy["instructions"], "goal_mode.instructions")
+    if not instructions or len(set(instructions)) != len(instructions):
+        raise WorkflowError("목표 정책에 서로 다른 프로젝트 지침 파일을 지정하세요.")
+    checked_files(project, instructions)
+    extensions = strings(policy["input_extensions"], "goal_mode.input_extensions")
+    if len(set(extensions)) != len(extensions) or not set(extensions).issubset(TEXT_EXTENSIONS):
+        raise WorkflowError("근거 형식은 .md, .json, .txt, .csv 중 서로 다른 확장자로 지정하세요.")
+
+
 def execution_config(raw=None):
     raw = {} if raw is None else copy.deepcopy(raw)
     keys(raw, {"recoveries", "timeout", "repairs", "max_agent_calls", "max_seconds", "models", "fallback_models", "stop_after_reported_usd"}, "execution")
@@ -113,7 +131,8 @@ def validate(raw):
     cfg = copy.deepcopy(raw)
     keys(cfg, {"version", "project", "owner", "reviewer", "refs", "checks", "setup", "allowed_paths", "forbidden_paths",
                "execution", "workspace", "services", "blocked_windows", "exports", "notifications", "documents",
-               "check_groups", "check_group_descriptions", "base_check_description"}, "profile")
+               "check_groups", "check_group_descriptions", "base_check_description", "criterion_checks", "check_inputs",
+               "goal_mode"}, "profile")
     if type(cfg.get("version", 1)) is not int or cfg.get("version", 1) != 1:
         raise WorkflowError("지원하는 프로필 형식은 version 1입니다.")
     cfg["version"] = 1
@@ -129,8 +148,16 @@ def validate(raw):
     if cfg["owner"] not in {"claude", "codex"} or cfg["reviewer"] not in {"claude", "codex", "codex-session", "none"} or cfg["owner"] == cfg["reviewer"]:
         raise WorkflowError("구현 담당과 다른 검토자를 지정하세요.")
     strings(cfg.setdefault("refs", []), "refs")
+    if "goal_mode" in cfg:
+        validate_goal_mode(cfg["goal_mode"], Path(cfg["project"]))
+        relative_paths(cfg["refs"], "목표 프로필 refs")
     for key in ("checks", "setup"):
         commands(cfg.setdefault(key, []), key)
+    if "criterion_checks" in cfg:
+        from .criterion_checks import validate as validate_criterion_checks
+        validate_criterion_checks(cfg)
+    if "check_inputs" in cfg:
+        relative_paths(cfg["check_inputs"], "check_inputs")
     groups = cfg.get("check_groups", {})
     if not isinstance(groups, dict):
         raise WorkflowError("check_groups는 검사 묶음 이름과 명령 목록의 객체여야 합니다.")

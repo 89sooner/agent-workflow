@@ -1,11 +1,14 @@
 import json
+import os
+from pathlib import Path
 import sys
 import unittest
 from unittest.mock import patch
 
 import test_workflow as fixtures
-from agent_workflow.core import WorkflowError, create_task, snapshot
+from agent_workflow.core import WorkflowError, create_task, encode, git, snapshot
 from agent_workflow.runner import command_for, execute, invoke, record_review, run_checks
+from agent_workflow.task_observation import observe
 
 
 class IndependentSessionTests(unittest.TestCase):
@@ -41,6 +44,28 @@ class IndependentSessionTests(unittest.TestCase):
             task['checks'].append([sys.executable,'-c','print(1)'])
             with self.assertRaisesRegex(WorkflowError,'작업 계약'):
                 record_review(self.store,task,answer,snapshot(self.project)['fingerprint'],'codex-session')
+
+    def test_native_review_uses_execution_git_settings_for_its_receipt(self):
+        git(self.project, "config", "core.filemode", "true")
+        overrides = {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "core.filemode",
+                     "GIT_CONFIG_VALUE_0": "false"}
+        with patch.dict(os.environ, overrides):
+            task = self.task()
+            (self.project / "app.py").chmod(0o755)
+            with self.store.lock(task["project"]) as fd:
+                self.assertTrue(run_checks(self.store, task, 5, fd))
+            view = observe(task, self.store.home)
+            execution_fp = snapshot(self.project)["fingerprint"]
+            self.assertNotEqual(view["observed_git"]["fingerprint"], execution_fp)
+            self.assertFalse(view["freshness"]["verification_is_current"])
+            with patch("agent_workflow.runner.command_for", side_effect=self.fake_review):
+                result = execute(self.store, task["id"], timeout=5, repairs=0)
+        self.assertEqual(result["status"], "completed")
+        receipt = result["native_review_receipt"]
+        self.assertEqual(receipt["fingerprint"], execution_fp)
+        prompt = (Path(receipt["directory"]) / "prompt.txt").read_text()
+        self.assertIn(encode(view["resume_packet"]), prompt)
+        self.assertIn("Current verification receipt: " + encode(result["verification"]), prompt)
 
     def test_session_command_cannot_implement_or_resume_owner_history(self):
         with patch('agent_workflow.runner.shutil.which',return_value='/usr/bin/codex'):

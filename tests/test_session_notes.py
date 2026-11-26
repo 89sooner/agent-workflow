@@ -128,7 +128,11 @@ class SessionNotesTests(unittest.TestCase):
         row, = result["registered_tasks"]
         self.assertEqual(row["id"], "DOC")
         self.assertFalse(row["recorded_checks_passed"])
-        self.assertEqual(row["next_action"], "verify example")
+        self.assertEqual(row["next_action"], row["resume_packet"]["next_action"]["text"])
+        self.assertEqual(row["resume_packet"]["next_action"]["action"], "recheck")
+        classic = session_notes.pickup(self.home, self.project, classic=True)["registered_tasks"][0]
+        self.assertEqual(classic["next_action"], "verify example")
+        self.assertNotIn("resume_packet", classic)
         self.assertEqual(row["recorded_review"], "changes_requested")
         self.assertIn("connected ledger", row["show"])
         self.git("switch", "-qc", "another")

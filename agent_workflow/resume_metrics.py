@@ -57,6 +57,9 @@ def _database(home, *, write=False, create=False):
                 WHERE state = 'active' AND mode = 'close'""")
             db.execute("""CREATE TABLE IF NOT EXISTS closes(
                 note_key TEXT PRIMARY KEY, project TEXT NOT NULL, ref TEXT NOT NULL, tool_ms INTEGER NOT NULL)""")
+        if write and db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='timers'").fetchone():
+            if "stale_evidence_used" not in {row[1] for row in db.execute("PRAGMA table_info(timers)")}:
+                db.execute("ALTER TABLE timers ADD COLUMN stale_evidence_used INTEGER")
         yield db
         db.commit()
     except (sqlite3.Error, OSError) as exc:
@@ -70,7 +73,10 @@ def _receipt(row):
     data = dict(row)
     data["evidence"] = json.loads(data["evidence"]) if data["evidence"] else None
     if data["wrong_pick"] is not None:
+        data["wrong_pick_count"] = data["wrong_pick"]
         data["wrong_pick"] = bool(data["wrong_pick"])
+    used = data.get("stale_evidence_used")
+    data["stale_evidence_used"] = None if used is None else bool(used)
     data["elapsed_ms"] = data["finished_ms"] - data["started_ms"] if data["state"] == "finished" else None
     return data
 
@@ -109,21 +115,34 @@ def start_close(home, project):
     return _start(home, _scope(project), "close", started)
 
 
-def start_pickup(home, result, started):
+def start_pickup(home, result, started, *, classic=False):
     git = result["current"]
     evidence = {"head": git["head"], "dirty_digest": git["dirty_digest"],
                 "note": Path(result["resume"]).parent.name if result["found"] else None,
                 "tasks": [{"id": task["id"], "updated_at": task["updated_at"],
                            "source_key": hashlib.sha256(task["show"].encode()).hexdigest()[:16],
                            "verification": task["evidence"]["verification"]} for task in result["registered_tasks"]]}
+    if not classic:
+        evidence["variant"] = "structured"
+        # Bind the displayed packets (including independent hold state) without
+        # copying task text or file paths into the measurement database.
+        for entry, task in zip(evidence["tasks"], result["registered_tasks"]):
+            packet = json.dumps(task["resume_packet"], ensure_ascii=True, sort_keys=True)
+            entry["packet_digest"] = hashlib.sha256(packet.encode()).hexdigest()
     return _start(home, _saved_scope(git), "pickup", started, evidence)
 
 
-def finish(home, ident, project, *, wrong_pick=False, reexplanations=0):
+def finish(home, ident, project, *, wrong_pick=False, wrong_picks=None, reexplanations=0, stale_evidence_used=None):
     """Confirm that work on the correct action is starting; replay only matching feedback."""
     ended = wall_ms()
     if type(wrong_pick) is not bool or type(reexplanations) is not int or not 0 <= reexplanations <= 100000:
         raise WorkflowError("재선택 여부와 0~100000 범위의 재설명 횟수가 필요합니다.")
+    if wrong_picks is None:
+        wrong_picks = int(wrong_pick)
+    elif wrong_pick or type(wrong_picks) is not int or not 0 <= wrong_picks <= 100000:
+        raise WorkflowError("잘못 선택한 작업 횟수를 0~100000 범위로 지정하세요.")
+    if stale_evidence_used is not None and type(stale_evidence_used) is not bool:
+        raise WorkflowError("오래된 근거를 현재 근거로 사용했는지 지정하세요.")
     root, ref = _scope(project)
     with _database(home, write=True) as db:
         if ident is None:
@@ -135,16 +154,17 @@ def finish(home, ident, project, *, wrong_pick=False, reexplanations=0):
         row = _record(db, ident)
         if row["mode"] == "close":
             raise WorkflowError("메모 작성 시계는 close-session으로 종료하세요.")
-        if row["project"] != root or (row["ref"] != ref and not wrong_pick):
+        if row["project"] != root or (row["ref"] != ref and not wrong_picks):
             raise WorkflowError("시작한 작업 트리·브랜치를 확인하세요. 같은 트리에서 브랜치를 바로잡았다면 --wrong-pick을 사용하세요.")
         if row["state"] == "finished":
-            if row["wrong_pick"] != int(wrong_pick) or row["reexplanations"] != reexplanations:
+            if (row["wrong_pick"] != wrong_picks or row["reexplanations"] != reexplanations
+                    or row["stale_evidence_used"] != stale_evidence_used):
                 raise WorkflowError("이미 다른 피드백으로 종료된 측정입니다.")
             return _receipt(row)
         if row["state"] != "active" or ended < row["started_ms"]:
             raise WorkflowError("종료할 수 없는 측정입니다. 상태와 시스템 시각을 확인하세요.")
-        db.execute("UPDATE timers SET state='finished',finished_ms=?,wrong_pick=?,reexplanations=? WHERE id=?",
-                   (ended, int(wrong_pick), reexplanations, ident))
+        db.execute("UPDATE timers SET state='finished',finished_ms=?,wrong_pick=?,reexplanations=?,stale_evidence_used=? WHERE id=?",
+                   (ended, wrong_picks, reexplanations, stale_evidence_used, ident))
         return _receipt(_record(db, ident))
 
 
@@ -192,8 +212,7 @@ def summary(home, project):
             times = [r[0] for r in db.execute("SELECT tool_ms FROM closes WHERE project=? AND ref=?", scope)]
     report = {"project": scope[0], "ref": scope[1],
               "active": [_receipt(r) for r in rows if r["state"] == "active"]}
-    for mode in ("manual", "pickup", "close"):
-        samples = [r for r in rows if r["mode"] == mode]
+    def statistics(mode, samples):
         completed = [r for r in samples if r["state"] == "finished"]
         stats = {"finished": len(completed),
                  "active": sum(r["state"] == "active" for r in samples),
@@ -202,9 +221,19 @@ def summary(home, project):
         if mode == "close":
             stats.update(tool_count=len(times), median_tool_ms=_median(times))
         else:
+            known = [r["stale_evidence_used"] for r in completed
+                     if "stale_evidence_used" in r.keys() and r["stale_evidence_used"] is not None]
             stats.update(wrong_picks=sum(r["wrong_pick"] for r in completed),
-                         reexplanations=sum(r["reexplanations"] for r in completed))
-        report[mode] = stats
+                         reexplanations=sum(r["reexplanations"] for r in completed),
+                         stale_evidence_used=sum(known) if known else None, stale_evidence_reported=len(known))
+        return stats
+    for mode in ("manual", "pickup", "close"):
+        report[mode] = statistics(mode, [r for r in rows if r["mode"] == mode])
+    pickups = [r for r in rows if r["mode"] == "pickup"]
+    report["pickup_variants"] = {
+        variant: statistics("pickup", [r for r in pickups if json.loads(r["evidence"] or "{}").get("variant", "classic") == variant])
+        for variant in ("classic", "structured")
+    }
     baseline, pickup = (report[m]["median_elapsed_ms"] for m in ("manual", "pickup"))
     report["median_saved_ms"] = baseline - pickup if None not in (baseline, pickup) else None
     return report

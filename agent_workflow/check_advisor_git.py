@@ -124,7 +124,18 @@ def _patch_text(raw, partial):
     return "".join(lines)
 
 
-def change_context(project, base=None, *, excluded_paths=()):
+def resolve_commit(project, ref):
+    """Pin an explicitly named local commit before running either evaluation arm."""
+    if not isinstance(ref, str) or not ref or ref.startswith("-") or "\0" in ref:
+        raise WorkflowError("로컬 커밋 또는 브랜치를 지정하세요.")
+    data, capped = _read_git(project, ["rev-parse", "--verify", "--quiet", "--end-of-options", ref + "^{commit}"],
+                             128, time.monotonic() + 30, allow_absent=True)
+    if capped or not re.fullmatch(rb"[0-9a-f]{40}(?:[0-9a-f]{24})?", data.strip()):
+        raise WorkflowError("지정한 커밋을 로컬 저장소에서 찾을 수 없습니다.")
+    return data.strip().decode("ascii")
+
+
+def change_context(project, base=None, *, excluded_paths=(), candidate=None):
     """Return repo-relative paths and diff against a local commit plus untracked path names."""
     deadline = time.monotonic() + 30
     root_data, capped = _read_git(Path(project).expanduser().resolve(),
@@ -150,7 +161,13 @@ def change_context(project, base=None, *, excluded_paths=()):
 
     common = [*options, "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--ignore-submodules=dirty"]
     staged = ["--cached", *([sha] if sha else [])]
-    layers = [("base -> index", staged), ("index -> worktree", [])]
+    if candidate is not None:
+        if not sha or base is None:
+            raise WorkflowError("두 커밋의 변경을 비교하려면 기준 커밋을 지정하세요.")
+        candidate = resolve_commit(root, candidate)
+        layers = [("base -> candidate", [sha, candidate])]
+    else:
+        layers = [("base -> index", staged), ("index -> worktree", [])]
     excluded = {Path(entry) for entry in excluded_paths}
     changed, blocked, opaque = set(), set(), set()
     tracked = []
@@ -178,11 +195,14 @@ def change_context(project, base=None, *, excluded_paths=()):
             opaque.update(added)
         changed.update(paths_in_layer)
         tracked.append(paths_in_layer)
-    raw, cut = _read_git(root, [*options, "ls-files", "--others", "--exclude-standard", "-z"],
-                         _METADATA_BYTES, deadline)
-    untracked = {os.fsdecode(name) for name in raw.split(b"\0")[:-1] if name}
-    changed.update(untracked)
-    truncated = incomplete_tracked or cut
+    untracked = set()
+    truncated = incomplete_tracked
+    if candidate is None:
+        raw, cut = _read_git(root, [*options, "ls-files", "--others", "--exclude-standard", "-z"],
+                             _METADATA_BYTES, deadline)
+        untracked = {os.fsdecode(name) for name in raw.split(b"\0")[:-1] if name}
+        changed.update(untracked)
+        truncated |= cut
     blocked.update(name for name in changed if _sensitive(Path(name), excluded))
     for names in renames:
         if blocked.intersection(names):
@@ -224,6 +244,7 @@ def change_context(project, base=None, *, excluded_paths=()):
                 remaining -= len(heading) + len(patch.encode())
     tracked_visible = (set.union(*tracked) - blocked) - set(paths)
     skipped.update(tracked_visible)
-    return {"base": sha or None, "paths": paths, "untracked_paths": [name for name in paths if name in untracked],
+    return {"base": sha or None, **({"candidate": candidate} if candidate is not None else {}),
+            "paths": paths, "untracked_paths": [name for name in paths if name in untracked],
             "diff": "".join(sections), "truncated": truncated or bool(skipped), "omitted_sensitive": len(blocked),
             "omitted_diff_files": len(skipped)}

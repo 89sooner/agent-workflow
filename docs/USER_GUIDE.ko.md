@@ -77,7 +77,38 @@ Git 저장소 또는 하위 디렉터리에서 실행한다. 다른 위치에 �
 - **재개**는 마지막 메모의 존재 여부 `found`, 현재 Git 상태, 기존 `agent-context` 인계 색인·요약·할 일 문서, 최근 등록 작업을 보여준다. 메모의 경로 상태 비교는 이름과 Git 상태 코드를 사용한다. 내용 차이는 `git diff`로 읽는다. 이에 비해 등록 작업의 검사 증거는 파일 내용과 참조 문서도 비교한다. [검증 결과 해석](#execution)
 - 이 경량 메모에는 직접 입력한 요약과 다음 행동이 들어간다. 호스트의 전체 대화 내보내기나 기존 프로젝트의 인계 패키지가 필요한 경우 해당 도구의 절차도 사용한다.
 
+### 관제실과 다음 세션에서 같은 작업 이어가기
+
+관제실에서 **작업 상세 → 작업 재개 정보**를 연다. 현재 목표, 다음 행동, 남은 조건, 유효한 근거,
+확인할 사항과 허용 범위가 표시된다. 조건을 누르면 원래 계약으로 이동하고, 근거를 펼치면 같은 원장의 영수증을 읽을 수 있다.
+
+다음 모델 세션은 작업 폴더에서 `agent-workflow pickup`을 실행하고 요청한 목표에 해당하는
+`registered_tasks[].resume_packet`을 읽는다. 작업 ID를 알면 아래 명령으로 그 작업만 조회한다.
+여러 원장에 같은 ID가 있을 때는 패킷의 `ledger`와 `task_id`를 함께 사용한다.
+
+```bash
+agent-workflow --home /path/to/ledger resume-view TASK-ID
+agent-workflow --home /path/to/ledger show TASK-ID
+```
+
+`resume-view`는 관제실과 같은 JSON을 반환한다. `valid_evidence[].source`는 `show`의 `task` 안에 있는
+원본 위치다. 예를 들어 `/verification/results/0`은 해당 작업의 첫 검사 실행이다. 코드·참조·검사 입력이
+달라진 성공 기록은 원장 이력에 남고, 재개 정보에는 다시 확인할 조건이 표시된다. PR·배포 근거에는 확인 당시의
+리비전이 표시된다. `brief ID`와 자동 실행기의 모델 입력에도 같은 재개 정보가 들어간다.
+
+`handoff/state.json`과 `handoff/resume.txt`는 생성 시점의 사본이다. 파일을 받은 세션은
+`resume-view`를 다시 조회한다. 등록 작업의 현재 다음 행동은 패킷의 `next_action`에 있고,
+`close-session`으로 작성한 메모의 `next_action`은 작성 당시 제안이다.
+
 ### 재개와 마감의 소요 시간
+
+기존 형식을 비교하려면 `pickup --classic --measure`, 새 형식은 `pickup --measure`로 시작한다.
+올바른 첫 행동을 시작할 때 `resume-time finish --wrong-picks N --reexplanations N`으로 횟수를 저장한다.
+오래된 근거를 현재 판단에 사용했다면 `--used-stale-evidence`, 사용하지 않았다고 확인했다면
+`--no-stale-evidence`를 붙인다. 생략한 값은 미보고로 남는다. `resume-time report`의
+`pickup_variants`에서 각 방식의 완료 표본 수, 중앙값, 잘못 고른 작업, 재설명, 오래된 근거 사용 건수와
+해당 질문에 답한 수를 확인한다. 이 타이머는 사용자가 행동 시작을 확인하는 방식이다.
+별도로 모델이 선택한 동작을 실제로 실행해 측정한 결과도 있다. [같은 중단 상태 6쌍의 비교](../pilots/p1-handoff/README.md)
 
 평소 방식으로 재개할 때는 `resume-time start`, 메모와 검사 근거를 읽을 때는 `pickup --measure`를 맨 먼저 실행한다. 후자는 조회가 시작된 시각과 표시한 작업 트리·브랜치, HEAD, 변경 상태 지문, 메모 번호 및 등록 작업 식별자를 연결한다. 같은 인계 근거로 반복 실행하면 진행 중인 측정 ID와 원래 시작 시각을 반환한다. 일반 `pickup`은 측정을 시작하지 않는다.
 
@@ -275,8 +306,33 @@ GitHub 경로에서는 검증된 변경을 커밋하고 원격 작업 브랜치�
 | `integration_check`, `integration_revision` | 통합 검사의 결과와 검사한 SHA를 확인한다. 로컬 후보 검사와 원격 기본 브랜치 병합을 각각 판독한다. |
 | `deployment`, `health`, `deployment_revision` | `applied`와 `failed`가 함께 나오면 배포 적용은 끝났고 후속 상태 검사가 실패했다. 최종 상태 확인을 마친 리비전을 따로 표시한다. |
 | `error`, `updated_at` | 마지막 릴리스 오류와 기록 시각이다. 조회는 로컬 원장을 읽으므로 과거 기록은 현재 서비스 생존 여부와 구별한다. |
+| `recovery` | 확인이 필요한 단계와 이유, 이미 확인한 효과, 재개 시 수행할 다음 행동이다. PR 번호·병합 SHA·적용 버전에는 확인한 기록만 표시한다. |
 
 적용 성공 후 상태 검사만 실패했다면 원인을 고치고 `release ID`로 상태 검사부터 재개한다. 적용 자체가 실패했거나 결과가 불명확하면 실제 배포 대상에 반영된 버전을 먼저 확인한다. 다시 적용해야 할 때만 `release ID --retry-deploy`를 사용한다.
+
+### 중단된 작업의 효과와 다음 행동
+
+`agent-workflow show ID`, Katakuri의 `katakuri-goal status ID`, 관제실의 **작업 상세 → 중단 복구**에서
+중단 단계와 `confirmed_effects`, `next_action`을 확인한다. 릴리스만 볼 때는
+`agent-workflow release-status ID`가 작업 폴더와 원격 접속 없이 원장을 읽는다.
+실제 원격 조회와 배포 버전 확인은 등록한 릴리스를 재개할 때 수행한다.
+
+| 중단된 시점 | 재개 시 수행하는 일 |
+|---|---|
+| 구현 파일을 쓴 뒤 응답이 유실됨 | 구현 호출 직전과 같은 HEAD에서 남은 변경을 대조한다. 등록된 검사와 독립 검토자로 검증한다. 검사가 실패하거나 검토자가 수정을 요구하면 그 근거를 사용해 수정을 이어간다. |
+| 검사 통과 뒤 리뷰 전 | 코드·참조·등록 검사 명령·서비스 설정·선언한 환경 입력이 유효하면 독립 리뷰부터 실행한다. 증거가 달라졌거나 기존 기록에 검사 계약의 지문이 없으면 먼저 다시 검사한다. |
+| PR 생성 또는 병합 응답 유실 | 같은 호스트·저장소·기준/작업 브랜치·후보 SHA의 PR을 조회하고, 병합은 같은 PR 번호와 병합 커밋을 확인한다. 일치하는 결과가 아직 보이지 않으면 확인 대기를 유지한다. |
+| 배포 명령 실행 후 결과 유실 | 선택 설정인 `--observe-revision '명령'`이 있으면 대상 서비스에 적용된 전체 커밋 SHA를 조회한다. 병합 SHA와 일치하면 기존 적용을 기록하고 상태 검사로 넘어간다. 불일치하거나 조회 수단이 없으면 대상 확인이 필요하다. |
+
+프로필에 `"check_inputs": ["fixtures/build-manifest.json"]`처럼 검사에 쓰는 파일이나 디렉터리를 지정할 수 있다.
+Git이 무시하는 파일도 등록된 경로의 내용과 존재 여부가 지문에 포함된다. 하위 항목을 읽는 비용이 있으므로 실제로
+검사 결과를 결정하는 경로를 고른다. 체크아웃 밖의 서비스 상태나 등록하지 않은 환경 변수는 이 지문으로 확인할 수 없다.
+필수 JUnit 조건이 있는 목표에서 환경 입력을 따로 선언하지 않으면, 중단 후 리뷰에 들어가기 전에 해당 작업의
+등록 검사를 다시 실행해 빌드 산출물의 상태를 확인한다.
+
+배포 버전 조회 명령은 `release-config`에서 배포·상태 명령과 함께 설정한다. 조회 명령이 대상에서 직접 읽은
+40자 또는 64자 소문자 Git SHA 한 줄을 stdout에 출력하고 0으로 종료해야 한다. 이 명령은 적용 버전을 조회할 수
+있는 배포 대상에서만 지정한다. [네 가지 중단 재현과 호출 횟수](../pilots/p1-recovery/README.md)
 
 <a id="observe"></a>
 
@@ -345,10 +401,12 @@ GitHub 경로에서는 검증된 변경을 커밋하고 원격 작업 브랜치�
 | 경량 세션 | `close-session` 마감, `pickup` 인계·검증 결과 조회, `resume-time start/start-close/finish/abandon/report` 재개·마감 시간 측정, `patterns` 입력 이력 집계 |
 | 작업·연결 | `create` 명시 ID 등록, `connect` 프로젝트·원장·프로필 연결, `start` 자동 ID 등록, `list` 작업 목록, `show` 작업과 현재 증거 조회 |
 | 검사 계획 | `profile save/show/list/checks` 설정 저장·조회·검사 미리보기, `recommend-checks` 변경 기반 검사 묶음 추천, `recommendation show/feedback/report` 추천·작업 연결 및 실측 집계, `evaluate-checks` 저장된 추천 품질 확인, `check-add` 열린 작업에 검사 추가 |
+| 두 번째 모델 측정 | `measure-checks`로 같은 변경의 단독·합산 추천을 전체 검사와 대조하고, `measure-review`로 결함·정상 변경에서 독립 리뷰의 검출·차단·시간·호출 수를 측정한다. [비교 명령과 판독법](USE_CASES.ko.md#measure-checks) |
 | 준비·담당 | `prepare` 환경 준비, `assign` 구현·검토자 변경, `execution-config` 모델·한도 설정 |
 | 대화형 수행 | `brief` 역할별 입력, `checkpoint` 진행 기록·다음 행동, `check` 검사 실행, `result-schema` 리뷰 스키마, `review-import` 독립 검토 결과 등록, `finish` 로컬 완료 |
 | 자동 수행·인계 | `run`·`pipeline` 유한 자동 실행, `handoff` 인계 파일, `finalize` 작업일지와 설정된 내보내기, `cleanup` 환경 정리 |
-| Katakuri 목표 | `katakuri-goal create/run/status/supply/budget`으로 목표를 등록·실행하고, 대기 근거와 누적 한도를 관리한다. [명령 예제](KATAKURI_GOAL.ko.md#cli) |
+| 프로젝트 목표 | `goal create/run/status/supply/budget`으로 프로젝트 정책에 따라 로컬 작업을 실행한다. `goal status ID`는 목표 종류와 고정된 정책 버전을 표시한다. [프로필 예제](../profiles/README.md#project-goals) |
+| Katakuri 목표 | `katakuri-goal create/run/status/supply/budget`으로 기존 목표와 종목·마일스톤을 관리한다. 기존 ID는 공통 `goal status/run`에서도 사용할 수 있다. [명령 예제](KATAKURI_GOAL.ko.md#cli) |
 | 대기열·보류 | `queue`, `jobs`, `cancel`, `stop`, `resume`으로 실행 관리. `hold`, `unhold`로 개별 작업 보류·해제. `notifications`로 결과 알림 기록 조회 |
 | 순차 작업 | `depends` 선행 작업과 조건 등록, `batch create/show/list/start/pause`로 작업 묶음 관리 |
 | 릴리스 | `release-config` 대상 등록, `release-clear` 시작 전 설정 해제, `release` 릴리스 수행·재개, `release-status` 기록된 결과 조회 |

@@ -68,14 +68,13 @@ def sync_documents(store, task):
     return bool(changed)
 
 
-def worklog(store, task, state):
-    from .workspaces import observed_snapshot
-    current = observed_snapshot(task)
+def worklog(store, task, view):
+    current = view["observed_git"]
     cfg = (task.get("project_config") or {}).get("exports", {})
     date = dt.datetime.fromisoformat(task["created_at"]).astimezone(ZoneInfo(cfg.get("timezone", "UTC"))).date().isoformat()
-    verified = bool(state["verification_is_current"] and (task.get("verification") or {}).get("passed"))
-    reviewed = task["reviewer"] == "none" or bool(state["review_is_current"] and (task.get("review") or {}).get("verdict") == "pass")
-    done = task["status"] == "completed" and state["completion_is_current"] and verified and reviewed
+    evidence = {item["kind"] for item in view["resume_packet"]["valid_evidence"]}
+    verified = "verification" in evidence and (task.get("verification") or {}).get("passed") is True
+    done = "completion" in evidence
     status = "done" if done else "blocked" if task["status"] == "blocked" else "partial"
     title = plain(task["goal"])
     lines = ["---", "type: worklog", f"date: {date}", "title: " + json.dumps(title, ensure_ascii=False),
@@ -84,17 +83,21 @@ def worklog(store, task, state):
              f"- 작업 `{task['id']}`의 기록 상태는 `{task['status']}`이다.", "", "## 배경 / 요청",
              "> " + title.replace("\n", "\n> "), "", "## 변경 사항", "| 파일 | 변경 | 요지 |", "|---|---|---|"]
     from .policy import changed_files
-    paths = changed_files(task["project"]) if not current.get("archived") else {}
+    from .session_notes import read_only_git
+    readable = current.get("fingerprint") and not current.get("archived")
+    reader = read_only_git()
+    paths = changed_files(task["project"], read_git=reader) if readable else {}
     initial = task["baseline"].get("changed_files", {})
-    touched = sorted({p for p, value in paths.items() if initial.get(p) != value} | {p for p in initial if p not in paths})
+    touched = sorted({p for p, value in paths.items() if initial.get(p) != value} | {p for p in initial if p not in paths}) if readable else []
     # A committed release has a clean tree; list its actual committed diff instead.
-    if not touched and (task.get("release") or {}).get("commit") and not current.get("archived"):
-        from .core import git
-        raw = git(task["project"], "diff", "--name-only", "-z", task["baseline"]["head"], task["release"]["commit"], binary=True)
+    if not touched and (task.get("release") or {}).get("commit") and readable:
+        raw = reader(task["project"], "diff", "--name-only", "-z", task["baseline"]["head"], task["release"]["commit"], binary=True)
         touched = [os.fsdecode(x) for x in raw.split(b"\0") if x]
     for path in touched:
         lines.append("| `" + plain(path).replace("|", "\\|") + "` | 변경 | Git 변경 목록에서 확인했다. |")
-    if not touched:
+    if not readable:
+        lines.append("| 미확인 | 미확인 | 현재 작업 트리를 관측할 수 없다. |")
+    elif not touched:
         lines.append("| 없음 | 없음 | 새 파일 변경을 기록하지 않았다. |")
     lines += ["", "## 진행 과정", "1. 도구가 작업 목표와 완료 조건을 등록했다."]
     if task.get("implementation"):
@@ -110,7 +113,7 @@ def worklog(store, task, state):
     lines += [f"- 현재 코드의 검사 증거는 {'유효하다' if verified else '유효하지 않다'}.",
               f"- 지정 리뷰 상태는 `{(task.get('review') or {}).get('verdict', '미지정' if task['reviewer'] == 'none' else '미실행')}`이다.",
               "", "## 이슈 / 미해결", "- " + plain(task.get("blocker") or (task.get("release") or {}).get("error") or "없음"),
-              "", "## 후속 작업", "- [ ] " + plain(task["checkpoint"]["next"]), "", "## 참고 / 링크",
+              "", "## 후속 작업", "- [ ] " + plain(view["resume_packet"]["next_action"]["text"]), "", "## 참고 / 링크",
               "- 근거: `" + str(store.directory(task["id"]) / "handoff/state.json") + "`", "", "## 작업 흐름도", "```mermaid", "flowchart TD",
               '    A["작업 등록"] --> B["현재 변경 확인"]', '    B --> C["검사 기록 확인"]',
               '    C --> D["리뷰 기록 확인"]', f'    D --> E["결과: {status}"]', "```", "", "## 요약",
@@ -131,11 +134,11 @@ def finalize(store, task, *, locked=False):
     latest = store.get(task["id"])
     task.clear()
     task.update(latest)
-    from .cli import export_handoff, freshness
-    from .workspaces import observed_snapshot
-    directory = export_handoff(store, task)
-    flags = freshness(task, observed_snapshot(task))
-    date, text = worklog(store, task, flags)
+    from .cli import write_handoff_snapshot
+    from .task_observation import observe
+    view = observe(task, store.home)
+    directory = str(write_handoff_snapshot(store, task, view))
+    date, text = worklog(store, task, view)
     atomic_write(Path(directory) / "worklog.md", text)
     result = {"handoff": directory, "worklog": str(Path(directory) / "worklog.md"), "at": now()}
     target = (task.get("project_config") or {}).get("exports", {}).get("directory")
@@ -156,6 +159,9 @@ def finalize(store, task, *, locked=False):
         result["export"] = {"path": str(path), "sha256": digest}
     task["closure"] = result
     store.save(task, "closure_finished", result)
+    # Closure adds a ledger revision. Publish that revision, even when the code
+    # and next action stayed the same. A later session always refreshes from SQLite.
+    write_handoff_snapshot(store, task, observe(task, store.home))
     if not os.environ.get("AGENT_WORKFLOW_JOB_ID"):
         from .operations import publish_notification
         publish_notification(store, task)

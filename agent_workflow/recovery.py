@@ -3,7 +3,21 @@ from pathlib import Path
 import json
 import re
 
-from .core import WorkflowError, now
+from .core import WorkflowError, git, now
+
+
+def diagnosis(task, current, *, read_git=git, flags=None):
+    """Describe a resume from recorded effects and the caller's observed checkout."""
+    from .release import release_diagnosis
+    from .local_recovery import local_diagnosis
+
+    result = release_diagnosis(task)
+    if result is None and current.get("fingerprint") and not current.get("archived"):
+        result = local_diagnosis(task, current, read_git=read_git, flags=flags)
+    if result and task.get("hold"):
+        return {**result, "action": "held",
+                "next_action": "작업의 수동 보류 사유를 확인하세요. " + task["hold"]["reason"]}
+    return result
 
 
 class AgentFailure(WorkflowError):

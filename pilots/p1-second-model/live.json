@@ -1,0 +1,2585 @@
+{
+  "mode": "live",
+  "versions": {
+    "python": "3.12.3",
+    "codex": "codex-cli 0.171.0-alpha.13",
+    "claude": "2.1.325 (Claude Code)"
+  },
+  "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+  "criteria": [
+    "Refactor page() for readability. Preserve its tuple of (items, next cursor), including exact final pages.",
+    "Continue to reject negative starts and nonpositive page sizes with ValueError."
+  ],
+  "implementation_report": "I refactored page bounds and believe output and validation behavior are preserved.",
+  "primary": "codex",
+  "auxiliary": "claude",
+  "independent_reviewer": "codex",
+  "oracle": {
+    "base": {
+      "inputs": 245,
+      "mismatches": 0,
+      "witness": null,
+      "mixed_exception": "ValueError"
+    },
+    "a": {
+      "inputs": 245,
+      "mismatches": 10,
+      "witness": {
+        "length": 1,
+        "start": 0,
+        "size": 1,
+        "expected": [
+          [
+            0
+          ],
+          null
+        ],
+        "observed": [
+          [
+            0
+          ],
+          1
+        ]
+      },
+      "mixed_exception": "ValueError"
+    },
+    "b": {
+      "inputs": 245,
+      "mismatches": 0,
+      "witness": null,
+      "mixed_exception": "TypeError"
+    },
+    "c": {
+      "inputs": 245,
+      "mismatches": 30,
+      "witness": {
+        "length": 0,
+        "start": 0,
+        "size": 0,
+        "expected": "ValueError",
+        "observed": [
+          [],
+          null
+        ]
+      },
+      "mixed_exception": "TypeError"
+    },
+    "d": {
+      "inputs": 245,
+      "mismatches": 0,
+      "witness": null,
+      "mixed_exception": "ValueError"
+    },
+    "e": {
+      "inputs": 245,
+      "mismatches": 0,
+      "witness": null,
+      "mixed_exception": "ValueError"
+    }
+  },
+  "cases": [
+    {
+      "case": "a",
+      "candidate": "5105700f8c0bb43f92ede39fbacc5710c04e209f",
+      "report_first": false,
+      "defect": {
+        "path": "pager.py",
+        "cues": [
+          [
+            "exact",
+            "equal",
+            "last page",
+            "final page",
+            "at the end",
+            "<= len",
+            "== len"
+          ],
+          [
+            "cursor",
+            "next_start",
+            "continuation",
+            "another page",
+            "extra page"
+          ]
+        ]
+      },
+      "checks": {
+        "kind": "agent-workflow.check-measurement",
+        "version": 1,
+        "status": "complete",
+        "profile": "pager",
+        "profile_digest": "fcd6d852ed86a59c626c4087dc0ec6cbbea197071e7a758578ef726cebea896b",
+        "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+        "candidate": "5105700f8c0bb43f92ede39fbacc5710c04e209f",
+        "input_digest": "7e351469a17db4a98941fc65a577cfa6f94d52991d49eb33db1cf56dfafe0739",
+        "change_summary": {
+          "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+          "truncated": false,
+          "omitted_sensitive": 0,
+          "omitted_diff_files": 0
+        },
+        "model_calls": {
+          "primary": {
+            "provider": "codex",
+            "attempts": 1,
+            "calls": 1,
+            "models_reported": [],
+            "elapsed_ms": 7533,
+            "status": "complete"
+          },
+          "review": {
+            "provider": "claude",
+            "attempts": 1,
+            "calls": 1,
+            "models_reported": [
+              "claude-opus-5-5"
+            ],
+            "elapsed_ms": 13847,
+            "status": "complete"
+          }
+        },
+        "model_errors": {},
+        "oracle_trials": [
+          {
+            "side": "baseline",
+            "repeat": 1,
+            "revision": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "candidate",
+            "repeat": 1,
+            "revision": "5105700f8c0bb43f92ede39fbacc5710c04e209f",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "candidate",
+            "repeat": 2,
+            "revision": "5105700f8c0bb43f92ede39fbacc5710c04e209f",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "baseline",
+            "repeat": 2,
+            "revision": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          }
+        ],
+        "commands": [
+          {
+            "id": "C1",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "shape"
+            ],
+            "base_check": true,
+            "groups": [
+              "bounds"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.01,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.01,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.01,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "classification": "passing",
+            "candidate_median_ms": 10.0
+          },
+          {
+            "id": "C2",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "end"
+            ],
+            "base_check": false,
+            "groups": [
+              "bounds"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.01,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.069,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "bbd2b00543498597c6804f11643f4b7ef745608380d6b9d0826621e0caa4b244"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.07,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "354b36a158511e871f57461b2a3d0bbdb96517876b6d4f4139ba8fd5b7035ee0"
+              }
+            ],
+            "classification": "regression",
+            "candidate_median_ms": 69.5
+          },
+          {
+            "id": "C3",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "invalid"
+            ],
+            "base_check": false,
+            "groups": [
+              "inputs"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.01,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.01,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "classification": "passing",
+            "candidate_median_ms": 10.0
+          },
+          {
+            "id": "C4",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "archive"
+            ],
+            "base_check": false,
+            "groups": [
+              "archive"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.07,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "89133aa5210b0ebcceb1787e2567643c8388d756c80d7361154fd2e27826cc90"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.07,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "58c02d2f6192316b2f5126c0c65f960d63fb6d6648e8bd4c71073aac351efbda"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.068,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "9a3e0bfdfcb6c427d5df12c1626f56800a563c50ffb6d4dd258c4cab37abcabc"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.067,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "61a5808da51c41e4a3cfe7a2e27f9fd61d8bbcd87b1a31b4f375e838b47b90ee"
+              }
+            ],
+            "classification": "preexisting_failure",
+            "candidate_median_ms": 67.5
+          }
+        ],
+        "arms": {
+          "primary": {
+            "groups": [
+              "bounds",
+              "inputs"
+            ],
+            "command_ids": [
+              "C1",
+              "C2",
+              "C3"
+            ],
+            "detected_regressions": [
+              "C2"
+            ],
+            "missed_regressions": [],
+            "inconclusive_selected": [],
+            "selected_check_ms": 89.5,
+            "model_calls": 1,
+            "model_ms": 7533
+          },
+          "combined": {
+            "groups": [
+              "bounds",
+              "inputs"
+            ],
+            "command_ids": [
+              "C1",
+              "C2",
+              "C3"
+            ],
+            "detected_regressions": [
+              "C2"
+            ],
+            "missed_regressions": [],
+            "inconclusive_selected": [],
+            "selected_check_ms": 89.5,
+            "model_calls": 2,
+            "model_ms": 21380
+          }
+        },
+        "delta": {
+          "additional_regressions": [],
+          "additional_selected_check_ms": 0,
+          "additional_model_calls": 1,
+          "additional_model_ms": 13847
+        }
+      },
+      "review": {
+        "kind": "agent-workflow.review-measurement",
+        "version": 1,
+        "status": "complete",
+        "profile": "pager",
+        "profile_digest": "fcd6d852ed86a59c626c4087dc0ec6cbbea197071e7a758578ef726cebea896b",
+        "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+        "candidate": "5105700f8c0bb43f92ede39fbacc5710c04e209f",
+        "input_digest": "b33660c063791a28f41b3bd44f88f2cd3d979c4d220cd28fcc22430937d73938",
+        "implementation_report_digest": "661f22eb3f1b03078097285a25ab8fe15721bb8e9f54d785d5122b82e548a62a",
+        "reviewer": "codex",
+        "ground_truth": {
+          "path": "pager.py",
+          "cues": [
+            [
+              "exact",
+              "equal",
+              "last page",
+              "final page",
+              "at the end",
+              "<= len",
+              "== len"
+            ],
+            [
+              "cursor",
+              "next_start",
+              "continuation",
+              "another page",
+              "extra page"
+            ]
+          ]
+        },
+        "order": [
+          "blind",
+          "with_report"
+        ],
+        "no_review": {
+          "calls": 0,
+          "elapsed_ms": 0,
+          "outcome": "pass",
+          "score": {
+            "detected": false,
+            "missed": true,
+            "false_block": false,
+            "unmatched_block": false,
+            "inconclusive": false
+          }
+        },
+        "arms": {
+          "blind": {
+            "calls": 1,
+            "models_reported": [],
+            "status": "complete",
+            "error": null,
+            "elapsed_ms": 9989,
+            "payload_digest": "b33660c063791a28f41b3bd44f88f2cd3d979c4d220cd28fcc22430937d73938",
+            "outcome": "changes_requested",
+            "findings": [
+              {
+                "blocking": true,
+                "detail": "In `pager.py`, `page([1, 2, 3, 4], 2, 2)` should return `([3, 4], None)` but now returns `([3, 4], 4)`, advertising a next page when no items remain.",
+                "evidence": "The candidate uses `stop <= len(items)`, which returns a cursor when `stop == len(items)`. The original strict comparison returned `None` at that boundary."
+              }
+            ],
+            "score": {
+              "detected": true,
+              "missed": false,
+              "false_block": false,
+              "unmatched_block": false,
+              "inconclusive": false
+            },
+            "vs_no_review": {
+              "additional_detected": true,
+              "additional_false_block": false,
+              "additional_ms": 9989,
+              "additional_calls": 1
+            }
+          },
+          "with_report": {
+            "calls": 1,
+            "models_reported": [],
+            "status": "complete",
+            "error": null,
+            "elapsed_ms": 8485,
+            "payload_digest": "f26c6ad58a58cb83a5f0b3909fa46e8a2fbc8dbeddf54ad9115bda09cfa43372",
+            "outcome": "changes_requested",
+            "findings": [
+              {
+                "blocking": true,
+                "detail": "In pager.py, the `<=` comparison returns a cursor when the page ends exactly at the end of the list.",
+                "evidence": "`page([1, 2, 3, 4], 2, 2)` should return `([3, 4], None)` as before, but the candidate returns `([3, 4], 4)` because `stop == len(items)`."
+              }
+            ],
+            "score": {
+              "detected": true,
+              "missed": false,
+              "false_block": false,
+              "unmatched_block": false,
+              "inconclusive": false
+            },
+            "vs_no_review": {
+              "additional_detected": true,
+              "additional_false_block": false,
+              "additional_ms": 8485,
+              "additional_calls": 1
+            }
+          }
+        },
+        "pair_delta": {
+          "detected": 0,
+          "missed": 0,
+          "false_block": 0,
+          "calls": 0,
+          "elapsed_ms": -1504
+        }
+      },
+      "supplied_check_report_sha256": "8a875bbe701d0f2bf306785b062e7e2656ec972bfc41cd2d90a375dc53566739"
+    },
+    {
+      "case": "b",
+      "candidate": "01d0cbe7e72e7c11ceb81dd6c2fb3601274a8b82",
+      "report_first": true,
+      "defect": null,
+      "checks": {
+        "kind": "agent-workflow.check-measurement",
+        "version": 1,
+        "status": "complete",
+        "profile": "pager",
+        "profile_digest": "fcd6d852ed86a59c626c4087dc0ec6cbbea197071e7a758578ef726cebea896b",
+        "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+        "candidate": "01d0cbe7e72e7c11ceb81dd6c2fb3601274a8b82",
+        "input_digest": "741a42fa23ef7878141369a274579f43eebb7c28f42f40d61d1625673377bb9f",
+        "change_summary": {
+          "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+          "truncated": false,
+          "omitted_sensitive": 0,
+          "omitted_diff_files": 0
+        },
+        "model_calls": {
+          "primary": {
+            "provider": "codex",
+            "attempts": 1,
+            "calls": 1,
+            "models_reported": [],
+            "elapsed_ms": 7232,
+            "status": "complete"
+          },
+          "review": {
+            "provider": "claude",
+            "attempts": 1,
+            "calls": 1,
+            "models_reported": [
+              "claude-opus-5-5"
+            ],
+            "elapsed_ms": 11894,
+            "status": "complete"
+          }
+        },
+        "model_errors": {},
+        "selections": {
+          "primary": [
+            "bounds",
+            "inputs"
+          ],
+          "review": [
+            "bounds",
+            "inputs"
+          ]
+        },
+        "oracle_elapsed_ms": 906,
+        "replicate_environment_drift": [],
+        "oracle_trials": [
+          {
+            "side": "baseline",
+            "repeat": 1,
+            "revision": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "candidate",
+            "repeat": 1,
+            "revision": "01d0cbe7e72e7c11ceb81dd6c2fb3601274a8b82",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "candidate",
+            "repeat": 2,
+            "revision": "01d0cbe7e72e7c11ceb81dd6c2fb3601274a8b82",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "baseline",
+            "repeat": 2,
+            "revision": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          }
+        ],
+        "commands": [
+          {
+            "id": "C1",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "shape"
+            ],
+            "base_check": true,
+            "groups": [
+              "bounds"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "classification": "passing",
+            "candidate_median_ms": 11.0
+          },
+          {
+            "id": "C2",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "end"
+            ],
+            "base_check": false,
+            "groups": [
+              "bounds"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "classification": "passing",
+            "candidate_median_ms": 12.0
+          },
+          {
+            "id": "C3",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "invalid"
+            ],
+            "base_check": false,
+            "groups": [
+              "inputs"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "classification": "passing",
+            "candidate_median_ms": 11.0
+          },
+          {
+            "id": "C4",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "archive"
+            ],
+            "base_check": false,
+            "groups": [
+              "archive"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.068,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "a020379a8f4df54c2fa8efd0fd527871c8dbe1f982aad86b636012d95d31d600"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.068,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "db81d3de6944f2005d994f7094ca26234df68348f78db5425ce6e1cbf63805db"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.068,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "be5cd73028717b1e40271acadfceb948fa7a60862e09e52f80eed7121b9cc9cb"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.068,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "5c138e1192a48a2aa010fe3d81f6c29a1259c3cb2066cfb1c88bc55c903a47d9"
+              }
+            ],
+            "classification": "preexisting_failure",
+            "candidate_median_ms": 68.0
+          }
+        ],
+        "arms": {
+          "primary": {
+            "groups": [
+              "bounds",
+              "inputs"
+            ],
+            "command_ids": [
+              "C1",
+              "C2",
+              "C3"
+            ],
+            "detected_regressions": [],
+            "missed_regressions": [],
+            "selected_preexisting_failures": [],
+            "inconclusive_selected": [],
+            "selected_check_ms": 34.0,
+            "model_calls": 1,
+            "model_ms": 7232
+          },
+          "combined": {
+            "groups": [
+              "bounds",
+              "inputs"
+            ],
+            "command_ids": [
+              "C1",
+              "C2",
+              "C3"
+            ],
+            "detected_regressions": [],
+            "missed_regressions": [],
+            "selected_preexisting_failures": [],
+            "inconclusive_selected": [],
+            "selected_check_ms": 34.0,
+            "model_calls": 2,
+            "model_ms": 19126
+          }
+        },
+        "delta": {
+          "additional_regressions": [],
+          "additional_selected_check_ms": 0,
+          "additional_model_calls": 1,
+          "additional_model_ms": 11894
+        }
+      },
+      "review": {
+        "kind": "agent-workflow.review-measurement",
+        "version": 1,
+        "status": "incomplete",
+        "profile": "pager",
+        "profile_digest": "fcd6d852ed86a59c626c4087dc0ec6cbbea197071e7a758578ef726cebea896b",
+        "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+        "candidate": "01d0cbe7e72e7c11ceb81dd6c2fb3601274a8b82",
+        "input_digest": "530b90a66944226b8c05ddc6f35f5a9cb7d939624a6083c86c78bc5dbdee85d2",
+        "implementation_report_digest": "661f22eb3f1b03078097285a25ab8fe15721bb8e9f54d785d5122b82e548a62a",
+        "reviewer": "codex",
+        "ground_truth": null,
+        "order": [
+          "with_report",
+          "blind"
+        ],
+        "no_review": {
+          "calls": 0,
+          "elapsed_ms": 0,
+          "outcome": "pass",
+          "score": {
+            "detected": false,
+            "missed": false,
+            "false_block": false,
+            "unmatched_block": false,
+            "inconclusive": false
+          }
+        },
+        "arms": {
+          "with_report": {
+            "calls": 1,
+            "models_reported": [],
+            "status": "incomplete",
+            "error": "codex 검사 추천이 90초 한도에 도달했습니다.",
+            "elapsed_ms": 90010,
+            "payload_digest": "926a08fb5473b200ca604e6e9ee3d3e18df180e759009befdf39bc0d717617cf",
+            "outcome": null,
+            "findings": [],
+            "score": {
+              "detected": null,
+              "missed": null,
+              "false_block": null,
+              "unmatched_block": null,
+              "inconclusive": true
+            },
+            "vs_no_review": {
+              "additional_detected": null,
+              "additional_false_block": null,
+              "additional_ms": 90010,
+              "additional_calls": 1
+            }
+          },
+          "blind": {
+            "calls": 1,
+            "models_reported": [],
+            "status": "complete",
+            "error": null,
+            "elapsed_ms": 8939,
+            "payload_digest": "530b90a66944226b8c05ddc6f35f5a9cb7d939624a6083c86c78bc5dbdee85d2",
+            "outcome": "changes_requested",
+            "findings": [
+              {
+                "blocking": true,
+                "detail": "In pager.py, evaluating the size check eagerly can prevent a negative start from being rejected with ValueError.",
+                "evidence": "Call page([], -1, None). Expected: ValueError(\"invalid page bounds\"), as in the base implementation, which short-circuits on the negative start. Actual: TypeError from evaluating None <= 0 before reaching the ValueError."
+              }
+            ],
+            "score": {
+              "detected": false,
+              "missed": false,
+              "false_block": true,
+              "unmatched_block": false,
+              "inconclusive": false
+            },
+            "vs_no_review": {
+              "additional_detected": false,
+              "additional_false_block": true,
+              "additional_ms": 8939,
+              "additional_calls": 1
+            }
+          }
+        },
+        "pair_delta": {
+          "detected": null,
+          "missed": null,
+          "false_block": null,
+          "calls": 0,
+          "elapsed_ms": 81071
+        }
+      }
+    },
+    {
+      "case": "c",
+      "candidate": "d0372af0828947d93352a403c2ea796f11356dd3",
+      "report_first": true,
+      "defect": {
+        "path": "pager.py",
+        "cues": [
+          [
+            "size=0",
+            "size = 0",
+            "size == 0",
+            "size of 0",
+            "size of zero",
+            "zero",
+            "0, 0"
+          ],
+          [
+            "valueerror",
+            "raise",
+            "reject",
+            "invalid",
+            "accept",
+            "infinite",
+            "cursor",
+            "loop"
+          ]
+        ]
+      },
+      "checks": {
+        "kind": "agent-workflow.check-measurement",
+        "version": 1,
+        "status": "complete",
+        "profile": "pager",
+        "profile_digest": "fcd6d852ed86a59c626c4087dc0ec6cbbea197071e7a758578ef726cebea896b",
+        "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+        "candidate": "d0372af0828947d93352a403c2ea796f11356dd3",
+        "input_digest": "e50d43bf20861647dac8a5790ee4673e8d37945f7900800d549d36b866dcb278",
+        "change_summary": {
+          "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+          "truncated": false,
+          "omitted_sensitive": 0,
+          "omitted_diff_files": 0
+        },
+        "model_calls": {
+          "primary": {
+            "provider": "codex",
+            "attempts": 1,
+            "calls": 1,
+            "models_reported": [],
+            "elapsed_ms": 7084,
+            "status": "complete"
+          },
+          "review": {
+            "provider": "claude",
+            "attempts": 1,
+            "calls": 1,
+            "models_reported": [
+              "claude-opus-5-5"
+            ],
+            "elapsed_ms": 10492,
+            "status": "complete"
+          }
+        },
+        "model_errors": {},
+        "selections": {
+          "primary": [
+            "bounds",
+            "inputs"
+          ],
+          "review": [
+            "inputs",
+            "bounds"
+          ]
+        },
+        "oracle_elapsed_ms": 969,
+        "replicate_environment_drift": [],
+        "oracle_trials": [
+          {
+            "side": "baseline",
+            "repeat": 1,
+            "revision": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "candidate",
+            "repeat": 1,
+            "revision": "d0372af0828947d93352a403c2ea796f11356dd3",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "candidate",
+            "repeat": 2,
+            "revision": "d0372af0828947d93352a403c2ea796f11356dd3",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "baseline",
+            "repeat": 2,
+            "revision": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          }
+        ],
+        "commands": [
+          {
+            "id": "C1",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "shape"
+            ],
+            "base_check": true,
+            "groups": [
+              "bounds"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "classification": "passing",
+            "candidate_median_ms": 11.0
+          },
+          {
+            "id": "C2",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "end"
+            ],
+            "base_check": false,
+            "groups": [
+              "bounds"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "classification": "passing",
+            "candidate_median_ms": 12.0
+          },
+          {
+            "id": "C3",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "invalid"
+            ],
+            "base_check": false,
+            "groups": [
+              "inputs"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.067,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "57c64d7b79083dc2fcf61488e2c48add93a6fcd9e0cec4f6a8782cc8d82d7acc"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.067,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "65be195d5c37ba647e14e4195eb93c90e26f1f3badbceef177ea22efaf4c91f5"
+              }
+            ],
+            "classification": "regression",
+            "candidate_median_ms": 67.0
+          },
+          {
+            "id": "C4",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "archive"
+            ],
+            "base_check": false,
+            "groups": [
+              "archive"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.068,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "867a2553eba28f0b6e31dd3c75beab89d0b23654ad3243727f6ebcca2ef632a3"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.068,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "acb02a2f9a9729a9aa8abfff07e9cbb1fb915892164ad86d82174f610f23621f"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.068,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "7207cb18fcfceacba14f3d252523390ddd699459516ac503aea659b4b12ba78a"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.068,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "ac0c6bc46c532f2c692636a28132dad3f00c6e37757a032c0b8edd1a7a1c9b2f"
+              }
+            ],
+            "classification": "preexisting_failure",
+            "candidate_median_ms": 68.0
+          }
+        ],
+        "arms": {
+          "primary": {
+            "groups": [
+              "bounds",
+              "inputs"
+            ],
+            "command_ids": [
+              "C1",
+              "C2",
+              "C3"
+            ],
+            "detected_regressions": [
+              "C3"
+            ],
+            "missed_regressions": [],
+            "selected_preexisting_failures": [],
+            "inconclusive_selected": [],
+            "selected_check_ms": 90.0,
+            "model_calls": 1,
+            "model_ms": 7084
+          },
+          "combined": {
+            "groups": [
+              "bounds",
+              "inputs"
+            ],
+            "command_ids": [
+              "C1",
+              "C2",
+              "C3"
+            ],
+            "detected_regressions": [
+              "C3"
+            ],
+            "missed_regressions": [],
+            "selected_preexisting_failures": [],
+            "inconclusive_selected": [],
+            "selected_check_ms": 90.0,
+            "model_calls": 2,
+            "model_ms": 17576
+          }
+        },
+        "delta": {
+          "additional_regressions": [],
+          "additional_selected_check_ms": 0,
+          "additional_model_calls": 1,
+          "additional_model_ms": 10492
+        }
+      },
+      "review": {
+        "kind": "agent-workflow.review-measurement",
+        "version": 1,
+        "status": "complete",
+        "profile": "pager",
+        "profile_digest": "fcd6d852ed86a59c626c4087dc0ec6cbbea197071e7a758578ef726cebea896b",
+        "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+        "candidate": "d0372af0828947d93352a403c2ea796f11356dd3",
+        "input_digest": "118edad64327e04b5c8f3faafe920bd313c9a7b283675f5e8211ad42d41ca556",
+        "implementation_report_digest": "661f22eb3f1b03078097285a25ab8fe15721bb8e9f54d785d5122b82e548a62a",
+        "reviewer": "codex",
+        "ground_truth": {
+          "path": "pager.py",
+          "cues": [
+            [
+              "size=0",
+              "size = 0",
+              "size == 0",
+              "size of 0",
+              "size of zero",
+              "zero",
+              "0, 0"
+            ],
+            [
+              "valueerror",
+              "raise",
+              "reject",
+              "invalid",
+              "accept",
+              "infinite",
+              "cursor",
+              "loop"
+            ]
+          ]
+        },
+        "order": [
+          "with_report",
+          "blind"
+        ],
+        "no_review": {
+          "calls": 0,
+          "elapsed_ms": 0,
+          "outcome": "pass",
+          "score": {
+            "detected": false,
+            "missed": true,
+            "false_block": false,
+            "unmatched_block": false,
+            "inconclusive": false
+          }
+        },
+        "arms": {
+          "with_report": {
+            "calls": 1,
+            "models_reported": [],
+            "status": "complete",
+            "error": null,
+            "elapsed_ms": 8586,
+            "payload_digest": "9c71b431ee067867436bb54f61fa4dd5283f13078677775f6502c33c5e61427c",
+            "outcome": "changes_requested",
+            "findings": [
+              {
+                "blocking": true,
+                "detail": "`pager.py`: `page([1], 0, 0)` should raise `ValueError`, but it returns `([], 0)`, leaving the cursor unchanged.",
+                "evidence": "The candidate uses `invalid_size = size < 0`, so zero passes validation. With `stop = 0` and `len(items) = 1`, the return expression yields an empty slice and cursor `0`."
+              }
+            ],
+            "score": {
+              "detected": true,
+              "missed": false,
+              "false_block": false,
+              "unmatched_block": false,
+              "inconclusive": false
+            },
+            "vs_no_review": {
+              "additional_detected": true,
+              "additional_false_block": false,
+              "additional_ms": 8586,
+              "additional_calls": 1
+            }
+          },
+          "blind": {
+            "calls": 1,
+            "models_reported": [],
+            "status": "complete",
+            "error": null,
+            "elapsed_ms": 10740,
+            "payload_digest": "118edad64327e04b5c8f3faafe920bd313c9a7b283675f5e8211ad42d41ca556",
+            "outcome": "changes_requested",
+            "findings": [
+              {
+                "blocking": true,
+                "detail": "`pager.py`: `page([1], 0, 0)` should raise `ValueError` but instead returns `([], 0)`, leaving the cursor unchanged.",
+                "evidence": "The refactor replaces `size <= 0` with `size < 0`, so zero bypasses validation. The computed `stop` is 0, which is less than `len([1])`, so the function returns 0 as the next cursor."
+              }
+            ],
+            "score": {
+              "detected": true,
+              "missed": false,
+              "false_block": false,
+              "unmatched_block": false,
+              "inconclusive": false
+            },
+            "vs_no_review": {
+              "additional_detected": true,
+              "additional_false_block": false,
+              "additional_ms": 10740,
+              "additional_calls": 1
+            }
+          }
+        },
+        "pair_delta": {
+          "detected": 0,
+          "missed": 0,
+          "false_block": 0,
+          "calls": 0,
+          "elapsed_ms": -2154
+        }
+      }
+    },
+    {
+      "case": "d",
+      "candidate": "6d4e9280dee1e39fe1209796e4402334e5193d6f",
+      "report_first": false,
+      "defect": null,
+      "checks": {
+        "kind": "agent-workflow.check-measurement",
+        "version": 1,
+        "status": "complete",
+        "profile": "pager",
+        "profile_digest": "fcd6d852ed86a59c626c4087dc0ec6cbbea197071e7a758578ef726cebea896b",
+        "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+        "candidate": "6d4e9280dee1e39fe1209796e4402334e5193d6f",
+        "input_digest": "2c9c4aece5dc564e24203fc9fd675ba3205207384a34960923ada142d3b0b56d",
+        "change_summary": {
+          "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+          "truncated": false,
+          "omitted_sensitive": 0,
+          "omitted_diff_files": 0
+        },
+        "model_calls": {
+          "primary": {
+            "provider": "codex",
+            "attempts": 1,
+            "calls": 1,
+            "models_reported": [],
+            "elapsed_ms": 6831,
+            "status": "complete"
+          },
+          "review": {
+            "provider": "claude",
+            "attempts": 1,
+            "calls": 1,
+            "models_reported": [
+              "claude-opus-5-5"
+            ],
+            "elapsed_ms": 8986,
+            "status": "complete"
+          }
+        },
+        "model_errors": {},
+        "selections": {
+          "primary": [
+            "bounds",
+            "inputs"
+          ],
+          "review": [
+            "bounds",
+            "inputs"
+          ]
+        },
+        "oracle_elapsed_ms": 899,
+        "replicate_environment_drift": [],
+        "oracle_trials": [
+          {
+            "side": "baseline",
+            "repeat": 1,
+            "revision": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "candidate",
+            "repeat": 1,
+            "revision": "6d4e9280dee1e39fe1209796e4402334e5193d6f",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "candidate",
+            "repeat": 2,
+            "revision": "6d4e9280dee1e39fe1209796e4402334e5193d6f",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "baseline",
+            "repeat": 2,
+            "revision": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          }
+        ],
+        "commands": [
+          {
+            "id": "C1",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "shape"
+            ],
+            "base_check": true,
+            "groups": [
+              "bounds"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.009,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.009,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "classification": "passing",
+            "candidate_median_ms": 9.0
+          },
+          {
+            "id": "C2",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "end"
+            ],
+            "base_check": false,
+            "groups": [
+              "bounds"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "classification": "passing",
+            "candidate_median_ms": 11.5
+          },
+          {
+            "id": "C3",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "invalid"
+            ],
+            "base_check": false,
+            "groups": [
+              "inputs"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.009,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.01,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "classification": "passing",
+            "candidate_median_ms": 11.0
+          },
+          {
+            "id": "C4",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "archive"
+            ],
+            "base_check": false,
+            "groups": [
+              "archive"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.068,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e4ad6070bad57add5d22a9ac1d8dd0783afe0285354569fb27ade5d8a7c32011"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.068,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "6fa75693249a27c8f6986944b0bff8c698bc5d395a283528bf765eed625cc276"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.068,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "a9129c32eff4150ad659d1482eb77d68fbd6e265869864f95cd54abea92d6a10"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.069,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "04cf24d174e171daa63ce7d8a46cc6b913f11de103b71f9de629c2929dbf55af"
+              }
+            ],
+            "classification": "preexisting_failure",
+            "candidate_median_ms": 68.5
+          }
+        ],
+        "arms": {
+          "primary": {
+            "groups": [
+              "bounds",
+              "inputs"
+            ],
+            "command_ids": [
+              "C1",
+              "C2",
+              "C3"
+            ],
+            "detected_regressions": [],
+            "missed_regressions": [],
+            "selected_preexisting_failures": [],
+            "inconclusive_selected": [],
+            "selected_check_ms": 31.5,
+            "model_calls": 1,
+            "model_ms": 6831
+          },
+          "combined": {
+            "groups": [
+              "bounds",
+              "inputs"
+            ],
+            "command_ids": [
+              "C1",
+              "C2",
+              "C3"
+            ],
+            "detected_regressions": [],
+            "missed_regressions": [],
+            "selected_preexisting_failures": [],
+            "inconclusive_selected": [],
+            "selected_check_ms": 31.5,
+            "model_calls": 2,
+            "model_ms": 15817
+          }
+        },
+        "delta": {
+          "additional_regressions": [],
+          "additional_selected_check_ms": 0,
+          "additional_model_calls": 1,
+          "additional_model_ms": 8986
+        }
+      },
+      "review": {
+        "kind": "agent-workflow.review-measurement",
+        "version": 1,
+        "status": "complete",
+        "profile": "pager",
+        "profile_digest": "fcd6d852ed86a59c626c4087dc0ec6cbbea197071e7a758578ef726cebea896b",
+        "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+        "candidate": "6d4e9280dee1e39fe1209796e4402334e5193d6f",
+        "input_digest": "a659e265df2cca3eccca2543081da25ae1a91da412abae0362e92208aee6f6c8",
+        "implementation_report_digest": "661f22eb3f1b03078097285a25ab8fe15721bb8e9f54d785d5122b82e548a62a",
+        "reviewer": "codex",
+        "ground_truth": null,
+        "order": [
+          "blind",
+          "with_report"
+        ],
+        "no_review": {
+          "calls": 0,
+          "elapsed_ms": 0,
+          "outcome": "pass",
+          "score": {
+            "detected": false,
+            "missed": false,
+            "false_block": false,
+            "unmatched_block": false,
+            "inconclusive": false
+          }
+        },
+        "arms": {
+          "blind": {
+            "calls": 1,
+            "models_reported": [],
+            "status": "complete",
+            "error": null,
+            "elapsed_ms": 9537,
+            "payload_digest": "a659e265df2cca3eccca2543081da25ae1a91da412abae0362e92208aee6f6c8",
+            "outcome": "pass",
+            "findings": [],
+            "score": {
+              "detected": false,
+              "missed": false,
+              "false_block": false,
+              "unmatched_block": false,
+              "inconclusive": false
+            },
+            "vs_no_review": {
+              "additional_detected": false,
+              "additional_false_block": false,
+              "additional_ms": 9537,
+              "additional_calls": 1
+            }
+          },
+          "with_report": {
+            "calls": 1,
+            "models_reported": [],
+            "status": "complete",
+            "error": null,
+            "elapsed_ms": 12346,
+            "payload_digest": "40e8d18ca180d72e987bc1f0979ba10c5aba25f009895ff7a0358f504a252153",
+            "outcome": "pass",
+            "findings": [],
+            "score": {
+              "detected": false,
+              "missed": false,
+              "false_block": false,
+              "unmatched_block": false,
+              "inconclusive": false
+            },
+            "vs_no_review": {
+              "additional_detected": false,
+              "additional_false_block": false,
+              "additional_ms": 12346,
+              "additional_calls": 1
+            }
+          }
+        },
+        "pair_delta": {
+          "detected": 0,
+          "missed": 0,
+          "false_block": 0,
+          "calls": 0,
+          "elapsed_ms": 2809
+        }
+      }
+    },
+    {
+      "case": "e",
+      "candidate": "9c5d7a8c6b7d68b9884eb8e45c5f10b6cb444d57",
+      "report_first": true,
+      "defect": null,
+      "checks": {
+        "kind": "agent-workflow.check-measurement",
+        "version": 1,
+        "status": "complete",
+        "profile": "pager",
+        "profile_digest": "fcd6d852ed86a59c626c4087dc0ec6cbbea197071e7a758578ef726cebea896b",
+        "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+        "candidate": "9c5d7a8c6b7d68b9884eb8e45c5f10b6cb444d57",
+        "input_digest": "8408197492d3d34e8ee6352b3be0c2c3867903d54d64297e750341d97f50468f",
+        "change_summary": {
+          "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+          "truncated": false,
+          "omitted_sensitive": 0,
+          "omitted_diff_files": 0
+        },
+        "model_calls": {
+          "primary": {
+            "provider": "codex",
+            "attempts": 1,
+            "calls": 1,
+            "models_reported": [],
+            "elapsed_ms": 7987,
+            "status": "complete"
+          },
+          "review": {
+            "provider": "claude",
+            "attempts": 1,
+            "calls": 1,
+            "models_reported": [
+              "claude-opus-5-5"
+            ],
+            "elapsed_ms": 8085,
+            "status": "complete"
+          }
+        },
+        "model_errors": {},
+        "selections": {
+          "primary": [
+            "bounds",
+            "inputs"
+          ],
+          "review": [
+            "bounds",
+            "inputs"
+          ]
+        },
+        "oracle_elapsed_ms": 944,
+        "replicate_environment_drift": [],
+        "oracle_trials": [
+          {
+            "side": "baseline",
+            "repeat": 1,
+            "revision": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "candidate",
+            "repeat": 1,
+            "revision": "9c5d7a8c6b7d68b9884eb8e45c5f10b6cb444d57",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "candidate",
+            "repeat": 2,
+            "revision": "9c5d7a8c6b7d68b9884eb8e45c5f10b6cb444d57",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          },
+          {
+            "side": "baseline",
+            "repeat": 2,
+            "revision": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+            "status": "complete",
+            "check_context": "f20500cfecdc8240a93de4975320e85ab7b26dadc4779ac3940ca55b0190aee6"
+          }
+        ],
+        "commands": [
+          {
+            "id": "C1",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "shape"
+            ],
+            "base_check": true,
+            "groups": [
+              "bounds"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "check_id": "C1",
+            "classification": "passing",
+            "candidate_median_ms": 12.0
+          },
+          {
+            "id": "C2",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "end"
+            ],
+            "base_check": false,
+            "groups": [
+              "bounds"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.011,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "check_id": "C2",
+            "classification": "passing",
+            "candidate_median_ms": 11.0
+          },
+          {
+            "id": "C3",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "invalid"
+            ],
+            "base_check": false,
+            "groups": [
+              "inputs"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.012,
+                "timed_out": false,
+                "exit_code": 0,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+              }
+            ],
+            "check_id": "C3",
+            "classification": "passing",
+            "candidate_median_ms": 12.0
+          },
+          {
+            "id": "C4",
+            "argv": [
+              "python3",
+              "-B",
+              "checks.py",
+              "archive"
+            ],
+            "base_check": false,
+            "groups": [
+              "archive"
+            ],
+            "baseline": [
+              {
+                "status": "ran",
+                "seconds": 0.067,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "cd3d94781e35d9f704f9841e16019d5ec0d51cddce058f1062f44e431efe4318"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.067,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "6df3313be2ac2fdefee26413a0fcd2b078e2b09f29b1720a0fedda804afe1351"
+              }
+            ],
+            "candidate": [
+              {
+                "status": "ran",
+                "seconds": 0.067,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "4a4149beb864ec2ee533642448afb22b9b02c7775b3fca791ef95d48251d475b"
+              },
+              {
+                "status": "ran",
+                "seconds": 0.067,
+                "timed_out": false,
+                "exit_code": 1,
+                "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                "stderr_sha256": "df4402a87297c6321db7195061a2a44bc3921cd69a7133008221b4b006d23549"
+              }
+            ],
+            "check_id": "C4",
+            "classification": "preexisting_failure",
+            "candidate_median_ms": 67.0
+          }
+        ],
+        "arms": {
+          "primary": {
+            "groups": [
+              "bounds",
+              "inputs"
+            ],
+            "command_ids": [
+              "C1",
+              "C2",
+              "C3"
+            ],
+            "detected_regressions": [],
+            "change_regression_detected": false,
+            "missed_regressions": [],
+            "selected_preexisting_failures": [],
+            "inconclusive_selected": [],
+            "selected_check_ms": 35.0,
+            "model_calls": 1,
+            "model_ms": 7987
+          },
+          "combined": {
+            "groups": [
+              "bounds",
+              "inputs"
+            ],
+            "command_ids": [
+              "C1",
+              "C2",
+              "C3"
+            ],
+            "detected_regressions": [],
+            "change_regression_detected": false,
+            "missed_regressions": [],
+            "selected_preexisting_failures": [],
+            "inconclusive_selected": [],
+            "selected_check_ms": 35.0,
+            "model_calls": 2,
+            "model_ms": 16072
+          }
+        },
+        "delta": {
+          "additional_regressions": [],
+          "newly_detected_change": false,
+          "additional_selected_check_ms": 0,
+          "additional_model_calls": 1,
+          "additional_model_ms": 8085
+        }
+      },
+      "review": {
+        "kind": "agent-workflow.review-measurement",
+        "version": 1,
+        "status": "complete",
+        "profile": "pager",
+        "profile_digest": "fcd6d852ed86a59c626c4087dc0ec6cbbea197071e7a758578ef726cebea896b",
+        "base": "c5697d92640d58d00bc4dcc36d2075496920ddf1",
+        "candidate": "9c5d7a8c6b7d68b9884eb8e45c5f10b6cb444d57",
+        "input_digest": "4b035fab19357d88bca6affa684f9308d11599bce32ad9a0bd20e23137764a6a",
+        "implementation_report_digest": "661f22eb3f1b03078097285a25ab8fe15721bb8e9f54d785d5122b82e548a62a",
+        "reviewer": "codex",
+        "ground_truth": null,
+        "order": [
+          "with_report",
+          "blind"
+        ],
+        "no_review": {
+          "calls": 0,
+          "elapsed_ms": 0,
+          "outcome": "pass",
+          "score": {
+            "detected": false,
+            "missed": false,
+            "false_block": false,
+            "unmatched_block": false,
+            "inconclusive": false
+          }
+        },
+        "arms": {
+          "with_report": {
+            "calls": 1,
+            "models_reported": [],
+            "status": "complete",
+            "error": null,
+            "elapsed_ms": 6586,
+            "payload_digest": "73de4791694c9ae3750243f6e8ce9a8a832bdc493dc659129dffca145236c010",
+            "outcome": "pass",
+            "findings": [],
+            "score": {
+              "detected": false,
+              "missed": false,
+              "false_block": false,
+              "unmatched_block": false,
+              "inconclusive": false
+            },
+            "vs_no_review": {
+              "additional_detected": false,
+              "additional_false_block": false,
+              "additional_ms": 6586,
+              "additional_calls": 1
+            }
+          },
+          "blind": {
+            "calls": 1,
+            "models_reported": [],
+            "status": "complete",
+            "error": null,
+            "elapsed_ms": 7485,
+            "payload_digest": "4b035fab19357d88bca6affa684f9308d11599bce32ad9a0bd20e23137764a6a",
+            "outcome": "pass",
+            "findings": [],
+            "score": {
+              "detected": false,
+              "missed": false,
+              "false_block": false,
+              "unmatched_block": false,
+              "inconclusive": false
+            },
+            "vs_no_review": {
+              "additional_detected": false,
+              "additional_false_block": false,
+              "additional_ms": 7485,
+              "additional_calls": 1
+            }
+          }
+        },
+        "pair_delta": {
+          "detected": 0,
+          "missed": 0,
+          "false_block": 0,
+          "calls": 0,
+          "elapsed_ms": -899
+        }
+      }
+    }
+  ],
+  "initial_summary_as_labelled": {
+    "cases": 4,
+    "recommendation": {
+      "comparable_changes": 4,
+      "arms": {
+        "primary": {
+          "defective_changes_detected": {
+            "count": 2,
+            "eligible": 2
+          },
+          "clean_changes_blocked_by_any_selected_failure": {
+            "count": 0,
+            "eligible": 2
+          },
+          "model_ms": 28680,
+          "model_calls": 4,
+          "estimated_selected_check_ms": 245.0
+        },
+        "combined": {
+          "defective_changes_detected": {
+            "count": 2,
+            "eligible": 2
+          },
+          "clean_changes_blocked_by_any_selected_failure": {
+            "count": 0,
+            "eligible": 2
+          },
+          "model_ms": 73899,
+          "model_calls": 8,
+          "estimated_selected_check_ms": 245.0
+        }
+      },
+      "additional_defective_changes": 0,
+      "additional_failing_commands": 0,
+      "additional_clean_changes_blocked": 0,
+      "additional_model_ms": 45219,
+      "additional_model_calls": 4,
+      "additional_estimated_check_ms": 0
+    },
+    "review": {
+      "comparable_changes": 3,
+      "arms": {
+        "blind": {
+          "known_defects_detected": {
+            "count": 2,
+            "eligible": 2
+          },
+          "clean_changes_falsely_blocked": {
+            "count": 0,
+            "eligible": 1
+          },
+          "model_ms": 30266,
+          "model_calls": 3,
+          "on_top_of_combined_checks": {
+            "comparable_changes": 3,
+            "green_changes": 1,
+            "projected_review_calls_if_green_only": 1,
+            "projected_review_ms_if_green_only": 9537,
+            "additional_defective_changes_caught": 0,
+            "additional_clean_changes_falsely_blocked": 0
+          }
+        },
+        "with_report": {
+          "known_defects_detected": {
+            "count": 2,
+            "eligible": 2
+          },
+          "clean_changes_falsely_blocked": {
+            "count": 0,
+            "eligible": 1
+          },
+          "model_ms": 29417,
+          "model_calls": 3,
+          "on_top_of_combined_checks": {
+            "comparable_changes": 3,
+            "green_changes": 1,
+            "projected_review_calls_if_green_only": 1,
+            "projected_review_ms_if_green_only": 12346,
+            "additional_defective_changes_caught": 0,
+            "additional_clean_changes_falsely_blocked": 0
+          }
+        }
+      },
+      "with_report_minus_blind_ms": -849,
+      "with_report_minus_blind_calls": 0,
+      "inconclusive": [
+        {
+          "case": "b",
+          "arm": "with_report",
+          "reason": "incomplete_input_or_transport",
+          "error": "codex 검사 추천이 90초 한도에 도달했습니다."
+        }
+      ]
+    },
+    "observed_transport_totals": {
+      "calls": 16,
+      "ms": 232531
+    }
+  },
+  "initial_report_sha256": "956677bd2661c8308dba422bb92248b1cbe142f9b42f1cb0da6cdaeab1aa1020",
+  "summary": {
+    "cases": 5,
+    "recommendation": {
+      "comparable_changes": 5,
+      "arms": {
+        "primary": {
+          "defective_changes_detected": {
+            "count": 2,
+            "eligible": 2
+          },
+          "clean_changes_blocked_by_any_selected_failure": {
+            "count": 0,
+            "eligible": 2
+          },
+          "model_ms": 36667,
+          "model_calls": 5,
+          "estimated_selected_check_ms": 280.0
+        },
+        "combined": {
+          "defective_changes_detected": {
+            "count": 2,
+            "eligible": 2
+          },
+          "clean_changes_blocked_by_any_selected_failure": {
+            "count": 0,
+            "eligible": 2
+          },
+          "model_ms": 89971,
+          "model_calls": 10,
+          "estimated_selected_check_ms": 280.0
+        }
+      },
+      "additional_defective_changes": 0,
+      "additional_failing_commands": 0,
+      "additional_clean_changes_blocked": 0,
+      "additional_model_ms": 53304,
+      "additional_model_calls": 5,
+      "additional_estimated_check_ms": 0
+    },
+    "review": {
+      "comparable_changes": 4,
+      "paired_case_ids": [
+        "a",
+        "c",
+        "d",
+        "e"
+      ],
+      "arms": {
+        "blind": {
+          "verdicts": 5,
+          "inconclusive": 0,
+          "known_defects_detected": {
+            "count": 2,
+            "eligible": 2
+          },
+          "clean_changes_falsely_blocked": {
+            "count": 0,
+            "eligible": 2
+          },
+          "supplemental_detected": [
+            "b"
+          ],
+          "unmatched_supplemental_blocks": [],
+          "model_ms": 46690,
+          "model_calls": 5,
+          "on_top_of_combined_checks": {
+            "measured_changes": 5,
+            "green_changes": 3,
+            "green_with_verdict": 3,
+            "projected_review_calls_if_green_only": 3,
+            "projected_review_ms_if_green_only": 25961,
+            "additional_defective_changes_caught": 1,
+            "additional_defective_change_ids": [
+              "b"
+            ],
+            "additional_clean_changes_falsely_blocked": 0
+          }
+        },
+        "with_report": {
+          "verdicts": 4,
+          "inconclusive": 1,
+          "known_defects_detected": {
+            "count": 2,
+            "eligible": 2
+          },
+          "clean_changes_falsely_blocked": {
+            "count": 0,
+            "eligible": 2
+          },
+          "supplemental_detected": [],
+          "unmatched_supplemental_blocks": [],
+          "model_ms": 126013,
+          "model_calls": 5,
+          "on_top_of_combined_checks": {
+            "measured_changes": 5,
+            "green_changes": 3,
+            "green_with_verdict": 2,
+            "projected_review_calls_if_green_only": 3,
+            "projected_review_ms_if_green_only": 108942,
+            "additional_defective_changes_caught": 0,
+            "additional_defective_change_ids": [],
+            "additional_clean_changes_falsely_blocked": 0
+          }
+        }
+      },
+      "paired_arms": {
+        "blind": {
+          "verdicts": 4,
+          "inconclusive": 0,
+          "known_defects_detected": {
+            "count": 2,
+            "eligible": 2
+          },
+          "clean_changes_falsely_blocked": {
+            "count": 0,
+            "eligible": 2
+          },
+          "supplemental_detected": [],
+          "unmatched_supplemental_blocks": [],
+          "model_ms": 37751,
+          "model_calls": 4,
+          "on_top_of_combined_checks": {
+            "measured_changes": 4,
+            "green_changes": 2,
+            "green_with_verdict": 2,
+            "projected_review_calls_if_green_only": 2,
+            "projected_review_ms_if_green_only": 17022,
+            "additional_defective_changes_caught": 0,
+            "additional_defective_change_ids": [],
+            "additional_clean_changes_falsely_blocked": 0
+          }
+        },
+        "with_report": {
+          "verdicts": 4,
+          "inconclusive": 0,
+          "known_defects_detected": {
+            "count": 2,
+            "eligible": 2
+          },
+          "clean_changes_falsely_blocked": {
+            "count": 0,
+            "eligible": 2
+          },
+          "supplemental_detected": [],
+          "unmatched_supplemental_blocks": [],
+          "model_ms": 36003,
+          "model_calls": 4,
+          "on_top_of_combined_checks": {
+            "measured_changes": 4,
+            "green_changes": 2,
+            "green_with_verdict": 2,
+            "projected_review_calls_if_green_only": 2,
+            "projected_review_ms_if_green_only": 18932,
+            "additional_defective_changes_caught": 0,
+            "additional_defective_change_ids": [],
+            "additional_clean_changes_falsely_blocked": 0
+          }
+        }
+      },
+      "with_report_minus_blind_ms": -1748,
+      "with_report_minus_blind_calls": 0,
+      "inconclusive": [
+        {
+          "case": "b",
+          "arm": "with_report",
+          "reason": "incomplete_input_or_transport",
+          "error": "codex 검사 추천이 90초 한도에 도달했습니다."
+        }
+      ]
+    },
+    "adjudication": {
+      "probe": "page([], -1, None)",
+      "reference_exception": "ValueError",
+      "supplemental_defect_cases": [
+        "b",
+        "c"
+      ],
+      "clean_control_cases": [
+        "d",
+        "e"
+      ],
+      "disputed_original_controls": [
+        "b"
+      ]
+    },
+    "observed_transport_totals": {
+      "calls": 20,
+      "ms": 262674
+    }
+  }
+}

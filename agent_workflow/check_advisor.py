@@ -29,16 +29,16 @@ def _names(items, available):
     return list(dict.fromkeys(items))
 
 
-def _ask(provider, packet, timeout):
-    answer = check_advisor_models.ask(provider, INSTRUCTION + json.dumps(packet, ensure_ascii=True), timeout)
+def _ask(provider, packet, timeout, **options):
+    answer = check_advisor_models.ask(provider, INSTRUCTION + json.dumps(packet, ensure_ascii=True), timeout, **options)
     groups = _names(answer["groups"], packet["optional_groups"])
     return {"provider": provider, "groups": groups, "reason": answer["reason"]}
 
 
-def build_packet(config, criteria, root, base=None):
+def build_packet(config, criteria, root, base=None, *, candidate=None):
     groups = config.get("check_groups", {})
     descriptions = config.get("check_group_descriptions", {})
-    change = change_context(root, base=base, excluded_paths=config.get("forbidden_paths", ()))
+    change = change_context(root, base=base, excluded_paths=config.get("forbidden_paths", ()), candidate=candidate)
     return {"criteria": [s.strip() for s in criteria], "change": change,
               "base_check_count": len(config.get("checks", [])),
               "base_check_description": config.get("base_check_description", ""),
@@ -48,7 +48,9 @@ def build_packet(config, criteria, root, base=None):
 
 def recommend(home, profile, criteria, *, project=None, base=None, provider="codex",
               reviewer="auto", preview=False, timeout=90, record_result=False,
-              expected_input_digest=None, expected_providers=None):
+              expected_input_digest=None, expected_providers=None, candidate=None, measure_calls=False):
+    if candidate is not None and record_result:
+        raise WorkflowError("고정 커밋 비교는 측정 보고서로 저장하세요. 작업 트리 추천 기록과 입력이 다릅니다.")
     if provider not in ("codex", "claude") or reviewer not in ("auto", "none", "codex", "claude"):
         raise WorkflowError("지원하지 않는 추천 모델 공급자입니다.")
     if reviewer == provider:
@@ -67,7 +69,7 @@ def recommend(home, profile, criteria, *, project=None, base=None, provider="cod
     if project is not None and project_key(root) != project_key(config["project"]):
         raise WorkflowError("--project에는 등록된 프로젝트 또는 같은 Git 저장소의 작업 트리를 지정하세요.")
     groups = config.get("check_groups", {})
-    packet = build_packet(config, criteria, root, base)
+    packet = build_packet(config, criteria, root, base, candidate=candidate)
     change = packet["change"]
     areas = sorted({path.partition("/")[0] if "/" in path else "." for path in change["paths"]})
     if groups and reviewer == "auto":
@@ -92,19 +94,31 @@ def recommend(home, profile, criteria, *, project=None, base=None, provider="cod
             raise WorkflowError("추천 입력 또는 공급자가 바뀌었습니다. 새 미리보기를 확인하세요.")
     if preview:
         return {**report, "status": "preview", "input": packet}
-    first = _ask(provider, packet, timeout) if groups else None
-    checked = None
-    review_ms = None
+    # Keep the single-model arm as the first observation of this very pair.
+    # A second, separately sampled primary answer would confound the comparison.
+    calls = {role: {"provider": name, "attempts": 0, "calls": 0, "models_reported": [],
+                    "elapsed_ms": 0, "status": "not_called"}
+             for role, name in (("primary", provider), ("review", second))}
+    answers = {}
     status = "complete"
-    if groups and second:
+    for role, name in zip(("primary", "review"), providers):
+        call = {"calls": 0, "models_reported": []}
         started = time.monotonic()
         try:
-            checked = _ask(second, packet, timeout)
+            answers[role] = _ask(name, packet, timeout, **({"call": call} if measure_calls else {}))
         except WorkflowError as exc:
-            status = "review_incomplete"
-            checked = {"provider": second, "error": str(exc)}
-        review_ms = round((time.monotonic() - started) * 1000)
-    primary_names = first["groups"] if first else []
+            if role == "primary" and not measure_calls:
+                raise
+            status = role + "_incomplete"
+            answers[role] = {"provider": name, "error": str(exc)}
+        calls[role].update(attempts=1, elapsed_ms=round((time.monotonic() - started) * 1000),
+                           status="complete" if status == "complete" else "failed")
+        calls[role].update(call)
+        if status != "complete":
+            break
+    first, checked = answers.get("primary"), answers.get("review")
+    review_ms = calls["review"]["elapsed_ms"] if calls["review"]["attempts"] else None
+    primary_names = (first or {}).get("groups", [])
     reviewed_names = checked.get("groups", []) if checked else []
     plan = profiles.check_plan(config, list(dict.fromkeys(primary_names + reviewed_names)))
     comparison = None
@@ -114,6 +128,8 @@ def recommend(home, profile, criteria, *, project=None, base=None, provider="cod
                       "reviewer_only": [n for n in reviewed_names if n not in primary_names]}
     result = {**report, "status": status, "primary": first, "review": checked, "review_ms": review_ms,
               "comparison": comparison, "suggested_groups": plan["check_groups"], "checks": plan["checks"]}
+    if measure_calls:
+        result["model_calls"] = calls
     if record_result and status == "complete":
         from .recommendation_records import save_recommendation
         result["recommendation_id"] = save_recommendation(home, result, record, criteria, root, base, areas, review_ms)

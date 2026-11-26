@@ -1,0 +1,82 @@
+{
+  "id": "KB-P2-LEGACY",
+  "model_mode": "deterministic native CLI doubles; controller, Git, SQLite and checks are real",
+  "old_package_sha256": "6036f470d85856e9b0c89545f167345bb2b1e52d3b6cbf3c377cd5fd84c34b1f",
+  "new_package_sha256": "3667182b6d41fefc05c698c435891aa02d18d0dbea2a3b41d15284d37b5db9a0",
+  "old_phase": "waiting",
+  "old_calls": 2,
+  "old_reported_tokens": 20,
+  "old_receipt_preserved_on_read": true,
+  "same_row_id": 1,
+  "created_events": 1,
+  "old_code_fingerprint": "1c16f54d4394d023f4bfbb63f4b010a43e8771b9caf1ee8da361123f3abfd94a",
+  "old_refs_fingerprint": "73ceb872dbf8118eebeab76dbf9645c9803270e2960e59c221d8366e6b64d107",
+  "new_refs_fingerprint": "4d484e8efae9667371b65ccf07fd2b5cc6214d38ea8537f344ce2496d3552af5",
+  "input_sha256": "15a192380378ff2e4f819b9b335a7d00252307b23e8f881b3ea426ad0881a528",
+  "budget_stop_calls": 3,
+  "budget_stop_reported_tokens": 30,
+  "status": "completed",
+  "phase": "complete",
+  "instrument": "HSI",
+  "milestone": "M2",
+  "calls": 4,
+  "reported_tokens": 40,
+  "writes": 1,
+  "checks": 3,
+  "reviewer": "codex-session",
+  "audit": [
+    {
+      "criterion": 1,
+      "accepted": true,
+      "evidence": "app.py contains done and the check passed."
+    },
+    {
+      "criterion": 2,
+      "accepted": true,
+      "evidence": "HSI M2 offline fixture: observation received."
+    }
+  ],
+  "verified_reviewed_completion_fingerprint": "1c16f54d4394d023f4bfbb63f4b010a43e8771b9caf1ee8da361123f3abfd94a",
+  "launches": [
+    {
+      "role": "owner",
+      "scope_in_prompt": true,
+      "bound_input_in_prompt": false
+    },
+    {
+      "role": "owner",
+      "scope_in_prompt": true,
+      "bound_input_in_prompt": false
+    },
+    {
+      "role": "owner",
+      "scope_in_prompt": true,
+      "bound_input_in_prompt": true
+    },
+    {
+      "role": "reviewer",
+      "scope_in_prompt": true,
+      "bound_input_in_prompt": true
+    }
+  ],
+  "denied": {
+    "release": "agent-workflow: 로컬 개발 목표에는 릴리스를 설정할 수 없습니다.",
+    "no_reviewer": "agent-workflow: 목표의 독립 검토자를 지정하세요.",
+    "premature_finish": "agent-workflow: 목표 실행기의 전체 조건 검증·독립 리뷰가 필요합니다.",
+    "unregistered_input_type": "agent-workflow: 목표 정책에서 허용한 확장자의 UTF-8 근거 파일이 필요합니다."
+  },
+  "scope_controls": {
+    "notes.txt": {
+      "status": "blocked",
+      "error": "agent-workflow: 작업 범위 위반: notes.txt",
+      "source_unchanged": true
+    },
+    "protected.txt": {
+      "status": "blocked",
+      "error": "agent-workflow: 작업 범위 위반: protected.txt",
+      "source_unchanged": true
+    }
+  },
+  "new_generic_registration_on_katakuri_rejected": true,
+  "old_source": "9b0c443da3e72fc490ed487289b5ef62ae0242cf"
+}

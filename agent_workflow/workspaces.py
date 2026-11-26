@@ -10,10 +10,13 @@ from . import profiles
 
 def create_from_profile(store, task_id, name, goal, criteria, refs=(), checks=(), owner=None,
                         reviewer=None, scope="지정 목표의 로컬 구현·검증", isolate=None, *, check_groups=None,
-                        expected_project=None, recommendation_id=None, katakuri_goal=None):
+                        expected_project=None, recommendation_id=None, katakuri_goal=None, goal_mode=None,
+                        expected_profile_digest=None):
     if store.db.execute("SELECT 1 FROM tasks WHERE id=?", (task_id,)).fetchone():
         raise WorkflowError("이미 존재하는 작업 ID: " + task_id)
     record = profiles.get(store, name)
+    if expected_profile_digest is not None and record["digest"] != expected_profile_digest:
+        raise WorkflowError("목표 등록 중 프로필이 변경됐습니다. 새 설정을 확인하고 다시 등록하세요.")
     cfg = profiles.validate(record["config"])
     original = Path(cfg["project"])
     if expected_project is not None:
@@ -29,6 +32,14 @@ def create_from_profile(store, task_id, name, goal, criteria, refs=(), checks=()
         if check_groups is None:
             check_groups = receipt["suggested_groups"]
     plan = profiles.check_plan(cfg, check_groups, checks)
+    goal_metadata = {}
+    if katakuri_goal is not None:
+        goal_metadata["katakuri_goal"] = katakuri_goal
+    if goal_mode is not None:
+        goal_metadata["goal_mode"] = goal_mode
+    if goal_metadata and (len(goal_metadata) != 1 or not plan["checks"] or isolate is not True
+                          or (reviewer or cfg["reviewer"]) == "none"):
+        raise WorkflowError("목표 작업에는 별도 작업 트리, 실제 검사와 독립 리뷰가 필요합니다.")
     profile = {"name": name, "digest": record["digest"]}
     if recommendation_id is not None:
         profile["recommendation_id"] = recommendation_id
@@ -60,14 +71,17 @@ def create_from_profile(store, task_id, name, goal, criteria, refs=(), checks=()
             if recommendation_id is not None and before["dirty"]:
                 raise WorkflowError("추천한 미커밋 변경은 새 작업 트리에 없습니다. 현재 트리에서 --no-isolate로 등록하세요.")
             root.mkdir(parents=True, exist_ok=True)
-            options = ["-c", "core.autocrlf=false", "-c", "core.eol=lf"] if katakuri_goal else []
+            options = ["-c", "core.autocrlf=false", "-c", "core.eol=lf"] if katakuri_goal is not None else []
             git(original, *options, "worktree", "add", "-b", branch, str(project), before["head"])
         workspace = {"managed": True, "source": str(original), "path": str(project),
                      "branch": branch, "base_head": before["head"], "source_dirty": before["dirty"], "prepared": False}
     try:
+        if goal_metadata:
+            from .goal_policy import check_checkout, kind
+            check_checkout(project, cfg, kind(goal_metadata))
         task = create_task(store, task_id, project, goal, criteria,
                            [*cfg["refs"], *refs], plan["checks"], owner, reviewer, scope,
-                           metadata={**({"katakuri_goal": katakuri_goal} if katakuri_goal else {}), "profile": profile,
+                           metadata={**goal_metadata, "profile": profile,
                                      "project_config": copy.deepcopy(cfg), "execution": cfg["execution"], "workspace": workspace},
                            before_snapshot=None if isolated else verify)
     except BaseException:

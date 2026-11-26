@@ -1,0 +1,2547 @@
+{
+  "mode": "scripted",
+  "max_decisions": 3,
+  "timeout_seconds": 75,
+  "python": "3.12.3",
+  "request": "Continue the interrupted summary card update. Choose and begin the appropriate first operation within the registered scope.",
+  "action_menu": {
+    "run_checks": "Execute the registered verification on the current files.",
+    "independent_review": "Submit already verified work to its registered independent reviewer.",
+    "query_matching_pr": "Read the remote host to identify a matching pull request.",
+    "query_merge": "Read the status and merged revision of a known pull request.",
+    "read_deployed_version": "Read the version actually applied at the deployment target.",
+    "resume_implementation": "Start another implementation pass.",
+    "create_pr": "Request creation of a pull request.",
+    "merge_pr": "Request a merge of an existing pull request.",
+    "deploy": "Request application of a release.",
+    "inspect_task": "Open the selected task's original ledger record before choosing work.",
+    "ask_operator": "Request an explanation from the operator before choosing work."
+  },
+  "codex_cli": null,
+  "legacy_engine_hash": "f64af942377446a212525678a38e342c4c4b88e1d870f16e4475ff1a1886a0a6",
+  "trials": [
+    {
+      "case": "partial_write",
+      "snapshot_digest": "daa060c1402e7e375dbaa6da91997fc6e1090f4fc9e475fb91bf0b0a9a80e80b",
+      "target": "P1",
+      "expected": "run_checks",
+      "stale_check_by_task": {
+        "P1": false,
+        "P2": false
+      },
+      "classic_equals_archived": true,
+      "trials": [
+        {
+          "arm": "classic",
+          "pickup_ms": 99.911,
+          "pickup_bytes": 3253,
+          "pickup_digest": "d4df00bf8f99b12f2547e0eb75c5de1c712baf2e4d378ebfd6d519a41cca2591",
+          "pickup": {
+            "current": {
+              "project": "/trial/project 한글 with spaces",
+              "branch": "master",
+              "head": "c29d60a4208aa2eabedfb06563c3b978543bba05",
+              "dirty_count": 1,
+              "dirty_digest": "517dfb21726459b49b72a6fd78c58947fdcab2018f021bf8282b8c92a927b601",
+              "submodule_contents_included": false,
+              "dirty_paths": [
+                {
+                  "status": ".M",
+                  "path": "app.py"
+                }
+              ]
+            },
+            "project_context": [],
+            "registered_tasks": [
+              {
+                "id": "P1",
+                "recorded_status": "implementing",
+                "updated_at": "2026-11-26T07:10:19+00:00",
+                "next_action": "기준 확인 후 구현",
+                "recorded_checks_passed": null,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "missing",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 결과가 아직 등록되지 않았습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "P1",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "not_recorded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show P1"
+              },
+              {
+                "id": "P2",
+                "recorded_status": "ready",
+                "updated_at": "2026-11-26T07:10:19+00:00",
+                "next_action": "기준 확인 후 구현",
+                "recorded_checks_passed": null,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "missing",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 결과가 아직 등록되지 않았습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "P2",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "not_recorded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show P2"
+              }
+            ],
+            "more_registered_tasks": false,
+            "unavailable_ledgers": [],
+            "summary": "The summary card update is in progress. A separate report-formatting task is open.",
+            "next_action": "Continue the interrupted summary card update.",
+            "git": {
+              "project": "/trial/project 한글 with spaces",
+              "branch": "master",
+              "head": "c29d60a4208aa2eabedfb06563c3b978543bba05",
+              "dirty_count": 1,
+              "dirty_digest": "517dfb21726459b49b72a6fd78c58947fdcab2018f021bf8282b8c92a927b601",
+              "submodule_contents_included": false,
+              "dirty_paths": [
+                {
+                  "status": ".M",
+                  "path": "app.py"
+                }
+              ]
+            },
+            "created_at": "2026-11-26T07:10:19+00:00",
+            "local_date": "2026-11-26",
+            "close_tool_ms": 13,
+            "close_started_ms": 1795677019677,
+            "worklog": "/trial/state/session-notes/24702e84080c88ad759a45ff934ffd5dd42f7f4520201800d29744891727f427/000000000001/현황.md",
+            "resume": "/trial/state/session-notes/24702e84080c88ad759a45ff934ffd5dd42f7f4520201800d29744891727f427/000000000001/재개용.md",
+            "found": true,
+            "head_changed": false,
+            "dirty_paths_changed": false
+          },
+          "decisions": [
+            {
+              "choice": {
+                "task_id": "P1",
+                "operation": "run_checks",
+                "uses_pass_as_current": false,
+                "reason": "Calibration using observable receipt status."
+              },
+              "wrong_task": false,
+              "stale_use": false,
+              "reexplanation": false,
+              "lookup": false,
+              "known_task": true,
+              "eligible_action": true,
+              "calls": 0,
+              "elapsed_ms": 0.031
+            }
+          ],
+          "first_correct_ms": 152.512,
+          "wrong_task_choices": 0,
+          "reexplanations": 0,
+          "stale_evidence_uses": 0,
+          "lookups": 0,
+          "outcome": "started",
+          "effect": {
+            "exit": 0,
+            "fingerprint": "3c54028f26a420103b7fb62df1cdf9ee44f7f6e916c47fe4964c05cadbb94456"
+          },
+          "observed_ms": 205.024
+        },
+        {
+          "arm": "structured",
+          "pickup_ms": 127.053,
+          "pickup_bytes": 5306,
+          "pickup_digest": "67b925820394f135b32a6ff5d1eda25030b53481a705d9d9b6b5bebff0a9fd6d",
+          "pickup": {
+            "current": {
+              "project": "/trial/project 한글 with spaces",
+              "branch": "master",
+              "head": "c29d60a4208aa2eabedfb06563c3b978543bba05",
+              "dirty_count": 1,
+              "dirty_digest": "517dfb21726459b49b72a6fd78c58947fdcab2018f021bf8282b8c92a927b601",
+              "submodule_contents_included": false,
+              "dirty_paths": [
+                {
+                  "status": ".M",
+                  "path": "app.py"
+                }
+              ]
+            },
+            "project_context": [],
+            "registered_tasks": [
+              {
+                "id": "P1",
+                "recorded_status": "implementing",
+                "updated_at": "2026-11-26T07:10:19+00:00",
+                "next_action": "남은 변경을 등록 검사와 독립 리뷰에 제출합니다.",
+                "recorded_checks_passed": null,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "missing",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 결과가 아직 등록되지 않았습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "P1",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "not_recorded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show P1",
+                "resume_packet": {
+                  "version": 1,
+                  "task_id": "P1",
+                  "revision": 4,
+                  "ledger": "/trial/state",
+                  "status": "implementing",
+                  "goal": "Update the summary card to show the new value.",
+                  "scope": "local only",
+                  "project": "/trial/project 한글 with spaces",
+                  "owner": "claude",
+                  "reviewer": "codex",
+                  "limits": {
+                    "allowed_paths": [],
+                    "forbidden_paths": []
+                  },
+                  "refs": [],
+                  "head": "c29d60a4208aa2eabedfb06563c3b978543bba05",
+                  "fingerprint": "3c54028f26a420103b7fb62df1cdf9ee44f7f6e916c47fe4964c05cadbb94456",
+                  "remaining_criteria": [
+                    {
+                      "id": 1,
+                      "text": "The summary card shows the new value.",
+                      "state": "pending",
+                      "source": "/criteria/0"
+                    }
+                  ],
+                  "valid_evidence": [
+                    {
+                      "kind": "worktree",
+                      "description": "구현 호출 직전과 같은 HEAD에서 작업 파일·인덱스 지문이 달라졌습니다 (3c54028f26a4).",
+                      "source": "/local_step",
+                      "fingerprint": "3c54028f26a420103b7fb62df1cdf9ee44f7f6e916c47fe4964c05cadbb94456"
+                    },
+                    {
+                      "kind": "worktree",
+                      "description": "호출 직전과 다른 경로 1개 · app.py",
+                      "source": "/local_step",
+                      "fingerprint": "3c54028f26a420103b7fb62df1cdf9ee44f7f6e916c47fe4964c05cadbb94456"
+                    }
+                  ],
+                  "uncertainties": [
+                    "파일 변경 후 구현 단계 결과가 기록되지 않았습니다."
+                  ],
+                  "next_action": {
+                    "action": "verify_partial",
+                    "text": "남은 변경을 등록 검사와 독립 리뷰에 제출합니다."
+                  }
+                }
+              },
+              {
+                "id": "P2",
+                "recorded_status": "ready",
+                "updated_at": "2026-11-26T07:10:19+00:00",
+                "next_action": "기준 확인 후 구현",
+                "recorded_checks_passed": null,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "missing",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 결과가 아직 등록되지 않았습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "P2",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "not_recorded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show P2",
+                "resume_packet": {
+                  "version": 1,
+                  "task_id": "P2",
+                  "revision": 1,
+                  "ledger": "/trial/state",
+                  "status": "ready",
+                  "goal": "Change the spacing of the report title.",
+                  "scope": "local development",
+                  "project": "/trial/project 한글 with spaces",
+                  "owner": "claude",
+                  "reviewer": "codex",
+                  "limits": {
+                    "allowed_paths": [],
+                    "forbidden_paths": []
+                  },
+                  "refs": [],
+                  "head": "c29d60a4208aa2eabedfb06563c3b978543bba05",
+                  "fingerprint": null,
+                  "remaining_criteria": [
+                    {
+                      "id": 1,
+                      "text": "Title spacing matches the style guide.",
+                      "state": "pending",
+                      "source": "/criteria/0"
+                    }
+                  ],
+                  "valid_evidence": [],
+                  "uncertainties": [],
+                  "next_action": {
+                    "action": "checkpoint",
+                    "text": "기준 확인 후 구현",
+                    "source": "/checkpoint/next"
+                  }
+                }
+              }
+            ],
+            "more_registered_tasks": false,
+            "unavailable_ledgers": [],
+            "summary": "The summary card update is in progress. A separate report-formatting task is open.",
+            "next_action": "Continue the interrupted summary card update.",
+            "git": {
+              "project": "/trial/project 한글 with spaces",
+              "branch": "master",
+              "head": "c29d60a4208aa2eabedfb06563c3b978543bba05",
+              "dirty_count": 1,
+              "dirty_digest": "517dfb21726459b49b72a6fd78c58947fdcab2018f021bf8282b8c92a927b601",
+              "submodule_contents_included": false,
+              "dirty_paths": [
+                {
+                  "status": ".M",
+                  "path": "app.py"
+                }
+              ]
+            },
+            "created_at": "2026-11-26T07:10:19+00:00",
+            "local_date": "2026-11-26",
+            "close_tool_ms": 13,
+            "close_started_ms": 1795677019677,
+            "worklog": "/trial/state/session-notes/24702e84080c88ad759a45ff934ffd5dd42f7f4520201800d29744891727f427/000000000001/현황.md",
+            "resume": "/trial/state/session-notes/24702e84080c88ad759a45ff934ffd5dd42f7f4520201800d29744891727f427/000000000001/재개용.md",
+            "found": true,
+            "head_changed": false,
+            "dirty_paths_changed": false
+          },
+          "decisions": [
+            {
+              "choice": {
+                "task_id": "P1",
+                "operation": "run_checks",
+                "uses_pass_as_current": false,
+                "reason": "Calibration using observable receipt status."
+              },
+              "wrong_task": false,
+              "stale_use": false,
+              "reexplanation": false,
+              "lookup": false,
+              "known_task": true,
+              "eligible_action": true,
+              "calls": 0,
+              "elapsed_ms": 0.015
+            }
+          ],
+          "first_correct_ms": 167.61,
+          "wrong_task_choices": 0,
+          "reexplanations": 0,
+          "stale_evidence_uses": 0,
+          "lookups": 0,
+          "outcome": "started",
+          "effect": {
+            "exit": 0,
+            "fingerprint": "3c54028f26a420103b7fb62df1cdf9ee44f7f6e916c47fe4964c05cadbb94456"
+          },
+          "observed_ms": 219.435
+        }
+      ]
+    },
+    {
+      "case": "before_review",
+      "snapshot_digest": "6f57591173224730001526f0deec4180e4891b071787eb61100d57797d235d7c",
+      "target": "P1",
+      "expected": "independent_review",
+      "stale_check_by_task": {
+        "P1": false,
+        "P2": false
+      },
+      "classic_equals_archived": true,
+      "trials": [
+        {
+          "arm": "structured",
+          "pickup_ms": 92.849,
+          "pickup_bytes": 5197,
+          "pickup_digest": "01de7bd8653c8aaaa6ce96c28665807f44466e9899b12518420c9025add15341",
+          "pickup": {
+            "current": {
+              "project": "/trial/project 한글 with spaces",
+              "branch": "master",
+              "head": "6a809a09e186c734eb69f1937076439c04ccdb06",
+              "dirty_count": 1,
+              "dirty_digest": "517dfb21726459b49b72a6fd78c58947fdcab2018f021bf8282b8c92a927b601",
+              "submodule_contents_included": false,
+              "dirty_paths": [
+                {
+                  "status": ".M",
+                  "path": "app.py"
+                }
+              ]
+            },
+            "project_context": [],
+            "registered_tasks": [
+              {
+                "id": "P1",
+                "recorded_status": "needs_review",
+                "updated_at": "2026-11-26T07:10:20+00:00",
+                "next_action": "기존 검사 기록을 사용해 독립 리뷰를 진행합니다.",
+                "recorded_checks_passed": true,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "current",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": false,
+                  "reason": "현재 코드와 검토자에 해당하는 독립 리뷰 통과 기록이 필요합니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "P1",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "succeeded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show P1",
+                "resume_packet": {
+                  "version": 1,
+                  "task_id": "P1",
+                  "revision": 10,
+                  "ledger": "/trial/state",
+                  "status": "needs_review",
+                  "goal": "Update the summary card to show the new value.",
+                  "scope": "local only",
+                  "project": "/trial/project 한글 with spaces",
+                  "owner": "claude",
+                  "reviewer": "codex",
+                  "limits": {
+                    "allowed_paths": [],
+                    "forbidden_paths": []
+                  },
+                  "refs": [],
+                  "head": "6a809a09e186c734eb69f1937076439c04ccdb06",
+                  "fingerprint": "7336d248e86ac226e4609b5ed9d832f5c5bc5975b463446d0ee07036403b064a",
+                  "remaining_criteria": [
+                    {
+                      "id": 1,
+                      "text": "The summary card shows the new value.",
+                      "state": "pending",
+                      "source": "/criteria/0"
+                    }
+                  ],
+                  "valid_evidence": [
+                    {
+                      "kind": "verification",
+                      "description": "등록 검사 명령 통과",
+                      "source": "/verification",
+                      "at": "2026-11-26T07:10:20+00:00",
+                      "fingerprint": "7336d248e86ac226e4609b5ed9d832f5c5bc5975b463446d0ee07036403b064a",
+                      "refs_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "check_context": "d135d5637fc5ffef9c7d2bc40ea62b44604a9960142d8cdab5ea8fd00742ad9f"
+                    }
+                  ],
+                  "uncertainties": [],
+                  "next_action": {
+                    "action": "review",
+                    "text": "기존 검사 기록을 사용해 독립 리뷰를 진행합니다."
+                  }
+                }
+              },
+              {
+                "id": "P2",
+                "recorded_status": "ready",
+                "updated_at": "2026-11-26T07:10:20+00:00",
+                "next_action": "기준 확인 후 구현",
+                "recorded_checks_passed": null,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "missing",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 결과가 아직 등록되지 않았습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "P2",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "not_recorded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show P2",
+                "resume_packet": {
+                  "version": 1,
+                  "task_id": "P2",
+                  "revision": 1,
+                  "ledger": "/trial/state",
+                  "status": "ready",
+                  "goal": "Change the spacing of the report title.",
+                  "scope": "local development",
+                  "project": "/trial/project 한글 with spaces",
+                  "owner": "claude",
+                  "reviewer": "codex",
+                  "limits": {
+                    "allowed_paths": [],
+                    "forbidden_paths": []
+                  },
+                  "refs": [],
+                  "head": "6a809a09e186c734eb69f1937076439c04ccdb06",
+                  "fingerprint": null,
+                  "remaining_criteria": [
+                    {
+                      "id": 1,
+                      "text": "Title spacing matches the style guide.",
+                      "state": "pending",
+                      "source": "/criteria/0"
+                    }
+                  ],
+                  "valid_evidence": [],
+                  "uncertainties": [],
+                  "next_action": {
+                    "action": "checkpoint",
+                    "text": "기준 확인 후 구현",
+                    "source": "/checkpoint/next"
+                  }
+                }
+              }
+            ],
+            "more_registered_tasks": false,
+            "unavailable_ledgers": [],
+            "summary": "The summary card update is in progress. A separate report-formatting task is open.",
+            "next_action": "Continue the interrupted summary card update.",
+            "git": {
+              "project": "/trial/project 한글 with spaces",
+              "branch": "master",
+              "head": "6a809a09e186c734eb69f1937076439c04ccdb06",
+              "dirty_count": 1,
+              "dirty_digest": "517dfb21726459b49b72a6fd78c58947fdcab2018f021bf8282b8c92a927b601",
+              "submodule_contents_included": false,
+              "dirty_paths": [
+                {
+                  "status": ".M",
+                  "path": "app.py"
+                }
+              ]
+            },
+            "created_at": "2026-11-26T07:10:20+00:00",
+            "local_date": "2026-11-26",
+            "close_tool_ms": 13,
+            "close_started_ms": 1795677020979,
+            "worklog": "/trial/state/session-notes/94b04c8ccdc6daa7c249428c48a3d0c15f73e3a4a3e2b827d5e6572ce66af18d/000000000001/현황.md",
+            "resume": "/trial/state/session-notes/94b04c8ccdc6daa7c249428c48a3d0c15f73e3a4a3e2b827d5e6572ce66af18d/000000000001/재개용.md",
+            "found": true,
+            "head_changed": false,
+            "dirty_paths_changed": false
+          },
+          "decisions": [
+            {
+              "choice": {
+                "task_id": "P1",
+                "operation": "independent_review",
+                "uses_pass_as_current": true,
+                "reason": "Calibration using observable receipt status."
+              },
+              "wrong_task": false,
+              "stale_use": false,
+              "reexplanation": false,
+              "lookup": false,
+              "known_task": true,
+              "eligible_action": true,
+              "calls": 0,
+              "elapsed_ms": 0.013
+            }
+          ],
+          "first_correct_ms": 131.353,
+          "wrong_task_choices": 0,
+          "reexplanations": 0,
+          "stale_evidence_uses": 0,
+          "lookups": 0,
+          "outcome": "started",
+          "effect": {
+            "reviewer": "codex",
+            "outcome": "pass"
+          },
+          "observed_ms": 173.641
+        },
+        {
+          "arm": "classic",
+          "pickup_ms": 110.386,
+          "pickup_bytes": 3270,
+          "pickup_digest": "c76c7e823fedc06279a38b26a3004fdd1b697ab32b42beab158cddcdf9710a52",
+          "pickup": {
+            "current": {
+              "project": "/trial/project 한글 with spaces",
+              "branch": "master",
+              "head": "6a809a09e186c734eb69f1937076439c04ccdb06",
+              "dirty_count": 1,
+              "dirty_digest": "517dfb21726459b49b72a6fd78c58947fdcab2018f021bf8282b8c92a927b601",
+              "submodule_contents_included": false,
+              "dirty_paths": [
+                {
+                  "status": ".M",
+                  "path": "app.py"
+                }
+              ]
+            },
+            "project_context": [],
+            "registered_tasks": [
+              {
+                "id": "P1",
+                "recorded_status": "needs_review",
+                "updated_at": "2026-11-26T07:10:20+00:00",
+                "next_action": "review",
+                "recorded_checks_passed": true,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "current",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": false,
+                  "reason": "현재 코드와 검토자에 해당하는 독립 리뷰 통과 기록이 필요합니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "P1",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "succeeded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show P1"
+              },
+              {
+                "id": "P2",
+                "recorded_status": "ready",
+                "updated_at": "2026-11-26T07:10:20+00:00",
+                "next_action": "기준 확인 후 구현",
+                "recorded_checks_passed": null,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "missing",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 결과가 아직 등록되지 않았습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "P2",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "not_recorded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show P2"
+              }
+            ],
+            "more_registered_tasks": false,
+            "unavailable_ledgers": [],
+            "summary": "The summary card update is in progress. A separate report-formatting task is open.",
+            "next_action": "Continue the interrupted summary card update.",
+            "git": {
+              "project": "/trial/project 한글 with spaces",
+              "branch": "master",
+              "head": "6a809a09e186c734eb69f1937076439c04ccdb06",
+              "dirty_count": 1,
+              "dirty_digest": "517dfb21726459b49b72a6fd78c58947fdcab2018f021bf8282b8c92a927b601",
+              "submodule_contents_included": false,
+              "dirty_paths": [
+                {
+                  "status": ".M",
+                  "path": "app.py"
+                }
+              ]
+            },
+            "created_at": "2026-11-26T07:10:20+00:00",
+            "local_date": "2026-11-26",
+            "close_tool_ms": 13,
+            "close_started_ms": 1795677020979,
+            "worklog": "/trial/state/session-notes/94b04c8ccdc6daa7c249428c48a3d0c15f73e3a4a3e2b827d5e6572ce66af18d/000000000001/현황.md",
+            "resume": "/trial/state/session-notes/94b04c8ccdc6daa7c249428c48a3d0c15f73e3a4a3e2b827d5e6572ce66af18d/000000000001/재개용.md",
+            "found": true,
+            "head_changed": false,
+            "dirty_paths_changed": false
+          },
+          "decisions": [
+            {
+              "choice": {
+                "task_id": "P1",
+                "operation": "independent_review",
+                "uses_pass_as_current": true,
+                "reason": "Calibration using observable receipt status."
+              },
+              "wrong_task": false,
+              "stale_use": false,
+              "reexplanation": false,
+              "lookup": false,
+              "known_task": true,
+              "eligible_action": true,
+              "calls": 0,
+              "elapsed_ms": 0.012
+            }
+          ],
+          "first_correct_ms": 153.102,
+          "wrong_task_choices": 0,
+          "reexplanations": 0,
+          "stale_evidence_uses": 0,
+          "lookups": 0,
+          "outcome": "started",
+          "effect": {
+            "reviewer": "codex",
+            "outcome": "pass"
+          },
+          "observed_ms": 195.638
+        }
+      ]
+    },
+    {
+      "case": "stale_check",
+      "snapshot_digest": "7d6cceaf5742f02658b24a76c6e45fb9ac05c90c073594fdb50c877859e20551",
+      "target": "P1",
+      "expected": "run_checks",
+      "stale_check_by_task": {
+        "P1": true,
+        "P2": false
+      },
+      "classic_equals_archived": true,
+      "trials": [
+        {
+          "arm": "classic",
+          "pickup_ms": 110.21,
+          "pickup_bytes": 3281,
+          "pickup_digest": "66ee51737a013012b37442ca50a6c0b6b0c62bcbabca1f43963dd2b8900fb6c8",
+          "pickup": {
+            "current": {
+              "project": "/trial/project 한글 with spaces",
+              "branch": "master",
+              "head": "57de83ced0f2606a096cba01a21a9d55a75f77c8",
+              "dirty_count": 1,
+              "dirty_digest": "517dfb21726459b49b72a6fd78c58947fdcab2018f021bf8282b8c92a927b601",
+              "submodule_contents_included": false,
+              "dirty_paths": [
+                {
+                  "status": ".M",
+                  "path": "app.py"
+                }
+              ]
+            },
+            "project_context": [],
+            "registered_tasks": [
+              {
+                "id": "P1",
+                "recorded_status": "needs_review",
+                "updated_at": "2026-11-26T07:10:22+00:00",
+                "next_action": "review",
+                "recorded_checks_passed": true,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "stale",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 당시의 작업 트리 지문과 현재 지문이 다르거나 기록에 지문이 없습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "P1",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "succeeded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show P1"
+              },
+              {
+                "id": "P2",
+                "recorded_status": "ready",
+                "updated_at": "2026-11-26T07:10:22+00:00",
+                "next_action": "기준 확인 후 구현",
+                "recorded_checks_passed": null,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "missing",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 결과가 아직 등록되지 않았습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "P2",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "not_recorded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show P2"
+              }
+            ],
+            "more_registered_tasks": false,
+            "unavailable_ledgers": [],
+            "summary": "The summary card update is in progress. A separate report-formatting task is open.",
+            "next_action": "Continue the interrupted summary card update.",
+            "git": {
+              "project": "/trial/project 한글 with spaces",
+              "branch": "master",
+              "head": "57de83ced0f2606a096cba01a21a9d55a75f77c8",
+              "dirty_count": 1,
+              "dirty_digest": "517dfb21726459b49b72a6fd78c58947fdcab2018f021bf8282b8c92a927b601",
+              "submodule_contents_included": false,
+              "dirty_paths": [
+                {
+                  "status": ".M",
+                  "path": "app.py"
+                }
+              ]
+            },
+            "created_at": "2026-11-26T07:10:22+00:00",
+            "local_date": "2026-11-26",
+            "close_tool_ms": 13,
+            "close_started_ms": 1795677022199,
+            "worklog": "/trial/state/session-notes/9db16f535507dc6eb8a1995b2d2b60b67b60e64ba9a6395b437a483091843ad8/000000000001/현황.md",
+            "resume": "/trial/state/session-notes/9db16f535507dc6eb8a1995b2d2b60b67b60e64ba9a6395b437a483091843ad8/000000000001/재개용.md",
+            "found": true,
+            "head_changed": false,
+            "dirty_paths_changed": false
+          },
+          "decisions": [
+            {
+              "choice": {
+                "task_id": "P1",
+                "operation": "run_checks",
+                "uses_pass_as_current": false,
+                "reason": "Calibration using observable receipt status."
+              },
+              "wrong_task": false,
+              "stale_use": false,
+              "reexplanation": false,
+              "lookup": false,
+              "known_task": true,
+              "eligible_action": true,
+              "calls": 0,
+              "elapsed_ms": 0.011
+            }
+          ],
+          "first_correct_ms": 148.521,
+          "wrong_task_choices": 0,
+          "reexplanations": 0,
+          "stale_evidence_uses": 0,
+          "lookups": 0,
+          "outcome": "started",
+          "effect": {
+            "exit": 0,
+            "fingerprint": "f9df6df1b0d8bc8a7df7c0874b0cef2a61aedfb3c15a2d50f8762923a3060674"
+          },
+          "observed_ms": 218.541
+        },
+        {
+          "arm": "structured",
+          "pickup_ms": 93.026,
+          "pickup_bytes": 5018,
+          "pickup_digest": "d876f454fa5b199c64d6bb9c2ad2a39572474d016dc39032a24114e372946473",
+          "pickup": {
+            "current": {
+              "project": "/trial/project 한글 with spaces",
+              "branch": "master",
+              "head": "57de83ced0f2606a096cba01a21a9d55a75f77c8",
+              "dirty_count": 1,
+              "dirty_digest": "517dfb21726459b49b72a6fd78c58947fdcab2018f021bf8282b8c92a927b601",
+              "submodule_contents_included": false,
+              "dirty_paths": [
+                {
+                  "status": ".M",
+                  "path": "app.py"
+                }
+              ]
+            },
+            "project_context": [],
+            "registered_tasks": [
+              {
+                "id": "P1",
+                "recorded_status": "needs_review",
+                "updated_at": "2026-11-26T07:10:22+00:00",
+                "next_action": "구현을 보존하고 현재 코드·검사 입력으로 다시 검사합니다.",
+                "recorded_checks_passed": true,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "stale",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 당시의 작업 트리 지문과 현재 지문이 다르거나 기록에 지문이 없습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "P1",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "succeeded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show P1",
+                "resume_packet": {
+                  "version": 1,
+                  "task_id": "P1",
+                  "revision": 10,
+                  "ledger": "/trial/state",
+                  "status": "needs_review",
+                  "goal": "Update the summary card to show the new value.",
+                  "scope": "local only",
+                  "project": "/trial/project 한글 with spaces",
+                  "owner": "claude",
+                  "reviewer": "codex",
+                  "limits": {
+                    "allowed_paths": [],
+                    "forbidden_paths": []
+                  },
+                  "refs": [],
+                  "head": "57de83ced0f2606a096cba01a21a9d55a75f77c8",
+                  "fingerprint": "f9df6df1b0d8bc8a7df7c0874b0cef2a61aedfb3c15a2d50f8762923a3060674",
+                  "remaining_criteria": [
+                    {
+                      "id": 1,
+                      "text": "The summary card shows the new value.",
+                      "state": "pending",
+                      "source": "/criteria/0"
+                    }
+                  ],
+                  "valid_evidence": [],
+                  "uncertainties": [
+                    "이전 검사 영수증의 코드·참조·검사 환경을 현재 입력과 대조해 재검사해야 합니다.",
+                    "검사 이후 코드 지문이 달라졌습니다."
+                  ],
+                  "next_action": {
+                    "action": "recheck",
+                    "text": "구현을 보존하고 현재 코드·검사 입력으로 다시 검사합니다."
+                  }
+                }
+              },
+              {
+                "id": "P2",
+                "recorded_status": "ready",
+                "updated_at": "2026-11-26T07:10:22+00:00",
+                "next_action": "기준 확인 후 구현",
+                "recorded_checks_passed": null,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "missing",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 결과가 아직 등록되지 않았습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "P2",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "not_recorded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show P2",
+                "resume_packet": {
+                  "version": 1,
+                  "task_id": "P2",
+                  "revision": 1,
+                  "ledger": "/trial/state",
+                  "status": "ready",
+                  "goal": "Change the spacing of the report title.",
+                  "scope": "local development",
+                  "project": "/trial/project 한글 with spaces",
+                  "owner": "claude",
+                  "reviewer": "codex",
+                  "limits": {
+                    "allowed_paths": [],
+                    "forbidden_paths": []
+                  },
+                  "refs": [],
+                  "head": "57de83ced0f2606a096cba01a21a9d55a75f77c8",
+                  "fingerprint": null,
+                  "remaining_criteria": [
+                    {
+                      "id": 1,
+                      "text": "Title spacing matches the style guide.",
+                      "state": "pending",
+                      "source": "/criteria/0"
+                    }
+                  ],
+                  "valid_evidence": [],
+                  "uncertainties": [],
+                  "next_action": {
+                    "action": "checkpoint",
+                    "text": "기준 확인 후 구현",
+                    "source": "/checkpoint/next"
+                  }
+                }
+              }
+            ],
+            "more_registered_tasks": false,
+            "unavailable_ledgers": [],
+            "summary": "The summary card update is in progress. A separate report-formatting task is open.",
+            "next_action": "Continue the interrupted summary card update.",
+            "git": {
+              "project": "/trial/project 한글 with spaces",
+              "branch": "master",
+              "head": "57de83ced0f2606a096cba01a21a9d55a75f77c8",
+              "dirty_count": 1,
+              "dirty_digest": "517dfb21726459b49b72a6fd78c58947fdcab2018f021bf8282b8c92a927b601",
+              "submodule_contents_included": false,
+              "dirty_paths": [
+                {
+                  "status": ".M",
+                  "path": "app.py"
+                }
+              ]
+            },
+            "created_at": "2026-11-26T07:10:22+00:00",
+            "local_date": "2026-11-26",
+            "close_tool_ms": 13,
+            "close_started_ms": 1795677022199,
+            "worklog": "/trial/state/session-notes/9db16f535507dc6eb8a1995b2d2b60b67b60e64ba9a6395b437a483091843ad8/000000000001/현황.md",
+            "resume": "/trial/state/session-notes/9db16f535507dc6eb8a1995b2d2b60b67b60e64ba9a6395b437a483091843ad8/000000000001/재개용.md",
+            "found": true,
+            "head_changed": false,
+            "dirty_paths_changed": false
+          },
+          "decisions": [
+            {
+              "choice": {
+                "task_id": "P1",
+                "operation": "run_checks",
+                "uses_pass_as_current": false,
+                "reason": "Calibration using observable receipt status."
+              },
+              "wrong_task": false,
+              "stale_use": false,
+              "reexplanation": false,
+              "lookup": false,
+              "known_task": true,
+              "eligible_action": true,
+              "calls": 0,
+              "elapsed_ms": 0.017
+            }
+          ],
+          "first_correct_ms": 128.673,
+          "wrong_task_choices": 0,
+          "reexplanations": 0,
+          "stale_evidence_uses": 0,
+          "lookups": 0,
+          "outcome": "started",
+          "effect": {
+            "exit": 0,
+            "fingerprint": "f9df6df1b0d8bc8a7df7c0874b0cef2a61aedfb3c15a2d50f8762923a3060674"
+          },
+          "observed_ms": 183.002
+        }
+      ]
+    },
+    {
+      "case": "pr_response_lost",
+      "snapshot_digest": "7e8443ed500b122f776c05822f08f5c6d8afb6859d8c6bd4d9134b2d8690afc0",
+      "target": "WP-release",
+      "expected": "query_matching_pr",
+      "stale_check_by_task": {
+        "WP-format": false,
+        "WP-release": false
+      },
+      "classic_equals_archived": true,
+      "trials": [
+        {
+          "arm": "structured",
+          "pickup_ms": 91.573,
+          "pickup_bytes": 6456,
+          "pickup_digest": "90fb835765cc5ae1bbd68fe21727273e780edc106485bb5a52a6ec76e0267097",
+          "pickup": {
+            "current": {
+              "project": "/trial/project with spaces",
+              "branch": "work/release",
+              "head": "94faf3ced567e8b40f9f86de7d5de8ede016b489",
+              "dirty_count": 0,
+              "dirty_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "submodule_contents_included": false,
+              "dirty_paths": []
+            },
+            "project_context": [],
+            "registered_tasks": [
+              {
+                "id": "WP-format",
+                "recorded_status": "ready",
+                "updated_at": "2026-11-26T07:10:23+00:00",
+                "next_action": "기준 확인 후 구현",
+                "recorded_checks_passed": null,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "missing",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 결과가 아직 등록되지 않았습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "WP-format",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "not_recorded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show WP-format",
+                "resume_packet": {
+                  "version": 1,
+                  "task_id": "WP-format",
+                  "revision": 1,
+                  "ledger": "/trial/state",
+                  "status": "ready",
+                  "goal": "Change the spacing of the report title.",
+                  "scope": "local development",
+                  "project": "/trial/project with spaces",
+                  "owner": "claude",
+                  "reviewer": "codex",
+                  "limits": {
+                    "allowed_paths": [],
+                    "forbidden_paths": []
+                  },
+                  "refs": [],
+                  "head": "94faf3ced567e8b40f9f86de7d5de8ede016b489",
+                  "fingerprint": null,
+                  "remaining_criteria": [
+                    {
+                      "id": 1,
+                      "text": "Title spacing matches the style guide.",
+                      "state": "pending",
+                      "source": "/criteria/0"
+                    }
+                  ],
+                  "valid_evidence": [],
+                  "uncertainties": [],
+                  "next_action": {
+                    "action": "checkpoint",
+                    "text": "기준 확인 후 구현",
+                    "source": "/checkpoint/next"
+                  }
+                }
+              },
+              {
+                "id": "WP-release",
+                "recorded_status": "completed",
+                "updated_at": "2026-11-26T07:10:23+00:00",
+                "next_action": "재개 시 원격 저장소·양쪽 브랜치·후보 SHA가 일치하는 PR을 조회합니다. 호스트에서 생성이 취소됐음을 확인한 경우 같은 대상으로 PR을 생성하고 재개하세요.",
+                "recorded_checks_passed": true,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "current",
+                  "review": "not_required",
+                  "completion": "current",
+                  "rerun_checks": false,
+                  "reason": "현재 코드와 입력에 유효한 검사 결과가 있습니다.",
+                  "bound_via_release": true
+                },
+                "release_status": {
+                  "task_id": "WP-release",
+                  "source": "local_ledger",
+                  "stage": "pushed",
+                  "target": {
+                    "mode": "github",
+                    "repo": "team/project",
+                    "base": "main",
+                    "branch": "work/release"
+                  },
+                  "pull_request": null,
+                  "candidate_commit": "94faf3ced567e8b40f9f86de7d5de8ede016b489",
+                  "local_verification": "succeeded",
+                  "local_completion": "succeeded",
+                  "merge": "uncertain",
+                  "merge_commit": null,
+                  "integration_check": "not_recorded",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": "2026-11-26T07:10:23+00:00",
+                  "error": "lost PR create response",
+                  "recovery": {
+                    "stage": "pull_request",
+                    "reason": "PR 생성 요청 의도를 기록했습니다. 일치하는 PR의 응답은 아직 확인되지 않았습니다.",
+                    "confirmed_effects": [
+                      "후보 커밋 94faf3ced567e8b40f9f86de7d5de8ede016b489"
+                    ],
+                    "action": "reconcile_pr",
+                    "next_action": "재개 시 원격 저장소·양쪽 브랜치·후보 SHA가 일치하는 PR을 조회합니다. 호스트에서 생성이 취소됐음을 확인한 경우 같은 대상으로 PR을 생성하고 재개하세요."
+                  }
+                },
+                "show": "agent-workflow --home /trial/state show WP-release",
+                "resume_packet": {
+                  "version": 1,
+                  "task_id": "WP-release",
+                  "revision": 15,
+                  "ledger": "/trial/state",
+                  "status": "completed",
+                  "goal": "Update the summary card to show the new value.",
+                  "scope": "fixture release",
+                  "project": "/trial/project with spaces",
+                  "owner": "claude",
+                  "reviewer": "none",
+                  "limits": {
+                    "allowed_paths": [],
+                    "forbidden_paths": []
+                  },
+                  "refs": [],
+                  "head": "94faf3ced567e8b40f9f86de7d5de8ede016b489",
+                  "fingerprint": "6227b2c52d6d0c621b540d281a74b140f888e902bfa06c7267f3bc5cac2bc4cf",
+                  "remaining_criteria": [],
+                  "valid_evidence": [
+                    {
+                      "kind": "verification",
+                      "description": "등록 검사 명령 통과",
+                      "source": "/verification",
+                      "at": "2026-11-26T07:10:23+00:00",
+                      "fingerprint": "d9ebc69162657eb476e42f07f8d1a33f576bcdd8d202d1f545a581b972d19e93",
+                      "refs_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "check_context": "6e65245927bc4a6557d50d5dc2b87331a2b71ea3454a20be78728950c7fe6642"
+                    },
+                    {
+                      "kind": "completion",
+                      "description": "현재 입력과 대조된 로컬 완료 영수증",
+                      "source": "/completed_fingerprint",
+                      "fingerprint": "d9ebc69162657eb476e42f07f8d1a33f576bcdd8d202d1f545a581b972d19e93"
+                    },
+                    {
+                      "kind": "release",
+                      "description": "원장에 기록된 릴리스 후보 94faf3ced567e8b40f9f86de7d5de8ede016b489",
+                      "source": "/release/commit"
+                    }
+                  ],
+                  "uncertainties": [
+                    "PR 생성 요청 의도를 기록했습니다. 일치하는 PR의 응답은 아직 확인되지 않았습니다."
+                  ],
+                  "next_action": {
+                    "action": "reconcile_pr",
+                    "text": "재개 시 원격 저장소·양쪽 브랜치·후보 SHA가 일치하는 PR을 조회합니다. 호스트에서 생성이 취소됐음을 확인한 경우 같은 대상으로 PR을 생성하고 재개하세요."
+                  }
+                }
+              }
+            ],
+            "more_registered_tasks": false,
+            "unavailable_ledgers": [],
+            "summary": "The summary card update is in progress. A separate report-formatting task is open.",
+            "next_action": "Continue the interrupted summary card update.",
+            "git": {
+              "project": "/trial/project with spaces",
+              "branch": "work/release",
+              "head": "94faf3ced567e8b40f9f86de7d5de8ede016b489",
+              "dirty_count": 0,
+              "dirty_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "submodule_contents_included": false,
+              "dirty_paths": []
+            },
+            "created_at": "2026-11-26T07:10:23+00:00",
+            "local_date": "2026-11-26",
+            "close_tool_ms": 13,
+            "close_started_ms": 1795677023427,
+            "worklog": "/trial/state/session-notes/2cc1707f76c985a6f7f5043c7843e65a91a3e8479718a054d1273f85297fa42c/000000000001/현황.md",
+            "resume": "/trial/state/session-notes/2cc1707f76c985a6f7f5043c7843e65a91a3e8479718a054d1273f85297fa42c/000000000001/재개용.md",
+            "found": true,
+            "head_changed": false,
+            "dirty_paths_changed": false
+          },
+          "decisions": [
+            {
+              "choice": {
+                "task_id": "WP-release",
+                "operation": "query_matching_pr",
+                "uses_pass_as_current": false,
+                "reason": "Calibration using observable receipt status."
+              },
+              "wrong_task": false,
+              "stale_use": false,
+              "reexplanation": false,
+              "lookup": false,
+              "known_task": true,
+              "eligible_action": true,
+              "calls": 0,
+              "elapsed_ms": 0.011
+            }
+          ],
+          "first_correct_ms": 92.447,
+          "wrong_task_choices": 0,
+          "reexplanations": 0,
+          "stale_evidence_uses": 0,
+          "lookups": 0,
+          "outcome": "started",
+          "effect": {
+            "remote_pr": 17,
+            "head": "94faf3ced567e8b40f9f86de7d5de8ede016b489"
+          },
+          "observed_ms": 92.614
+        },
+        {
+          "arm": "classic",
+          "pickup_ms": 109.765,
+          "pickup_bytes": 3905,
+          "pickup_digest": "694012ad22ac4b76092b45aa7cdd5040c05b87490ac17d133de0841f8f17bfcf",
+          "pickup": {
+            "current": {
+              "project": "/trial/project with spaces",
+              "branch": "work/release",
+              "head": "94faf3ced567e8b40f9f86de7d5de8ede016b489",
+              "dirty_count": 0,
+              "dirty_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "submodule_contents_included": false,
+              "dirty_paths": []
+            },
+            "project_context": [],
+            "registered_tasks": [
+              {
+                "id": "WP-format",
+                "recorded_status": "ready",
+                "updated_at": "2026-11-26T07:10:23+00:00",
+                "next_action": "기준 확인 후 구현",
+                "recorded_checks_passed": null,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "missing",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 결과가 아직 등록되지 않았습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "WP-format",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "not_recorded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show WP-format"
+              },
+              {
+                "id": "WP-release",
+                "recorded_status": "completed",
+                "updated_at": "2026-11-26T07:10:23+00:00",
+                "next_action": "다음 WP 선택 또는 승인된 통합 절차",
+                "recorded_checks_passed": true,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "current",
+                  "review": "not_required",
+                  "completion": "current",
+                  "rerun_checks": false,
+                  "reason": "현재 코드와 입력에 유효한 검사 결과가 있습니다.",
+                  "bound_via_release": true
+                },
+                "release_status": {
+                  "task_id": "WP-release",
+                  "source": "local_ledger",
+                  "stage": "pushed",
+                  "target": {
+                    "mode": "github",
+                    "repo": "team/project",
+                    "base": "main",
+                    "branch": "work/release"
+                  },
+                  "pull_request": null,
+                  "candidate_commit": "94faf3ced567e8b40f9f86de7d5de8ede016b489",
+                  "local_verification": "succeeded",
+                  "local_completion": "succeeded",
+                  "merge": "uncertain",
+                  "merge_commit": null,
+                  "integration_check": "not_recorded",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": "2026-11-26T07:10:23+00:00",
+                  "error": "lost PR create response",
+                  "recovery": {
+                    "stage": "pull_request",
+                    "reason": "PR 생성 요청 의도를 기록했습니다. 일치하는 PR의 응답은 아직 확인되지 않았습니다.",
+                    "confirmed_effects": [
+                      "후보 커밋 94faf3ced567e8b40f9f86de7d5de8ede016b489"
+                    ],
+                    "action": "reconcile_pr",
+                    "next_action": "재개 시 원격 저장소·양쪽 브랜치·후보 SHA가 일치하는 PR을 조회합니다. 호스트에서 생성이 취소됐음을 확인한 경우 같은 대상으로 PR을 생성하고 재개하세요."
+                  }
+                },
+                "show": "agent-workflow --home /trial/state show WP-release"
+              }
+            ],
+            "more_registered_tasks": false,
+            "unavailable_ledgers": [],
+            "summary": "The summary card update is in progress. A separate report-formatting task is open.",
+            "next_action": "Continue the interrupted summary card update.",
+            "git": {
+              "project": "/trial/project with spaces",
+              "branch": "work/release",
+              "head": "94faf3ced567e8b40f9f86de7d5de8ede016b489",
+              "dirty_count": 0,
+              "dirty_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "submodule_contents_included": false,
+              "dirty_paths": []
+            },
+            "created_at": "2026-11-26T07:10:23+00:00",
+            "local_date": "2026-11-26",
+            "close_tool_ms": 13,
+            "close_started_ms": 1795677023427,
+            "worklog": "/trial/state/session-notes/2cc1707f76c985a6f7f5043c7843e65a91a3e8479718a054d1273f85297fa42c/000000000001/현황.md",
+            "resume": "/trial/state/session-notes/2cc1707f76c985a6f7f5043c7843e65a91a3e8479718a054d1273f85297fa42c/000000000001/재개용.md",
+            "found": true,
+            "head_changed": false,
+            "dirty_paths_changed": false
+          },
+          "decisions": [
+            {
+              "choice": {
+                "task_id": "WP-release",
+                "operation": "query_matching_pr",
+                "uses_pass_as_current": false,
+                "reason": "Calibration using observable receipt status."
+              },
+              "wrong_task": false,
+              "stale_use": false,
+              "reexplanation": false,
+              "lookup": false,
+              "known_task": true,
+              "eligible_action": true,
+              "calls": 0,
+              "elapsed_ms": 0.012
+            }
+          ],
+          "first_correct_ms": 110.675,
+          "wrong_task_choices": 0,
+          "reexplanations": 0,
+          "stale_evidence_uses": 0,
+          "lookups": 0,
+          "outcome": "started",
+          "effect": {
+            "remote_pr": 17,
+            "head": "94faf3ced567e8b40f9f86de7d5de8ede016b489"
+          },
+          "observed_ms": 110.867
+        }
+      ]
+    },
+    {
+      "case": "merge_response_lost",
+      "snapshot_digest": "935d3788ac48780aaffaa3bf5297138a0b5e7d3a2056d551e9ca65c7cf1c65d8",
+      "target": "WP-release",
+      "expected": "query_merge",
+      "stale_check_by_task": {
+        "WP-format": false,
+        "WP-release": false
+      },
+      "classic_equals_archived": true,
+      "trials": [
+        {
+          "arm": "classic",
+          "pickup_ms": 109.938,
+          "pickup_bytes": 3928,
+          "pickup_digest": "c674d2eef188e8b358d71ea68176c6fafbd8a37059ebaf81901653f9e5990e94",
+          "pickup": {
+            "current": {
+              "project": "/trial/project with spaces",
+              "branch": "work/release",
+              "head": "8d658ec1484d6790abb61c361de35251a5c5f303",
+              "dirty_count": 0,
+              "dirty_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "submodule_contents_included": false,
+              "dirty_paths": []
+            },
+            "project_context": [],
+            "registered_tasks": [
+              {
+                "id": "WP-format",
+                "recorded_status": "ready",
+                "updated_at": "2026-11-26T07:10:24+00:00",
+                "next_action": "기준 확인 후 구현",
+                "recorded_checks_passed": null,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "missing",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 결과가 아직 등록되지 않았습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "WP-format",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "not_recorded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show WP-format"
+              },
+              {
+                "id": "WP-release",
+                "recorded_status": "completed",
+                "updated_at": "2026-11-26T07:10:24+00:00",
+                "next_action": "다음 WP 선택 또는 승인된 통합 절차",
+                "recorded_checks_passed": true,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "current",
+                  "review": "not_required",
+                  "completion": "current",
+                  "rerun_checks": false,
+                  "reason": "현재 코드와 입력에 유효한 검사 결과가 있습니다.",
+                  "bound_via_release": true
+                },
+                "release_status": {
+                  "task_id": "WP-release",
+                  "source": "local_ledger",
+                  "stage": "pull_request",
+                  "target": {
+                    "mode": "github",
+                    "repo": "team/project",
+                    "base": "main",
+                    "branch": "work/release"
+                  },
+                  "pull_request": 17,
+                  "candidate_commit": "8d658ec1484d6790abb61c361de35251a5c5f303",
+                  "local_verification": "succeeded",
+                  "local_completion": "succeeded",
+                  "merge": "uncertain",
+                  "merge_commit": null,
+                  "integration_check": "not_recorded",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": "2026-11-26T07:10:24+00:00",
+                  "error": "lost GitHub merge response",
+                  "recovery": {
+                    "stage": "merge",
+                    "reason": "PR 병합 요청 의도를 기록했습니다. 병합 결과는 아직 확인되지 않았습니다.",
+                    "confirmed_effects": [
+                      "후보 커밋 8d658ec1484d6790abb61c361de35251a5c5f303",
+                      "team/project PR #17 · work/release → main"
+                    ],
+                    "action": "reconcile_merge",
+                    "next_action": "재개 시 같은 PR의 병합 여부와 병합 커밋 SHA를 조회합니다. 호스트에서 이전 요청이 종료됐고 PR이 열려 있으면 정책에 따라 병합한 뒤 재개하세요."
+                  }
+                },
+                "show": "agent-workflow --home /trial/state show WP-release"
+              }
+            ],
+            "more_registered_tasks": false,
+            "unavailable_ledgers": [],
+            "summary": "The summary card update is in progress. A separate report-formatting task is open.",
+            "next_action": "Continue the interrupted summary card update.",
+            "git": {
+              "project": "/trial/project with spaces",
+              "branch": "work/release",
+              "head": "8d658ec1484d6790abb61c361de35251a5c5f303",
+              "dirty_count": 0,
+              "dirty_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "submodule_contents_included": false,
+              "dirty_paths": []
+            },
+            "created_at": "2026-11-26T07:10:24+00:00",
+            "local_date": "2026-11-26",
+            "close_tool_ms": 13,
+            "close_started_ms": 1795677024568,
+            "worklog": "/trial/state/session-notes/8298e5c86406d0b98487bc2a4c6635a40b63494f5822e5c2e8f007abd7db96db/000000000001/현황.md",
+            "resume": "/trial/state/session-notes/8298e5c86406d0b98487bc2a4c6635a40b63494f5822e5c2e8f007abd7db96db/000000000001/재개용.md",
+            "found": true,
+            "head_changed": false,
+            "dirty_paths_changed": false
+          },
+          "decisions": [
+            {
+              "choice": {
+                "task_id": "WP-release",
+                "operation": "query_merge",
+                "uses_pass_as_current": false,
+                "reason": "Calibration using observable receipt status."
+              },
+              "wrong_task": false,
+              "stale_use": false,
+              "reexplanation": false,
+              "lookup": false,
+              "known_task": true,
+              "eligible_action": true,
+              "calls": 0,
+              "elapsed_ms": 0.011
+            }
+          ],
+          "first_correct_ms": 110.812,
+          "wrong_task_choices": 0,
+          "reexplanations": 0,
+          "stale_evidence_uses": 0,
+          "lookups": 0,
+          "outcome": "started",
+          "effect": {
+            "remote_pr": 17,
+            "merged_revision": "bc58f97a852369190fb77dbf05de68e4b0b3fc6f"
+          },
+          "observed_ms": 112.349
+        },
+        {
+          "arm": "structured",
+          "pickup_ms": 93.543,
+          "pickup_bytes": 6601,
+          "pickup_digest": "0feddefb4b12f5ed6e7c82e66a0248051b16666688c45ce31ac515a6f30bfd42",
+          "pickup": {
+            "current": {
+              "project": "/trial/project with spaces",
+              "branch": "work/release",
+              "head": "8d658ec1484d6790abb61c361de35251a5c5f303",
+              "dirty_count": 0,
+              "dirty_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "submodule_contents_included": false,
+              "dirty_paths": []
+            },
+            "project_context": [],
+            "registered_tasks": [
+              {
+                "id": "WP-format",
+                "recorded_status": "ready",
+                "updated_at": "2026-11-26T07:10:24+00:00",
+                "next_action": "기준 확인 후 구현",
+                "recorded_checks_passed": null,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "missing",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 결과가 아직 등록되지 않았습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "WP-format",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "not_recorded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show WP-format",
+                "resume_packet": {
+                  "version": 1,
+                  "task_id": "WP-format",
+                  "revision": 1,
+                  "ledger": "/trial/state",
+                  "status": "ready",
+                  "goal": "Change the spacing of the report title.",
+                  "scope": "local development",
+                  "project": "/trial/project with spaces",
+                  "owner": "claude",
+                  "reviewer": "codex",
+                  "limits": {
+                    "allowed_paths": [],
+                    "forbidden_paths": []
+                  },
+                  "refs": [],
+                  "head": "8d658ec1484d6790abb61c361de35251a5c5f303",
+                  "fingerprint": null,
+                  "remaining_criteria": [
+                    {
+                      "id": 1,
+                      "text": "Title spacing matches the style guide.",
+                      "state": "pending",
+                      "source": "/criteria/0"
+                    }
+                  ],
+                  "valid_evidence": [],
+                  "uncertainties": [],
+                  "next_action": {
+                    "action": "checkpoint",
+                    "text": "기준 확인 후 구현",
+                    "source": "/checkpoint/next"
+                  }
+                }
+              },
+              {
+                "id": "WP-release",
+                "recorded_status": "completed",
+                "updated_at": "2026-11-26T07:10:24+00:00",
+                "next_action": "재개 시 같은 PR의 병합 여부와 병합 커밋 SHA를 조회합니다. 호스트에서 이전 요청이 종료됐고 PR이 열려 있으면 정책에 따라 병합한 뒤 재개하세요.",
+                "recorded_checks_passed": true,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "current",
+                  "review": "not_required",
+                  "completion": "current",
+                  "rerun_checks": false,
+                  "reason": "현재 코드와 입력에 유효한 검사 결과가 있습니다.",
+                  "bound_via_release": true
+                },
+                "release_status": {
+                  "task_id": "WP-release",
+                  "source": "local_ledger",
+                  "stage": "pull_request",
+                  "target": {
+                    "mode": "github",
+                    "repo": "team/project",
+                    "base": "main",
+                    "branch": "work/release"
+                  },
+                  "pull_request": 17,
+                  "candidate_commit": "8d658ec1484d6790abb61c361de35251a5c5f303",
+                  "local_verification": "succeeded",
+                  "local_completion": "succeeded",
+                  "merge": "uncertain",
+                  "merge_commit": null,
+                  "integration_check": "not_recorded",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": "2026-11-26T07:10:24+00:00",
+                  "error": "lost GitHub merge response",
+                  "recovery": {
+                    "stage": "merge",
+                    "reason": "PR 병합 요청 의도를 기록했습니다. 병합 결과는 아직 확인되지 않았습니다.",
+                    "confirmed_effects": [
+                      "후보 커밋 8d658ec1484d6790abb61c361de35251a5c5f303",
+                      "team/project PR #17 · work/release → main"
+                    ],
+                    "action": "reconcile_merge",
+                    "next_action": "재개 시 같은 PR의 병합 여부와 병합 커밋 SHA를 조회합니다. 호스트에서 이전 요청이 종료됐고 PR이 열려 있으면 정책에 따라 병합한 뒤 재개하세요."
+                  }
+                },
+                "show": "agent-workflow --home /trial/state show WP-release",
+                "resume_packet": {
+                  "version": 1,
+                  "task_id": "WP-release",
+                  "revision": 18,
+                  "ledger": "/trial/state",
+                  "status": "completed",
+                  "goal": "Update the summary card to show the new value.",
+                  "scope": "fixture release",
+                  "project": "/trial/project with spaces",
+                  "owner": "claude",
+                  "reviewer": "none",
+                  "limits": {
+                    "allowed_paths": [],
+                    "forbidden_paths": []
+                  },
+                  "refs": [],
+                  "head": "8d658ec1484d6790abb61c361de35251a5c5f303",
+                  "fingerprint": "2cf22584cf61655e368235a0c377fad2a96b17f2e7d81357701594f1ee7023ad",
+                  "remaining_criteria": [],
+                  "valid_evidence": [
+                    {
+                      "kind": "verification",
+                      "description": "등록 검사 명령 통과",
+                      "source": "/verification",
+                      "at": "2026-11-26T07:10:24+00:00",
+                      "fingerprint": "35cbe2a5529e3f7f33c463ba70d44ac4773efc34c48c32c4b805c974a2890547",
+                      "refs_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "check_context": "6e65245927bc4a6557d50d5dc2b87331a2b71ea3454a20be78728950c7fe6642"
+                    },
+                    {
+                      "kind": "completion",
+                      "description": "현재 입력과 대조된 로컬 완료 영수증",
+                      "source": "/completed_fingerprint",
+                      "fingerprint": "35cbe2a5529e3f7f33c463ba70d44ac4773efc34c48c32c4b805c974a2890547"
+                    },
+                    {
+                      "kind": "release",
+                      "description": "원장에 기록된 릴리스 후보 8d658ec1484d6790abb61c361de35251a5c5f303",
+                      "source": "/release/commit"
+                    },
+                    {
+                      "kind": "release",
+                      "description": "원장에서 확인한 team/project PR #17",
+                      "source": "/release/pr",
+                      "revision": "8d658ec1484d6790abb61c361de35251a5c5f303"
+                    }
+                  ],
+                  "uncertainties": [
+                    "PR 병합 요청 의도를 기록했습니다. 병합 결과는 아직 확인되지 않았습니다."
+                  ],
+                  "next_action": {
+                    "action": "reconcile_merge",
+                    "text": "재개 시 같은 PR의 병합 여부와 병합 커밋 SHA를 조회합니다. 호스트에서 이전 요청이 종료됐고 PR이 열려 있으면 정책에 따라 병합한 뒤 재개하세요."
+                  }
+                }
+              }
+            ],
+            "more_registered_tasks": false,
+            "unavailable_ledgers": [],
+            "summary": "The summary card update is in progress. A separate report-formatting task is open.",
+            "next_action": "Continue the interrupted summary card update.",
+            "git": {
+              "project": "/trial/project with spaces",
+              "branch": "work/release",
+              "head": "8d658ec1484d6790abb61c361de35251a5c5f303",
+              "dirty_count": 0,
+              "dirty_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "submodule_contents_included": false,
+              "dirty_paths": []
+            },
+            "created_at": "2026-11-26T07:10:24+00:00",
+            "local_date": "2026-11-26",
+            "close_tool_ms": 13,
+            "close_started_ms": 1795677024568,
+            "worklog": "/trial/state/session-notes/8298e5c86406d0b98487bc2a4c6635a40b63494f5822e5c2e8f007abd7db96db/000000000001/현황.md",
+            "resume": "/trial/state/session-notes/8298e5c86406d0b98487bc2a4c6635a40b63494f5822e5c2e8f007abd7db96db/000000000001/재개용.md",
+            "found": true,
+            "head_changed": false,
+            "dirty_paths_changed": false
+          },
+          "decisions": [
+            {
+              "choice": {
+                "task_id": "WP-release",
+                "operation": "query_merge",
+                "uses_pass_as_current": false,
+                "reason": "Calibration using observable receipt status."
+              },
+              "wrong_task": false,
+              "stale_use": false,
+              "reexplanation": false,
+              "lookup": false,
+              "known_task": true,
+              "eligible_action": true,
+              "calls": 0,
+              "elapsed_ms": 0.013
+            }
+          ],
+          "first_correct_ms": 94.528,
+          "wrong_task_choices": 0,
+          "reexplanations": 0,
+          "stale_evidence_uses": 0,
+          "lookups": 0,
+          "outcome": "started",
+          "effect": {
+            "remote_pr": 17,
+            "merged_revision": "bc58f97a852369190fb77dbf05de68e4b0b3fc6f"
+          },
+          "observed_ms": 95.988
+        }
+      ]
+    },
+    {
+      "case": "deployment_uncertain",
+      "snapshot_digest": "d29d1887bd686a3cee3a63c11d06a901906d2055316607b4b04e8932b5afb95e",
+      "target": "WP-release",
+      "expected": "read_deployed_version",
+      "stale_check_by_task": {
+        "WP-format": false,
+        "WP-release": false
+      },
+      "classic_equals_archived": true,
+      "trials": [
+        {
+          "arm": "structured",
+          "pickup_ms": 104.835,
+          "pickup_bytes": 6446,
+          "pickup_digest": "a1624bc2b0e82f7beb2fa3d616dea0cd9f28d8289143880c750716b501c8ea3a",
+          "pickup": {
+            "current": {
+              "project": "/trial/project with spaces",
+              "branch": "work/release",
+              "head": "4e9038d51cbd83506e78a75338319943ae9362f4",
+              "dirty_count": 0,
+              "dirty_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "submodule_contents_included": false,
+              "dirty_paths": []
+            },
+            "project_context": [],
+            "registered_tasks": [
+              {
+                "id": "WP-format",
+                "recorded_status": "ready",
+                "updated_at": "2026-11-26T07:10:25+00:00",
+                "next_action": "기준 확인 후 구현",
+                "recorded_checks_passed": null,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "missing",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 결과가 아직 등록되지 않았습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "WP-format",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "not_recorded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show WP-format",
+                "resume_packet": {
+                  "version": 1,
+                  "task_id": "WP-format",
+                  "revision": 1,
+                  "ledger": "/trial/state",
+                  "status": "ready",
+                  "goal": "Change the spacing of the report title.",
+                  "scope": "local development",
+                  "project": "/trial/project with spaces",
+                  "owner": "claude",
+                  "reviewer": "codex",
+                  "limits": {
+                    "allowed_paths": [],
+                    "forbidden_paths": []
+                  },
+                  "refs": [],
+                  "head": "4e9038d51cbd83506e78a75338319943ae9362f4",
+                  "fingerprint": null,
+                  "remaining_criteria": [
+                    {
+                      "id": 1,
+                      "text": "Title spacing matches the style guide.",
+                      "state": "pending",
+                      "source": "/criteria/0"
+                    }
+                  ],
+                  "valid_evidence": [],
+                  "uncertainties": [],
+                  "next_action": {
+                    "action": "checkpoint",
+                    "text": "기준 확인 후 구현",
+                    "source": "/checkpoint/next"
+                  }
+                }
+              },
+              {
+                "id": "WP-release",
+                "recorded_status": "completed",
+                "updated_at": "2026-11-26T07:10:25+00:00",
+                "next_action": "재개 시 등록한 조회 명령으로 대상 버전을 확인하고 병합 SHA와 같으면 상태 검사로 진행합니다.",
+                "recorded_checks_passed": true,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "current",
+                  "review": "not_required",
+                  "completion": "current",
+                  "rerun_checks": false,
+                  "reason": "현재 코드와 입력에 유효한 검사 결과가 있습니다.",
+                  "bound_via_release": true
+                },
+                "release_status": {
+                  "task_id": "WP-release",
+                  "source": "local_ledger",
+                  "stage": "deploying",
+                  "target": {
+                    "mode": "local",
+                    "base": "main",
+                    "branch": "work/release"
+                  },
+                  "pull_request": null,
+                  "candidate_commit": "4e9038d51cbd83506e78a75338319943ae9362f4",
+                  "local_verification": "succeeded",
+                  "local_completion": "succeeded",
+                  "merge": "succeeded",
+                  "merge_commit": "75251e9539a9ed2e6171b88bdaf81a90f64598c1",
+                  "integration_check": "succeeded",
+                  "integration_revision": "75251e9539a9ed2e6171b88bdaf81a90f64598c1",
+                  "deployment": "uncertain",
+                  "deployment_revision": null,
+                  "health": "not_attempted",
+                  "deployed_at": null,
+                  "updated_at": "2026-11-26T07:10:25+00:00",
+                  "error": "lost deployment acknowledgement",
+                  "recovery": {
+                    "stage": "deployment",
+                    "reason": "배포 명령을 시도했습니다. 대상 버전 적용 여부를 확정할 수 없습니다.",
+                    "confirmed_effects": [
+                      "후보 커밋 4e9038d51cbd83506e78a75338319943ae9362f4",
+                      "병합 커밋 75251e9539a9ed2e6171b88bdaf81a90f64598c1"
+                    ],
+                    "action": "observe_deployment",
+                    "next_action": "재개 시 등록한 조회 명령으로 대상 버전을 확인하고 병합 SHA와 같으면 상태 검사로 진행합니다."
+                  }
+                },
+                "show": "agent-workflow --home /trial/state show WP-release",
+                "resume_packet": {
+                  "version": 1,
+                  "task_id": "WP-release",
+                  "revision": 23,
+                  "ledger": "/trial/state",
+                  "status": "completed",
+                  "goal": "Update the summary card to show the new value.",
+                  "scope": "fixture release",
+                  "project": "/trial/project with spaces",
+                  "owner": "claude",
+                  "reviewer": "none",
+                  "limits": {
+                    "allowed_paths": [],
+                    "forbidden_paths": []
+                  },
+                  "refs": [],
+                  "head": "4e9038d51cbd83506e78a75338319943ae9362f4",
+                  "fingerprint": "1d554497fd26dee5fd0a69a3fea4e65e1c3cc8a251148694e022b1e330095c02",
+                  "remaining_criteria": [],
+                  "valid_evidence": [
+                    {
+                      "kind": "verification",
+                      "description": "등록 검사 명령 통과",
+                      "source": "/verification",
+                      "at": "2026-11-26T07:10:25+00:00",
+                      "fingerprint": "aeeca0b7264fa9308fafc022815bdd9c6b28e3cd153ffb611d50aaf2d4f42d7f",
+                      "refs_fingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "check_context": "6e65245927bc4a6557d50d5dc2b87331a2b71ea3454a20be78728950c7fe6642"
+                    },
+                    {
+                      "kind": "completion",
+                      "description": "현재 입력과 대조된 로컬 완료 영수증",
+                      "source": "/completed_fingerprint",
+                      "fingerprint": "aeeca0b7264fa9308fafc022815bdd9c6b28e3cd153ffb611d50aaf2d4f42d7f"
+                    },
+                    {
+                      "kind": "release",
+                      "description": "원장에 기록된 릴리스 후보 4e9038d51cbd83506e78a75338319943ae9362f4",
+                      "source": "/release/commit"
+                    },
+                    {
+                      "kind": "release",
+                      "description": "원장에 기록된 병합 리비전 75251e9539a9ed2e6171b88bdaf81a90f64598c1",
+                      "source": "/release/merge_commit"
+                    }
+                  ],
+                  "uncertainties": [
+                    "배포 명령을 시도했습니다. 대상 버전 적용 여부를 확정할 수 없습니다."
+                  ],
+                  "next_action": {
+                    "action": "observe_deployment",
+                    "text": "재개 시 등록한 조회 명령으로 대상 버전을 확인하고 병합 SHA와 같으면 상태 검사로 진행합니다."
+                  }
+                }
+              }
+            ],
+            "more_registered_tasks": false,
+            "unavailable_ledgers": [],
+            "summary": "The summary card update is in progress. A separate report-formatting task is open.",
+            "next_action": "Continue the interrupted summary card update.",
+            "git": {
+              "project": "/trial/project with spaces",
+              "branch": "work/release",
+              "head": "4e9038d51cbd83506e78a75338319943ae9362f4",
+              "dirty_count": 0,
+              "dirty_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "submodule_contents_included": false,
+              "dirty_paths": []
+            },
+            "created_at": "2026-11-26T07:10:25+00:00",
+            "local_date": "2026-11-26",
+            "close_tool_ms": 14,
+            "close_started_ms": 1795677025901,
+            "worklog": "/trial/state/session-notes/02b3f8b326ad50816d310ab49ae105553a002a6ec79e46e601eef25ac79f9a88/000000000001/현황.md",
+            "resume": "/trial/state/session-notes/02b3f8b326ad50816d310ab49ae105553a002a6ec79e46e601eef25ac79f9a88/000000000001/재개용.md",
+            "found": true,
+            "head_changed": false,
+            "dirty_paths_changed": false
+          },
+          "decisions": [
+            {
+              "choice": {
+                "task_id": "WP-release",
+                "operation": "read_deployed_version",
+                "uses_pass_as_current": false,
+                "reason": "Calibration using observable receipt status."
+              },
+              "wrong_task": false,
+              "stale_use": false,
+              "reexplanation": false,
+              "lookup": false,
+              "known_task": true,
+              "eligible_action": true,
+              "calls": 0,
+              "elapsed_ms": 0.01
+            }
+          ],
+          "first_correct_ms": 105.706,
+          "wrong_task_choices": 0,
+          "reexplanations": 0,
+          "stale_evidence_uses": 0,
+          "lookups": 0,
+          "outcome": "started",
+          "effect": {
+            "revision": "75251e9539a9ed2e6171b88bdaf81a90f64598c1",
+            "calls": {
+              "deploy": 1,
+              "observe_revision": 1,
+              "health": 0
+            }
+          },
+          "observed_ms": 122.89
+        },
+        {
+          "arm": "classic",
+          "pickup_ms": 119.785,
+          "pickup_bytes": 3920,
+          "pickup_digest": "5b927aa4e4acafc2e7914591a9e6c08daa2dab044589a39594b5d685cb88b1ea",
+          "pickup": {
+            "current": {
+              "project": "/trial/project with spaces",
+              "branch": "work/release",
+              "head": "4e9038d51cbd83506e78a75338319943ae9362f4",
+              "dirty_count": 0,
+              "dirty_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "submodule_contents_included": false,
+              "dirty_paths": []
+            },
+            "project_context": [],
+            "registered_tasks": [
+              {
+                "id": "WP-format",
+                "recorded_status": "ready",
+                "updated_at": "2026-11-26T07:10:25+00:00",
+                "next_action": "기준 확인 후 구현",
+                "recorded_checks_passed": null,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "missing",
+                  "review": "missing",
+                  "completion": "missing",
+                  "rerun_checks": true,
+                  "reason": "검사 결과가 아직 등록되지 않았습니다.",
+                  "bound_via_release": false
+                },
+                "release_status": {
+                  "task_id": "WP-format",
+                  "source": "local_ledger",
+                  "stage": null,
+                  "target": {},
+                  "pull_request": null,
+                  "candidate_commit": null,
+                  "local_verification": "not_recorded",
+                  "local_completion": "not_completed",
+                  "merge": "not_configured",
+                  "merge_commit": null,
+                  "integration_check": "not_configured",
+                  "integration_revision": null,
+                  "deployment": "not_configured",
+                  "deployment_revision": null,
+                  "health": "not_configured",
+                  "deployed_at": null,
+                  "updated_at": null,
+                  "error": null,
+                  "recovery": null
+                },
+                "show": "agent-workflow --home /trial/state show WP-format"
+              },
+              {
+                "id": "WP-release",
+                "recorded_status": "completed",
+                "updated_at": "2026-11-26T07:10:25+00:00",
+                "next_action": "다음 WP 선택 또는 승인된 통합 절차",
+                "recorded_checks_passed": true,
+                "recorded_review": null,
+                "evidence": {
+                  "verification": "current",
+                  "review": "not_required",
+                  "completion": "current",
+                  "rerun_checks": false,
+                  "reason": "현재 코드와 입력에 유효한 검사 결과가 있습니다.",
+                  "bound_via_release": true
+                },
+                "release_status": {
+                  "task_id": "WP-release",
+                  "source": "local_ledger",
+                  "stage": "deploying",
+                  "target": {
+                    "mode": "local",
+                    "base": "main",
+                    "branch": "work/release"
+                  },
+                  "pull_request": null,
+                  "candidate_commit": "4e9038d51cbd83506e78a75338319943ae9362f4",
+                  "local_verification": "succeeded",
+                  "local_completion": "succeeded",
+                  "merge": "succeeded",
+                  "merge_commit": "75251e9539a9ed2e6171b88bdaf81a90f64598c1",
+                  "integration_check": "succeeded",
+                  "integration_revision": "75251e9539a9ed2e6171b88bdaf81a90f64598c1",
+                  "deployment": "uncertain",
+                  "deployment_revision": null,
+                  "health": "not_attempted",
+                  "deployed_at": null,
+                  "updated_at": "2026-11-26T07:10:25+00:00",
+                  "error": "lost deployment acknowledgement",
+                  "recovery": {
+                    "stage": "deployment",
+                    "reason": "배포 명령을 시도했습니다. 대상 버전 적용 여부를 확정할 수 없습니다.",
+                    "confirmed_effects": [
+                      "후보 커밋 4e9038d51cbd83506e78a75338319943ae9362f4",
+                      "병합 커밋 75251e9539a9ed2e6171b88bdaf81a90f64598c1"
+                    ],
+                    "action": "observe_deployment",
+                    "next_action": "재개 시 등록한 조회 명령으로 대상 버전을 확인하고 병합 SHA와 같으면 상태 검사로 진행합니다."
+                  }
+                },
+                "show": "agent-workflow --home /trial/state show WP-release"
+              }
+            ],
+            "more_registered_tasks": false,
+            "unavailable_ledgers": [],
+            "summary": "The summary card update is in progress. A separate report-formatting task is open.",
+            "next_action": "Continue the interrupted summary card update.",
+            "git": {
+              "project": "/trial/project with spaces",
+              "branch": "work/release",
+              "head": "4e9038d51cbd83506e78a75338319943ae9362f4",
+              "dirty_count": 0,
+              "dirty_digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "submodule_contents_included": false,
+              "dirty_paths": []
+            },
+            "created_at": "2026-11-26T07:10:25+00:00",
+            "local_date": "2026-11-26",
+            "close_tool_ms": 14,
+            "close_started_ms": 1795677025901,
+            "worklog": "/trial/state/session-notes/02b3f8b326ad50816d310ab49ae105553a002a6ec79e46e601eef25ac79f9a88/000000000001/현황.md",
+            "resume": "/trial/state/session-notes/02b3f8b326ad50816d310ab49ae105553a002a6ec79e46e601eef25ac79f9a88/000000000001/재개용.md",
+            "found": true,
+            "head_changed": false,
+            "dirty_paths_changed": false
+          },
+          "decisions": [
+            {
+              "choice": {
+                "task_id": "WP-release",
+                "operation": "read_deployed_version",
+                "uses_pass_as_current": false,
+                "reason": "Calibration using observable receipt status."
+              },
+              "wrong_task": false,
+              "stale_use": false,
+              "reexplanation": false,
+              "lookup": false,
+              "known_task": true,
+              "eligible_action": true,
+              "calls": 0,
+              "elapsed_ms": 0.011
+            }
+          ],
+          "first_correct_ms": 120.643,
+          "wrong_task_choices": 0,
+          "reexplanations": 0,
+          "stale_evidence_uses": 0,
+          "lookups": 0,
+          "outcome": "started",
+          "effect": {
+            "revision": "75251e9539a9ed2e6171b88bdaf81a90f64598c1",
+            "calls": {
+              "deploy": 1,
+              "observe_revision": 1,
+              "health": 0
+            }
+          },
+          "observed_ms": 138.489
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "paired_starts": 6,
+    "arms": {
+      "classic": {
+        "trials": 6,
+        "with_decisions": 6,
+        "correct_starts": 6,
+        "unavailable": 0,
+        "no_correct_start": 0,
+        "paired_median_ms": 134.582,
+        "paired_range_ms": [
+          110.675,
+          153.102
+        ],
+        "observed_starts_median_ms": 134.582,
+        "model_elapsed_ms": 0.088,
+        "calls": 0,
+        "wrong_task_choices": 0,
+        "reexplanations": 0,
+        "stale_evidence_uses": 0,
+        "lookups": 0
+      },
+      "structured": {
+        "trials": 6,
+        "with_decisions": 6,
+        "correct_starts": 6,
+        "unavailable": 0,
+        "no_correct_start": 0,
+        "paired_median_ms": 117.18950000000001,
+        "paired_range_ms": [
+          92.447,
+          167.61
+        ],
+        "observed_starts_median_ms": 117.18950000000001,
+        "model_elapsed_ms": 0.079,
+        "calls": 0,
+        "wrong_task_choices": 0,
+        "reexplanations": 0,
+        "stale_evidence_uses": 0,
+        "lookups": 0
+      }
+    },
+    "paired_median_change_ms": -17.256
+  }
+}

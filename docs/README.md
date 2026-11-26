@@ -6,6 +6,7 @@
 
 | 필요한 결과 | 절차와 예제 |
 |---|---|
+| 프로젝트별 지침으로 목표 등록·완료 | [프로필과 CLI](../profiles/README.md#project-goals) · [agent-workflow 자체 실행과 Katakuri 호환 검증](../pilots/p2-goal-mode/README.md) |
 | Katakuri 목표 등록·백그라운드 실행 | [화면에서 시작](KATAKURI_GOAL.ko.md#web) · [CLI로 시작](KATAKURI_GOAL.ko.md#cli) · [작업 범위에 맞는 프로필](../profiles/README.md) |
 | 멈춘 목표의 다음 행동 결정 | [근거 제출과 예산 조정](KATAKURI_GOAL.ko.md#resume) · [완료 판정 기준](KATAKURI_GOAL.ko.md#acceptance) |
 | Claude 작업을 Codex에서 이어받기 | [마감과 재개 명령](USER_GUIDE.ko.md#sessions) · [인계 실습](USE_CASES.ko.md#handoff) |

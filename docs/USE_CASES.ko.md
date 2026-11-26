@@ -137,6 +137,53 @@ aw evaluate-checks "$lab/dual.json" --expected-group limits --expected-group vie
 agent-workflow evaluate-checks docs/examples/limit-demo-recommendation.json --expected-group limits --expected-group view
 ```
 
+### 고정한 변경에서 두 번째 모델의 효과 측정하기
+
+프로필에 공통 검사와 선택 검사 묶음을 등록한 뒤 기준·후보 커밋을 지정한다. 아래 예시는
+저장소 루트에서 임시 원장에 등록한 `pager` 프로필의 두 로컬 브랜치를 비교한다.
+로그인한 모델 CLI를 실제로 호출한다. 고정 응답으로 측정기만 검증하는 방법과 실측 결과는
+[두 번째 모델 파일럿](../pilots/p1-second-model/README.md)에 있다.
+
+```bash
+study_dir=$(mktemp -d)
+python3 -B pilots/p1-second-model/fixture.py --prepare "$study_dir"
+agent-workflow --home "$study_dir/ledger" measure-checks pager --base main --candidate sample-a \
+  --criterion '마지막 페이지의 커서와 입력 검증 동작을 보존한다' \
+  --provider codex --reviewer claude --timeout 90 --check-timeout 15
+```
+
+`primary`는 첫 추천, `combined`는 **같은 첫 응답**과 독립적으로 받은 보조 응답의 합집합이다.
+두 모델은 같은 제한된 Git 변경과 묶음 설명을 받는다. 전체 등록 검사는 임시 체크아웃에서 기준→후보,
+후보→기준 순으로 실행한다. 버전 2 보고서는 첫 추천과 합집합의 명령도 각 선택 순서대로 별도 작업 트리와
+원장에서 실행한다. 전체 명령 순서까지 같은 계획끼리만 실행 기록을 공유한다. `arms.*.observation_plan`에서
+해당 기록을 찾을 수 있다. `full`은 `commands`와 `oracle_trials`, 다른 이름은 `selected_plan_observations`를 가리킨다.
+모든 계획은 프로필의 전체 검사 시간 한도를 공유한다. 기준에서 두 번 통과하고 후보에서 같은 종료 코드로 두 번 실패한 명령을
+새 회귀 신호로 센다. 양쪽에서 실패한 명령, 결과가 흔들린 명령, 시간 초과·실행 불가는 별도 기록한다.
+공유 명령은 보조 모델의 추가 검출로 중복 집계하지 않는다. 하나의 결함이 여러 명령을 실패시킬 수 있다.
+여기서 통과는 등록한 명령의 종료 코드 기준이다. pytest 하위 시험의 생략 여부는 해당 시험 보고서에서 확인한다.
+
+`delta.additional_regressions`에는 보조 모델을 추가해야 검출되는 **명령 ID**가 나온다.
+`additional_model_calls`와 `additional_model_ms`는 실제로 시작한 공급자 CLI 수와 경과 시간이다.
+`additional_selected_check_ms`는 합집합 계획에서 추가한 명령들의 후보 실행 시간 중앙값을 합산한 **추정 증가분**이다.
+두 추천이 같으면 추가 검사 시간은 0이지만 보조 모델 호출 시간은 남는다. 준비 명령·검사·서비스는
+등록한 프로필의 권한으로 실행되므로, 비교하려는 환경에서 실행할 수 있는 프로필을 사용한다.
+
+```bash
+agent-workflow --home "$study_dir/ledger" measure-review pager --base main --candidate sample-a \
+  --criterion '마지막 페이지의 커서와 입력 검증 동작을 보존한다' \
+  --reviewer codex --implementation-report '페이지 범위 계산을 정리했고 기존 동작을 유지했다.' \
+  --expected-defect "$study_dir/defect-a.json"
+```
+
+정답 파일은 예를 들어 `{"path":"pager.py","cues":[["exact","equal"],["cursor","next_start"]]}`처럼
+작성한다. 같은 차단 지적에 대상 파일과 각 묶음의 행동 단서가 하나씩 있어야 알려진 결함 검출로 집계한다.
+동의어나 다른 타당한 설명은 자동 채점에서 빠질 수 있어 개별 `findings`도 함께 보존한다.
+독립적으로 확인한 정상 대조군에는 `--expected-defect` 대신 `--clean`을 사용한다.
+정답은 두 세션 모두에게 비공개다. 같은 리뷰어가 한 번은 변경·수용 조건만 보고, 한 번은 구현자의 보고도 본다.
+`--report-first`로 순서를 바꿀 수 있다. 두 세션의 차이와, 각각을 리뷰 생략 기준과 비교한 차이가 함께 나온다.
+공급자 오류·불완전한 입력·판단 보류는 판단 불가로 표시한다. 완료된 비교는 종료 코드 0,
+미완료 측정은 JSON과 종료 코드 3을 반환한다.
+
 ### 추천을 다음 작업에 연결해 실측하기
 
 사례 3에서 저장한 추천 ID를 읽는다. `--home`은 사례 1의 `aw` 함수가 가리키는 원장으로 유지하고, 동일한 저장소·프로필·완료 조건을 사용한다. 기존 추천 JSON만으로는 새 원장의 추천 ID를 만들 수 없다.

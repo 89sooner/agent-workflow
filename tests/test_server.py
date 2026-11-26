@@ -128,6 +128,54 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(json.loads(job["options"])["recoveries"], 0)
         self.assertEqual(self.request("/api/queue", {"task_id": "WEB-1", "timeout": True}, headers)[0], 400)
 
+    def test_project_goal_routes_use_registered_contract_and_keep_domains_distinct(self):
+        from contextlib import closing
+        from agent_workflow.profiles import save
+        project = self.root / "project"
+        (project / "guide.md").write_text("Check app.txt and work locally.")
+        git(project, "add", "guide.md")
+        git(project, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "guide")
+        with closing(Store(self.home)) as store:
+            save(store, "local-goal", {
+                "project": str(project), "allowed_paths": ["app.txt"], "checks": [["git", "diff", "--check"]],
+                "goal_mode": {"version": 1, "scope": "로컬 파일 점검", "instructions": ["guide.md"],
+                              "input_extensions": [".json"]},
+            })
+        headers = {"X-Workflow-Token": "test-token"}
+        payload = {"id": "PROJECT", "profile": "local-goal", "goal": "파일 점검", "criteria": ["확인"]}
+        capability, = json.loads(self.request("/api/state")[1])["profiles"]
+        self.assertTrue(capability["goal_mode_available"])
+        self.assertFalse(capability["katakuri_goal_available"])
+        self.assertEqual(self.request("/api/goals", payload)[0], 403)
+        self.assertEqual(self.request("/api/goals?ledger=foreign", payload, headers)[0], 403)
+        self.assertEqual(self.request("/api/katakuri-goals", payload, headers)[0], 400)
+        for overridden in ({"owner": "codex"}, {"reviewer": "none"}, {"isolate": False},
+                           {"workspace": {}}, {"milestone": "M6"}, {"instrument": "HSI"}):
+            with self.subTest(overridden=overridden):
+                self.assertEqual(self.request("/api/goals", {**payload, **overridden}, headers)[0], 400)
+        code, body, _ = self.request("/api/goals", payload, headers)
+        self.assertEqual(code, 201, body)
+        task = json.loads(body)["task"]
+        detail = json.loads(self.request("/api/tasks/PROJECT")[1])
+        self.assertEqual(detail["goal_mode"]["kind"], "project")
+        self.assertIsNone(detail["katakuri_goal"])
+        self.assertNotEqual(task["project"], str(project))
+        budget = {"task_id": "PROJECT", "max_agent_calls": 12}
+        self.assertEqual(self.request("/api/katakuri-goals/budget", budget, headers)[0], 400)
+        self.assertEqual(self.request("/api/goals/budget", budget, headers)[0], 200)
+        with closing(Store(self.home)) as store:
+            task = store.get("PROJECT")
+            task["goal_mode"]["phase"] = "waiting"
+            task["goal_mode"]["items"][0]["state"] = "waiting"
+            task["status"] = "blocked"
+            store.save(task, "fixture_wait")
+        evidence = {"task_id": "PROJECT", "criterion": 1, "evidence": '{"checked": true}'}
+        self.assertEqual(self.request("/api/katakuri-goals/input", evidence, headers)[0], 400)
+        self.assertEqual(self.request("/api/goals/input", {**evidence, "extension": ".txt"}, headers)[0], 400)
+        code, body, _ = self.request("/api/goals/input", {**evidence, "extension": ".json"}, headers)
+        self.assertEqual(code, 200, body)
+        self.assertEqual(json.loads(body)["goal_mode"]["criteria"][0]["state"], "pending")
+
     def test_advisor_requires_unchanged_preview_and_limits_concurrent_calls(self):
         from concurrent.futures import ThreadPoolExecutor
         from unittest.mock import patch

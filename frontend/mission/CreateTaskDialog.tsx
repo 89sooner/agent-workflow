@@ -12,6 +12,7 @@ type Props = {
 };
 type Profile = {
   katakuri_goal_available?: boolean;
+  goal_mode_available?: boolean;
   name: string;
   digest: string;
   config: {
@@ -439,6 +440,11 @@ function CreateForm({
         ?.name || "",
   );
   const selected = profiles.find((p) => p.name === name);
+  const goalPath = selected?.katakuri_goal_available
+    ? "/api/katakuri-goals"
+    : selected?.goal_mode_available
+      ? "/api/goals"
+      : null;
   const [isolate, setIsolate] = useState(
     selected?.config.workspace?.isolate !== false,
   );
@@ -493,15 +499,15 @@ function CreateForm({
       }
       const id = taskId.trim() || generatedId.current;
       const result = await configure<{ task: { id: string } }>(
-        persistentGoal ? "/api/katakuri-goals" : "/api/tasks",
+        persistentGoal && goalPath ? goalPath : "/api/tasks",
         {
           id,
           profile: selected.name,
           goal: goal.trim(),
           criteria,
           isolate: persistentGoal || isolate,
-          ...(persistentGoal && instrument ? { instrument } : {}),
-          ...(persistentGoal && milestone ? { milestone } : {}),
+          ...(persistentGoal && selected.katakuri_goal_available && instrument ? { instrument } : {}),
+          ...(persistentGoal && selected.katakuri_goal_available && milestone ? { milestone } : {}),
           ...(persistentGoal && tokenLimit
             ? { max_reported_tokens: Number(tokenLimit) }
             : {}),
@@ -561,7 +567,7 @@ function CreateForm({
               {selected.config.project} · 구현 {selected.config.owner} / 리뷰{" "}
               {selected.config.reviewer}
             </p>
-            {selected.katakuri_goal_available && (
+            {goalPath && (
               <>
                 <label className="create-check">
                   <input
@@ -569,9 +575,9 @@ function CreateForm({
                     checked={persistentGoal}
                     onChange={(e) => setPersistentGoal(e.target.checked)}
                   />
-                  Katakuri 목표 연속 실행
+                  {selected.katakuri_goal_available ? "Katakuri" : "프로젝트"} 목표 연속 실행
                 </label>
-                {persistentGoal && (
+                {persistentGoal && selected.katakuri_goal_available && (
                   <div className="create-name-pair">
                     <label>
                       종목 (선택)
@@ -696,7 +702,7 @@ function CreateForm({
                   profile={selected}
                   token={token}
                   criteria={criteria}
-                  isolate={isolate}
+                  isolate={persistentGoal || isolate}
                   apply={(next) => {
                     setGroups(next);
                     setLinked(null);
