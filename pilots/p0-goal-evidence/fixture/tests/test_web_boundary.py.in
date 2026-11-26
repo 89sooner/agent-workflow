@@ -1,0 +1,14 @@
+"""A successful pytest process may include a skipped behavioral assertion."""
+from pathlib import Path
+import pytest
+
+
+def test_fixture_present():
+    assert Path("web/fixtures/views.json").is_file()
+
+
+def test_16_bundle_scan_when_built():
+    built = Path("web/.next/view-version")
+    if not built.exists():
+        pytest.skip("bundle absent")
+    assert built.read_text().strip() == "29"

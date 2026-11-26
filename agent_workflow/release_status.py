@@ -1,7 +1,6 @@
 """Summarize the last recorded release receipts without contacting the project or its remote."""
 from __future__ import annotations
 
-import json
 import sqlite3
 
 from .core import Store, WorkflowError
@@ -28,7 +27,7 @@ def _merge(release):
     return "uncertain"
 
 
-def _integration(release):
+def recorded_integration(release):
     receipt = release.get("integration_verification")
     if not receipt:
         return "not_recorded" if release else "not_configured"
@@ -51,9 +50,10 @@ def _deployment(release):
     return "not_attempted"
 
 
-def _health(release, deployment):
+def recorded_health(release):
     if not (release.get("config") or {}).get("health"):
         return "not_configured"
+    deployment = _deployment(release)
     result = release.get("health_result")
     if not result:
         return "not_recorded" if deployment == "applied" else "not_attempted"
@@ -77,6 +77,7 @@ def summarize_release(task):
         local_completion = "succeeded" if task.get("completed_fingerprint") else "uncertain"
     deployment = _deployment(release)
     config = release.get("config") or {}
+    from .recovery import diagnosis
     return {
         "task_id": task.get("id"),
         "source": "local_ledger",
@@ -88,26 +89,24 @@ def summarize_release(task):
         "local_completion": local_completion,
         "merge": _merge(release),
         "merge_commit": release.get("merge_commit"),
-        "integration_check": _integration(release),
+        "integration_check": recorded_integration(release),
         "integration_revision": (release.get("integration_verification") or {}).get("revision"),
         "deployment": deployment,
         "deployment_revision": release.get("deployed_revision"),
-        "health": _health(release, deployment),
+        "health": recorded_health(release),
         "deployed_at": release.get("deployed_at"),
         "updated_at": release.get("updated_at") or release.get("configured_at"),
         "error": release.get("error"),
+        "recovery": diagnosis(task, {}),
     }
 
 
 def status(home, task_id):
-    """Read only the release-bearing task row. Legacy ledgers may lack task_controls and revision."""
+    """Read the recorded release and its hold state, including from legacy ledgers."""
     try:
         store = Store(home, read_only=True)
         try:
-            row = store.db.execute("SELECT data FROM tasks WHERE id = ?", (task_id,)).fetchone()
-            if row is None:
-                raise WorkflowError(f"작업 없음: {task_id}")
-            return summarize_release(json.loads(row[0]))
+            return summarize_release(store.get(task_id))
         finally:
             store.close()
     except sqlite3.Error as exc:

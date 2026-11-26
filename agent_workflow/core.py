@@ -175,10 +175,17 @@ class Store:
         self.db.close()
 
     def get(self, task_id):
-        row = self.db.execute("SELECT t.data,t.revision,c.data AS control FROM tasks t LEFT JOIN task_controls c ON c.task_id=t.id WHERE t.id=?", (task_id,)).fetchone()
+        try:
+            row = self.db.execute("SELECT t.*,c.data AS control FROM tasks t LEFT JOIN task_controls c ON c.task_id=t.id WHERE t.id=?", (task_id,)).fetchone()
+        except sqlite3.OperationalError as exc:
+            if not self.read_only or str(exc) != "no such table: task_controls":
+                raise
+            # Inspect a pre-controls ledger without upgrading it on a status read.
+            row = self.db.execute("SELECT t.*,NULL AS control FROM tasks t WHERE id=?", (task_id,)).fetchone()
         if row is None:
             raise WorkflowError(f"작업 없음: {task_id}")
-        return {**json.loads(row[0]), "revision": row[1], "hold": json.loads(row[2]) if row[2] else None}
+        return {**json.loads(row["data"]), "revision": row["revision"] if "revision" in row.keys() else 0,
+                "hold": json.loads(row["control"]) if row["control"] else None}
 
     def all(self):
         return [{**json.loads(r[0]), "revision": r[1], "hold": json.loads(r[2]) if r[2] else None}
@@ -286,8 +293,12 @@ def create_task(store, task_id, project, goal, criteria, refs, checks, owner, re
         raise WorkflowError("목표와 최소 한 개의 완료 조건이 필요합니다.")
     if owner not in {"codex", "claude"} or reviewer not in {"codex", "claude", "codex-session", "none"}:
         raise WorkflowError("지원하는 구현·검토 담당을 지정하세요.")
-    if metadata is not None and set(metadata) - {"profile", "project_config", "execution", "workspace", "katakuri_goal"}:
+    if metadata is not None and set(metadata) - {"profile", "project_config", "execution", "workspace", "katakuri_goal", "goal_mode"}:
         raise WorkflowError("작업 설정 메타데이터 항목이 잘못됐습니다.")
+    if metadata:
+        from .goal_policy import policy, state
+        if state(metadata) is not None:
+            policy(metadata)
     if reviewer != "none" and reviewer == owner:
         raise WorkflowError("실행 담당과 독립 검토자는 달라야 합니다.")
     with store.lock(project):
@@ -312,7 +323,10 @@ def create_task(store, task_id, project, goal, criteria, refs, checks, owner, re
 
 
 def ready_for_completion(task, current):
-    goal = task.get("katakuri_goal")
+    from .goal_policy import policy, state
+    goal = state(task)
+    if goal:
+        policy(task)
     audit = (goal or {}).get("audit") or {}
     if goal and (audit.get("fingerprint") != current["fingerprint"] or not references_current(task, audit)
                  or audit.get("reviewer") != task["reviewer"] or not all(r["accepted"] for r in audit.get("rows", []))
@@ -329,6 +343,13 @@ def ready_for_completion(task, current):
     v = task.get("verification") or {}
     if not v.get("passed") or v.get("fingerprint") != current["fingerprint"] or not references_current(task, v):
         raise WorkflowError("검사가 실패·미실행 상태이거나 코드·참조 문서가 변경됐습니다. check를 실행하세요.")
+    from .local_recovery import check_context, needs_check_context
+    if needs_check_context(task) and v.get("check_context") != check_context(task):
+        raise WorkflowError("검사 명령·환경 입력에 대한 현재 검사 근거가 필요합니다. check를 실행하세요.")
+    if goal:
+        from .criterion_checks import audit_matches
+        if not audit_matches(task, audit["rows"]):
+            raise WorkflowError("조건별 필수 검사와 독립 검토가 같은 검사 결과에 연결돼야 합니다.")
     if task["reviewer"] != "none":
         r = task.get("review") or {}
         if (r.get("verdict") != "pass" or r.get("fingerprint") != current["fingerprint"]

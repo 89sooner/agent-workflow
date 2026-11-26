@@ -1,0 +1,111 @@
+{
+  "task_id": "AW-P2-RESUME-01",
+  "repository": "agent-workflow",
+  "source_parent": "9b0c443da3e72fc490ed487289b5ef62ae0242cf",
+  "baseline": "b2aab08f3d6ab63321c05536b0ac21353e211c7d",
+  "absent_project_documents": [
+    "AGENTS.md",
+    "REFACTORING_SUPREME_DIRECTIVE.md",
+    "agent-context/session-handoff.md"
+  ],
+  "profile": {
+    "name": "aw-resume-goal",
+    "digest": "a89c4d3265ccaa9880138335c27e415ca7f41688078e968515951e146ed3261a"
+  },
+  "policy": {
+    "version": 1,
+    "scope": "Local agent-workflow development. Improve the resume packet for stale verification evidence.",
+    "instructions": [
+      "docs/DEVELOPMENT.ko.md"
+    ],
+    "input_extensions": []
+  },
+  "policy_digest": "572d7342d1a4ce02fe62e6e1474c854b3a96cbc94d4d32d31f0a210345628c8c",
+  "phase": "complete",
+  "status": "completed",
+  "goal": "재개 패킷의 불확실성 안내를 개선한다. 검사 후 실제 코드 지문이 달라졌으면 기존 안내에 검사 당시와 현재 코드 지문의 앞 12자리를 순서대로 표시한다. 두 지문이 모두 있고 코드가 달라진 경우에만 표시하고, 참조만 바뀌었거나 작업 트리를 읽을 수 없거나 기존 근거가 유효할 때는 표시하지 않는다. 기존 행동 판정과 근거 유효성은 유지한다. 수정은 agent_workflow/resume_packet.py 한 파일이다.",
+  "criterion": [
+    "코드가 달라진 검사 근거에는 검사 당시와 현재 코드 지문 앞 12자리가 순서대로 표시되고, 참조만 바뀌거나 근거가 유효하면 이 표시가 없다."
+  ],
+  "baseline_acceptance_exit": 1,
+  "changed_files": [
+    "agent_workflow/resume_packet.py"
+  ],
+  "patch_sha256": "cf628e47bf5b0466753b1c48272cf3e3560334ad095a1bb3e0e5ebd774320687",
+  "checks": [
+    {
+      "argv": [
+        "env",
+        "PYTHONPATH=.:tests",
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "test_resume_packet"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 1.772,
+      "result_id": null,
+      "unittest": [
+        "Ran 10 tests in 1.644s",
+        "",
+        "OK"
+      ]
+    },
+    {
+      "argv": [
+        "env",
+        "PYTHONPATH=.:tests",
+        "python3",
+        "-B",
+        "-m",
+        "unittest",
+        "test_resume_fingerprint_notice"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "seconds": 0.42,
+      "result_id": "AW-P2-RESUME-01/checks/afab4e22d4dd457a886fdf4865172666-1",
+      "unittest": [
+        "Ran 1 test in 0.292s",
+        "",
+        "OK"
+      ]
+    }
+  ],
+  "agent_calls": 2,
+  "model_observations": [
+    {
+      "agent": "claude",
+      "role": "implement",
+      "model": null,
+      "seconds": 24.18309527001111
+    },
+    {
+      "agent": "codex-session",
+      "role": "review",
+      "model": null,
+      "seconds": 52.102136768982746
+    }
+  ],
+  "reviewer": "codex-session",
+  "verdict": "pass",
+  "independent_execution_directory": "2026-11-26T080418+0000-b12e8a91",
+  "audit": [
+    {
+      "criterion": 1,
+      "accepted": true,
+      "evidence": "At agent_workflow/resume_packet.py:114, a read-only comparison with the baseline showed both 12-character prefixes in order after a code change. The notice omitted the prefixes when only references changed, evidence was current, the worktree was unreadable, or a fingerprint was missing. The next action and valid evidence matched the baseline in all six cases. The controller logs show 10 passing tests in test_resume_packet and one passing test in test_resume_fingerprint_notice.",
+      "check_result_id": "AW-P2-RESUME-01/checks/afab4e22d4dd457a886fdf4865172666-1"
+    }
+  ],
+  "verification_fingerprint": "6db5ac00f49d3d95ca2c3054ea34133f54303cc1a4b6ded47a02de0e39b79912",
+  "review_fingerprint": "6db5ac00f49d3d95ca2c3054ea34133f54303cc1a4b6ded47a02de0e39b79912",
+  "completed_fingerprint": "6db5ac00f49d3d95ca2c3054ea34133f54303cc1a4b6ded47a02de0e39b79912",
+  "refs_fingerprint": "dd9a4f9887922c6e6ccb9d78ef7b3bd53c8e21f1e12efa472639f5ac784acf05",
+  "source_clean_after_goal": true,
+  "no_release_config": true,
+  "reported_tokens": 401464,
+  "unreported_calls": 0
+}

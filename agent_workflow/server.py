@@ -238,7 +238,7 @@ def handler(home, token, *, read_only=False, observer=False):
                         return self.response({"tasks": [], "actors": [], "spans": [], "edges": [], "events": [],
                                               "executions": [], "runs": [], "counts": {}, "truncated": False})
                     raise WorkflowError("연결된 원장이 없습니다. connect로 프로젝트를 연결하세요.")
-                store = Store(ledger_home, read_only=effective_read_only)
+                store = Store(ledger_home, read_only=effective_read_only or path.startswith("/api/tasks/"))
                 if path == "/api/project-observability":
                     from .observability import project_view
                     return self.response(project_view(store, query.get("project", [None])[0]))
@@ -286,10 +286,11 @@ def handler(home, token, *, read_only=False, observer=False):
                                 task["release"] = {key: release.get(key) for key in ("stage", "error", "merge_commit", "integration_verification")}
                                 task["release"]["config"] = {"deploy": bool((release.get("config") or {}).get("deploy"))}
                     from .profiles import list_profiles
-                    from .katakuri_goal import supported
+                    from . import goals, katakuri_goal
                     registered = list_profiles(store)
                     if not effective_read_only:
-                        registered = [{**p, "katakuri_goal_available": supported(p["config"])} for p in registered]
+                        registered = [{**p, "katakuri_goal_available": katakuri_goal.supported(p["config"]),
+                                       "goal_mode_available": goals.supported(p["config"])} for p in registered]
                     from .operations import notifications
                     return self.response({"tasks": tasks, "jobs": list_jobs(store),
                                           "profiles": registered, "notifications": notifications(store),
@@ -314,22 +315,21 @@ def handler(home, token, *, read_only=False, observer=False):
                     from .recommendation_records import show
                     return self.response(show(store.home, path.removeprefix("/api/recommendations/")))
                 if path.startswith("/api/tasks/"):
+                    store.db.execute("BEGIN")
                     task = store.get(path.removeprefix("/api/tasks/"))
-                    from .cli import freshness
-                    try:
-                        from .workspaces import observed_snapshot
-                        current = observed_snapshot(task)
-                        flags = freshness(task, current)
-                        observation = {"status": "observed"}
-                    except (WorkflowError, OSError) as exc:
-                        current, flags = {"error": str(exc)}, {}
-                        observation = {"status": "unavailable", "reason": str(exc)}
-                    rows = store.db.execute("SELECT seq,at,kind,data FROM events WHERE task_id=? ORDER BY seq DESC LIMIT 60", (task["id"],)).fetchall()
+                    from .task_observation import observe
+                    view = observe(task, store.home)
+                    problem = view["observed_git"].get("error")
+                    observation = {"status": "unavailable", "reason": problem} if problem else {"status": "observed"}
+                    has_events = store.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='events'").fetchone()
+                    rows = store.db.execute("SELECT seq,at,kind,data FROM events WHERE task_id=? ORDER BY seq DESC LIMIT 60", (task["id"],)).fetchall() if has_events else []
                     events = [{"seq": r[0], "at": r[1], "kind": r[2], "data": json.loads(r[3])} for r in rows]
                     from .release_status import summarize_release
                     from .recommendation_records import task_summary
-                    from .katakuri_goal import status as goal_status
-                    return self.response({"task": task, "katakuri_goal": goal_status(task) if task.get("katakuri_goal") else None, "observed_git": current, "freshness": flags,
+                    from . import goals
+                    progress = goals.status(task) if goals.state(task) is not None else None
+                    return self.response({"task": task, "goal_mode": progress,
+                                          "katakuri_goal": progress if goals.kind(task) == "katakuri" else None, **view,
                                           "release_status": summarize_release(task),
                                           "recommendation": task_summary(store, task),
                                           "observation": observation,
@@ -416,21 +416,28 @@ def handler(home, token, *, read_only=False, observer=False):
                     else:
                         task = clear_hold(store, task_id)
                     return self.response({"task": task})
-                if self.path in {"/api/katakuri-goals/input", "/api/katakuri-goals/budget"}:
-                    from . import katakuri_goal as kg
+                if self.path in {"/api/goals/input", "/api/goals/budget",
+                                 "/api/katakuri-goals/input", "/api/katakuri-goals/budget"}:
+                    from . import goals, katakuri_goal
                     from .profiles import identifier, keys
+                    legacy = self.path.startswith("/api/katakuri-goals/")
+                    engine = katakuri_goal if legacy else goals
                     task_id = identifier(data.get("task_id"))
                     if self.path.endswith("/input"):
-                        keys(data, {"task_id", "criterion", "evidence"}, "목표 근거")
-                        result = kg.supply_text(store, task_id, data.get("criterion"), data.get("evidence"))
+                        fields = {"task_id", "criterion", "evidence"}
+                        if not legacy:
+                            fields.add("extension")
+                        keys(data, fields, "목표 근거")
+                        options = {"extension": data["extension"]} if "extension" in data else {}
+                        result = engine.supply_text(store, task_id, data.get("criterion"), data.get("evidence"), **options)
                     else:
                         keys(data, {"task_id", "max_agent_calls", "max_seconds", "max_reported_tokens", "clear_token_limit"}, "목표 예산")
-                        result = kg.budget(store, task_id, data.get("max_agent_calls"), data.get("max_seconds"),
-                                           data.get("max_reported_tokens"), data.get("clear_token_limit", False))
-                    return self.response({"katakuri_goal": result})
-                if self.path in {"/api/tasks", "/api/katakuri-goals"}:
+                        result = engine.budget(store, task_id, data.get("max_agent_calls"), data.get("max_seconds"),
+                                               data.get("max_reported_tokens"), data.get("clear_token_limit", False))
+                    return self.response({("katakuri_goal" if legacy else "goal_mode"): result})
+                if self.path in {"/api/tasks", "/api/goals", "/api/katakuri-goals"}:
                     from .workspaces import create_from_profile
-                    from .profiles import identifier, strings
+                    from .profiles import identifier, keys, strings
                     task_id = identifier(data.get("id") or ("AW-" + __import__("uuid").uuid4().hex[:16]))
                     profile = identifier(data.get("profile"))
                     goal = data.get("goal")
@@ -446,13 +453,20 @@ def handler(home, token, *, read_only=False, observer=False):
                         raise WorkflowError("담당 이름은 역할별 120자 이하의 문자열이어야 합니다.")
                     groups = strings(data["check_groups"], "check_groups") if "check_groups" in data else None
                     rec_id = identifier(data["recommendation_id"]) if "recommendation_id" in data else None
-                    if self.path == "/api/katakuri-goals":
-                        from .katakuri_goal import create
+                    if self.path != "/api/tasks":
+                        from . import goals, katakuri_goal
+                        legacy = self.path == "/api/katakuri-goals"
+                        fields = {"id", "profile", "goal", "criteria", "isolate", "check_groups",
+                                  "max_reported_tokens", "agent_names", "recommendation_id"}
+                        if legacy:
+                            fields.update(("instrument", "milestone"))
+                        keys(data, fields, "목표 등록")
                         if isolate is False:
-                            raise WorkflowError("Katakuri 목표는 별도 작업 트리에서 실행합니다.")
-                        task = create(store, task_id, profile, goal, criteria, groups, data.get("max_reported_tokens"),
-                                      instrument=data.get("instrument"), milestone=data.get("milestone"),
-                                      recommendation_id=rec_id)
+                            raise WorkflowError("목표 모드는 별도 작업 트리에서 실행합니다.")
+                        engine = katakuri_goal if legacy else goals
+                        options = {key: data[key] for key in ("instrument", "milestone") if key in data}
+                        task = engine.create(store, task_id, profile, goal, criteria, groups,
+                                             data.get("max_reported_tokens"), recommendation_id=rec_id, **options)
                     else:
                         task = create_from_profile(store, task_id, profile, goal, criteria, isolate=isolate,
                                                    check_groups=groups, recommendation_id=rec_id)

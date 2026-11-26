@@ -15,98 +15,48 @@ import sys
 from . import __version__
 from .communication import AGENT_COMMUNICATION_POLICY
 from .core import (Store, WaitingForInput, WorkflowError, atomic_write, complete, create_task,
-                   encode, now, reference_fingerprint, references_current, snapshot)
+                   encode, now, snapshot)
 from .runner import RESULT_SCHEMA, brief, execute, record_review, run_checks
-from .workspaces import observed_snapshot
+from .task_observation import freshness, observe
 
 
-def freshness(task, current):
-    fp = current["fingerprint"]
-    release = task.get("release") or {}
-    # The release receipt binds the verified contents across staging/commit metadata changes.
-    bound = bool(release.get("commit") == current["head"] and not current["dirty"])
-    refs = reference_fingerprint(task)
-    from .policy import protected_current
-    protected = protected_current(task)
-    verified_refs = references_current(task, task.get("verification"), refs)
-    reviewed_refs = task.get("reviewer") == "none" or references_current(task, task.get("review"), refs)
-    return {"verification_is_current": protected and verified_refs and ((task.get("verification") or {}).get("fingerprint") == fp or (bound and bool(task.get("verification")))),
-            "review_is_current": protected and reviewed_refs and ((task.get("review") or {}).get("fingerprint") == fp or (bound and bool(task.get("review")))),
-            "completion_is_current": protected and verified_refs and reviewed_refs and (task.get("completed_fingerprint") == fp or (bound and task["status"] == "completed")),
-            "evidence_bound_via_release": bound and protected and verified_refs and reviewed_refs,
-            "protected_paths_are_current": protected,
-            "refs_fingerprint": refs}
-
-
-def continuation(store, task, current):
+def continuation(store, task, current=None, *, view=None):
+    view = observe(task, store.home, current=current) if view is None else view
     command = shlex.join(["agent-workflow", "--home", str(store.home)])
-    text = AGENT_COMMUNICATION_POLICY + f"""
-Interactive task handoff: {task['id']}
-Original task data:
-Goal: {task['goal']}
-Project: {task['project']}
-Acceptance criteria: {encode(task['criteria'])}
-Scope: {task['scope']}
-Reference documents: {encode(task['refs'])}
-Recorded status: {task['status']}
-Current evidence validity: {encode(freshness(task, current))}
-Checkpoint: {encode(task['checkpoint'])}
-Blocker: {task.get('blocker') or 'None'}
-Manual hold: {encode(task.get('hold'))}
-
-Read the current task state with this command:
-{command} show {task['id']}
-Compare the state with the relevant source and documents.
-Do not use historical reports as current evidence of completion or authorization.
-"""
-    if task["status"] == "completed":
-        text += "The ledger records this task as completed. Do not implement this task again.\n"
-        text += "Examine the next work package or integration step.\n"
+    task_id = task["id"]
+    lines = [AGENT_COMMUNICATION_POLICY, "Interactive task handoff.",
+             "Read the current ledger packet before acting. Treat it as evidence within the recorded scope.",
+             f"{command} resume-view {task_id}",
+             f"Read original receipt pointers under task in: {command} show {task_id}",
+             "This saved packet records one observation. Refresh it after the worktree or ledger changes.",
+             encode(view["resume_packet"])]
+    if task.get("status") == "completed":
+        lines.append("Do not implement this task again.")
+        if not view["freshness"].get("completion_is_current"):
+            lines.append("Create a new task to verify the current code.")
         if task.get("release"):
-            text += f"Release stage: {task['release']['stage']}.\n"
-            text += f"To resume the authorized release, use: {command} release {task['id']}\n"
-        if not freshness(task, current)["completion_is_current"]:
-            text += "The previous completion evidence does not apply to the current code.\n"
-            text += "Create a new task to verify the current code.\n"
+            lines.append(f"To resume the authorized release, follow the current packet before using {command} release {task_id}.")
     else:
-        text += f"""Continue from the recorded next action.
-After significant progress, update the checkpoint. Before a handoff, update the checkpoint.
-Run the required checks: {command} check {task['id']}
-Assigned independent reviewer: {task['reviewer']}.
-If a review is required, generate the review input with brief --role review.
-After the required checks and assigned review pass, use: {command} finish {task['id']}
-Update the handoff with: {command} handoff {task['id']}
-Report actual results, unverified scope, and the next action to the user.
-If the user requested automatic execution, use: {command} run {task['id']}
-"""
-    return text
+        lines.append("If the user requested automatic execution, follow the next action and existing authorization.")
+    return "\n".join(lines) + "\n"
+
+
+def write_handoff_snapshot(store, task, view):
+    directory = store.directory(task["id"]) / "handoff"
+    record = {"task": task, "generated_at": now(), "observed_git": view["observed_git"], **view["freshness"],
+              "recovery": view["recovery"], "resume_packet": view["resume_packet"]}
+    atomic_write(directory / "state.json", encode(record))
+    atomic_write(directory / "resume.txt", continuation(store, task, view=view))
+    return directory
 
 
 def export_handoff(store, task):
-    """One state snapshot yields both machine continuation and a human worklog draft."""
-    current = observed_snapshot(task)
-    directory = store.directory(task["id"]) / "handoff"
-    flags = freshness(task, current)
-    record = {"task": task, "observed_git": current, "generated_at": now(), **flags}
-    atomic_write(directory / "state.json", encode(record))
-    atomic_write(directory / "resume.txt", continuation(store, task, current))
-    lines = [f"# {task['id']} — {task['goal']}", "", f"생성 시각: {now()}",
-             f"상태: {task['status']}", f"프로젝트: {task['project']}",
-             f"실행: {task['owner']} / 검토: {task['reviewer']}", "",
-             f"현재 HEAD: {current['head']}", f"코드 지문: {current['fingerprint']}",
-             f"현재 코드에 검사/리뷰/완료 증거 유효: {encode(flags)}",
-             "실제 배포/병합 여부: 이 도구의 completed 상태로는 확인되지 않음", "",
-             "릴리스 기록: " + encode(task.get("release")), "",
-             "## 결과", task["checkpoint"]["summary"], "",
-             "## 다음 행동", task["checkpoint"]["next"], "",
-             "## 차단 사유", task.get("blocker") or "없음", "",
-             "## 필수 검사"]
-    for r in (task.get("verification") or {}).get("results", []):
-        lines.append(f"- `{shlex.join(r['argv'])}` → exit {r['exit_code']}; {r['stdout']}")
-    lines.extend(["", "## 리뷰", (task.get("review") or {}).get("summary", "미실행/미등록"),
-                  "", "## 참고 문서", *[f"- {p}" for p in task["refs"]]])
+    """Record one observed packet in both the machine handoff and the interactive prompt."""
+    task = store.get(task["id"])
+    view = observe(task, store.home)
+    directory = write_handoff_snapshot(store, task, view)
     from .closure import worklog
-    _, rendered = worklog(store, task, flags)
+    _, rendered = worklog(store, task, view)
     atomic_write(directory / "worklog.md", rendered)
     return str(directory)
 
@@ -150,31 +100,34 @@ def parser():
     c.add_argument("--source", action="append", type=Path, help="history.jsonl 경로. 여러 번 지정할 수 있습니다.")
     c.add_argument("--since", type=date.fromisoformat, help="집계 시작일 (UTC, YYYY-MM-DD)")
     c.add_argument("--until", type=date.fromisoformat, help="집계 종료일 (UTC, 해당일 포함)")
-    c = commands.add_parser("katakuri-goal", help="Katakuri 오프라인 개발 목표 연속 실행")
-    actions = c.add_subparsers(dest="operation", required=True)
-    sub = actions.add_parser("create")
-    sub.add_argument("id")
-    sub.add_argument("--profile", required=True)
-    sub.add_argument("--goal", required=True)
-    sub.add_argument("--criterion", action="append", default=[])
-    sub.add_argument("--check-group", action="append", default=[])
-    sub.add_argument("--max-reported-tokens", type=int)
-    sub.add_argument("--instrument")
-    sub.add_argument("--milestone", choices=[f"M{i}" for i in range(1, 7)])
-    for operation in ("run", "status"):
-        actions.add_parser(operation).add_argument("id")
-    sub = actions.add_parser("supply", help="대기 조건에 새 오프라인 증거 연결")
-    sub.add_argument("id")
-    sub.add_argument("--criterion", type=int, required=True)
-    sub.add_argument("--ref", required=True)
-    sub.add_argument("--queue", action="store_true", help="근거 저장 후 데몬 실행 대기열에 등록")
-    sub = actions.add_parser("budget", help="누적 사용량을 보존하며 예산 조정")
-    sub.add_argument("id")
-    sub.add_argument("--max-agent-calls", type=int)
-    sub.add_argument("--max-seconds", type=int)
-    tokens = sub.add_mutually_exclusive_group()
-    tokens.add_argument("--max-reported-tokens", type=int)
-    tokens.add_argument("--clear-token-limit", action="store_true")
+    for name, description in (("goal", "프로젝트 프로필로 로컬 개발 목표 연속 실행"),
+                              ("katakuri-goal", "Katakuri 오프라인 개발 목표 연속 실행")):
+        c = commands.add_parser(name, help=description)
+        actions = c.add_subparsers(dest="operation", required=True)
+        sub = actions.add_parser("create")
+        sub.add_argument("id")
+        sub.add_argument("--profile", required=True)
+        sub.add_argument("--goal", required=True)
+        sub.add_argument("--criterion", action="append", default=[])
+        sub.add_argument("--check-group", action="append", default=[])
+        sub.add_argument("--max-reported-tokens", type=int)
+        if name == "katakuri-goal":
+            sub.add_argument("--instrument")
+            sub.add_argument("--milestone", choices=[f"M{i}" for i in range(1, 7)])
+        for operation in ("run", "status"):
+            actions.add_parser(operation).add_argument("id")
+        sub = actions.add_parser("supply", help="대기 조건에 새 오프라인 증거 연결")
+        sub.add_argument("id")
+        sub.add_argument("--criterion", type=int, required=True)
+        sub.add_argument("--ref", required=True)
+        sub.add_argument("--queue", action="store_true", help="근거 저장 후 데몬 실행 대기열에 등록")
+        sub = actions.add_parser("budget", help="누적 사용량을 보존하며 예산 조정")
+        sub.add_argument("id")
+        sub.add_argument("--max-agent-calls", type=int)
+        sub.add_argument("--max-seconds", type=int)
+        tokens = sub.add_mutually_exclusive_group()
+        tokens.add_argument("--max-reported-tokens", type=int)
+        tokens.add_argument("--clear-token-limit", action="store_true")
     c = commands.add_parser("recommend-checks", help="Git 변경과 완료 조건으로 등록된 검사 묶음 추천")
     c.add_argument("profile")
     c.add_argument("--criterion", action="append", required=True)
@@ -200,13 +153,36 @@ def parser():
     labels = c.add_mutually_exclusive_group(required=True)
     labels.add_argument("--expected-group", action="append", metavar="GROUP")
     labels.add_argument("--expected-none", action="store_true")
+    for command, description in (
+        ("measure-checks", "같은 변경에서 단독·보조 추천과 두 리비전의 전체 등록 검사 결과 비교"),
+        ("measure-review", "같은 변경에서 구현 보고 공개 여부에 따른 독립 코드 리뷰 비교"),
+    ):
+        c = commands.add_parser(command, help=description)
+        c.add_argument("profile")
+        c.add_argument("--base", required=True, help="기준 로컬 Git 리비전")
+        c.add_argument("--candidate", required=True, help="측정할 변경의 로컬 Git 리비전")
+        c.add_argument("--criterion", action="append", required=True)
+        c.add_argument("--reviewer", choices=["codex", "claude"], default="claude")
+        c.add_argument("--timeout", type=int, default=90, help="모델 호출당 제한 시간(초)")
+        if command == "measure-checks":
+            c.add_argument("--provider", choices=["codex", "claude"], default="codex")
+            c.add_argument("--check-timeout", type=int, default=30, help="검사 명령당 제한 시간(초)")
+        else:
+            c.add_argument("--implementation-report", required=True, help="보고 공개 조건에서만 모델에 제공할 문구")
+            c.add_argument("--report-first", action="store_true", help="보고서 공개 조건을 먼저 측정")
+            truth = c.add_mutually_exclusive_group(required=True)
+            truth.add_argument("--clean", action="store_true", help="독립적으로 정상임을 확인한 대조 변경")
+            truth.add_argument("--expected-defect", type=Path, help="모델에 보내지 않는 알려진 결함 채점 규칙 JSON")
     c = commands.add_parser("close-session", help="작업 ID 없이 현재 Git 상태, 작업일지와 다음 행동 저장")
     c.add_argument("--project", default=".")
     c.add_argument("--summary", required=True, help="이번 세션에서 수행한 작업과 확인 결과")
     c.add_argument("--next", dest="next_action", required=True, help="다음 세션이 이어받을 행동")
     c.add_argument("--worklog-dir", type=Path, help="작업일지를 함께 저장할 기존 폴더")
+    c = commands.add_parser("resume-view", help="선택한 원장에서 현재 목표·남은 조건·검증 근거·다음 행동 조회")
+    c.add_argument("id")
     c = commands.add_parser("pickup", help="현재 브랜치의 마지막 인계 및 저장 후 Git 상태 변화 확인")
     c.add_argument("--project", default=".")
+    c.add_argument("--classic", action="store_true", help="기존 체크포인트 형식으로 조회")
     c.add_argument("--measure", action="store_true", help="이 재개의 첫 작업 시작까지 측정")
     c = commands.add_parser("resume-time", help="현재 작업 트리·브랜치의 재개 및 마감 시간 측정")
     actions = c.add_subparsers(dest="operation", required=True)
@@ -216,8 +192,14 @@ def parser():
     sub = actions.add_parser("finish", help="처음 올바른 작업을 시작할 때 측정 종료")
     sub.add_argument("id", nargs="?")
     sub.add_argument("--project", default=".")
-    sub.add_argument("--wrong-pick", action="store_true", help="올바른 작업 전에 잘못된 작업을 골랐음")
+    mistakes = sub.add_mutually_exclusive_group()
+    mistakes.add_argument("--wrong-pick", action="store_true", help="올바른 작업 전에 잘못된 작업을 한 번 골랐음")
+    mistakes.add_argument("--wrong-picks", type=int, help="올바른 작업 전에 잘못 고른 작업 횟수")
     sub.add_argument("--reexplanations", type=int, default=0, help="다시 설명한 횟수")
+    used = sub.add_mutually_exclusive_group()
+    used.add_argument("--used-stale-evidence", dest="stale_use", action="store_true", help="오래된 근거를 현재 판정에 사용")
+    used.add_argument("--no-stale-evidence", dest="stale_use", action="store_false", help="오래된 근거를 현재 판정에 사용하지 않음")
+    sub.set_defaults(stale_use=None)
     actions.add_parser("abandon").add_argument("id")
     c = commands.add_parser("opencode", help="OpenCode 서버 읽기 전용 관측 연결; 모델 실행 없음")
     oc = c.add_subparsers(dest="opencode_command", required=True)
@@ -349,6 +331,7 @@ def parser():
     c.add_argument("--hostname", default="github.com", help="GitHub.com 또는 명시한 GitHub Enterprise 호스트")
     c.add_argument("--deploy", help="병합된 checkout에서 실행할 배포 명령")
     c.add_argument("--health", help="배포된 버전을 확인할 명령")
+    c.add_argument("--observe-revision", help="배포 결과 불명 시 대상에 적용된 전체 커밋 SHA를 stdout으로 읽는 명령")
     c.add_argument("--allow-no-ci", action="store_true")
     c = commands.add_parser("release", help="완료 작업을 설정한 대상에 푸시·병합·배포")
     c.add_argument("id")
@@ -400,27 +383,39 @@ def parser():
 
 
 def dispatch(args):
-    if args.command == "katakuri-goal":
-        from . import katakuri_goal as kg
+    from . import goal_policy
+    if args.command in ("goal", "katakuri-goal"):
+        if args.command == "katakuri-goal":
+            from . import katakuri_goal as engine
+        else:
+            from . import goals as engine
         store = Store(args.home, read_only=args.operation == "status")
         try:
             if args.operation == "create":
-                return kg.status(kg.create(store, args.id, args.profile, args.goal, args.criterion,
-                                           args.check_group, args.max_reported_tokens,
-                                           instrument=args.instrument, milestone=args.milestone))
+                domain = {"instrument": args.instrument, "milestone": args.milestone} if args.command == "katakuri-goal" else {}
+                created = engine.create(store, args.id, args.profile, args.goal, args.criterion,
+                                        args.check_group, args.max_reported_tokens, **domain)
+                return engine.status(created)
             task = store.get(args.id)
-            kg.contract(task)
+            engine.contract(task)
             if args.operation == "run":
-                return kg.status(execute(store, args.id, task["execution"]["timeout"]))
+                return engine.status(execute(store, args.id, task["execution"]["timeout"]))
             if args.operation == "supply":
-                result = kg.supply(store, args.id, args.criterion, args.ref)
+                result = engine.supply(store, args.id, args.criterion, args.ref)
                 if args.queue:
                     from .daemon import enqueue
                     result["job"] = enqueue(store, args.id, "pipeline")
                 return result
             if args.operation == "budget":
-                return kg.budget(store, args.id, args.max_agent_calls, args.max_seconds, args.max_reported_tokens, args.clear_token_limit)
-            return kg.status(task)
+                return engine.budget(store, args.id, args.max_agent_calls, args.max_seconds, args.max_reported_tokens, args.clear_token_limit)
+            result = engine.status(task)
+            view = observe(task, store.home)
+            result.update(recovery=view["recovery"], resume_packet=view["resume_packet"])
+            if any(row.get("check_evidence", {}).get("result_id") for row in result["criteria"]):
+                result["verification_is_current"] = view["freshness"].get("verification_is_current")
+            if view["observed_git"].get("error"):
+                result["observation_error"] = view["observed_git"]["error"]
+            return result
         finally:
             store.close()
     if args.command == "recommend-checks":
@@ -438,6 +433,28 @@ def dispatch(args):
     if args.command == "evaluate-checks":
         from .check_advisor import evaluate
         return evaluate(args.report, args.expected_group or [])
+    if args.command == "measure-checks":
+        from .check_measurement import measure
+        return measure(args.home, args.profile, args.base, args.candidate, args.criterion,
+                       provider=args.provider, reviewer=args.reviewer, timeout=args.timeout,
+                       check_timeout=args.check_timeout)
+    if args.command == "measure-review":
+        from .review_measurement import measure
+        defect = None
+        if args.expected_defect is not None:
+            with args.expected_defect.open("rb") as stream:
+                raw = stream.read(16385)
+            if len(raw) > 16384:
+                raise WorkflowError("채점 규칙은 16 KiB 이내의 JSON 객체여야 합니다.")
+            try:
+                defect = json.loads(raw)
+            except (ValueError, RecursionError) as exc:
+                raise WorkflowError("채점 규칙 파일의 JSON을 읽을 수 없습니다.") from exc
+            if not isinstance(defect, dict):
+                raise WorkflowError("채점 규칙에는 결함을 설명하는 JSON 객체가 필요합니다.")
+        return measure(args.home, args.profile, args.base, args.candidate, args.criterion,
+                       reviewer=args.reviewer, implementation_report=args.implementation_report,
+                       expected_defect=defect, timeout=args.timeout, blind_first=not args.report_first)
     if args.command == "release-status":
         from .release_status import status
         return status(args.home, args.id)
@@ -464,7 +481,7 @@ def dispatch(args):
         from .session_notes import close_note, pickup
         if args.command == "close-session":
             return close_note(args.home, args.project, args.summary, args.next_action, args.worklog_dir)
-        return pickup(args.home, args.project, measure=args.measure)
+        return pickup(args.home, args.project, measure=args.measure, classic=args.classic)
     if args.command == "resume-time":
         from . import resume_metrics
         if args.operation == "start":
@@ -475,7 +492,8 @@ def dispatch(args):
             return resume_metrics.abandon(args.home, args.id)
         if args.operation == "finish":
             return resume_metrics.finish(args.home, args.id, args.project, wrong_pick=args.wrong_pick,
-                                         reexplanations=args.reexplanations)
+                                         wrong_picks=args.wrong_picks, reexplanations=args.reexplanations,
+                                         stale_evidence_used=args.stale_use)
         return resume_metrics.summary(args.home, args.project)
     if args.command == "browser-check":
         command = ["node", str(Path(__file__).with_name("browser-check.mjs")), str(args.file.resolve())]
@@ -525,7 +543,7 @@ def dispatch(args):
         from .connections import state_home
         serve(state_home(args.home), args.port, read_only=True)
         return {"stopped": True}
-    store = Store(args.home)
+    store = Store(args.home, read_only=args.command in ("show", "resume-view", "brief"))
     try:
         if args.command == "batch":
             from . import scheduling
@@ -625,7 +643,8 @@ def dispatch(args):
             from .release import configure
             return configure(store, args.id, args.remote, args.base, args.branch, args.path,
                              args.mode, args.repo, argv_from(args.deploy) if args.deploy else None,
-                             argv_from(args.health) if args.health else None, args.allow_no_ci, args.hostname)
+                             argv_from(args.health) if args.health else None, args.allow_no_ci, args.hostname,
+                             observe_revision=argv_from(args.observe_revision) if args.observe_revision else None)
         if args.command == "release":
             from .release import release_task
             from .observability import run_context
@@ -638,12 +657,15 @@ def dispatch(args):
                     return {"task": task, "closure": finalize(store, task)}
             finally:
                 export_handoff(store, store.get(args.id))
-        if args.command == "show":
-            current = observed_snapshot(task)
-            return {"task": task, "observed_git": current, **freshness(task, current)}
+        if args.command in ("show", "resume-view"):
+            view = observe(task, store.home)
+            if args.command == "resume-view":
+                return view["resume_packet"]
+            return {"task": task, "observed_git": view["observed_git"], **view["freshness"],
+                    "recovery": view["recovery"], "resume_packet": view["resume_packet"]}
         if args.command == "brief":
             if args.role == "implement":
-                return continuation(store, task, snapshot(task["project"]))
+                return continuation(store, task)
             return brief(task, args.role, state_home=store.home) + "\nJSON schema:\n" + encode(RESULT_SCHEMA)
         if args.command in ("run", "pipeline"):
             settings = task.get("execution") or {}
@@ -656,8 +678,8 @@ def dispatch(args):
             if args.dry_run:
                 from .profiles import execution_config
                 policy = execution_config(task.get("execution"))
-                if task.get("katakuri_goal"):
-                    from .katakuri_goal import status
+                if goal_policy.state(task):
+                    from .goals import status
                     return {**status(task), "checks": task["checks"], "dry_run": True}
                 recoveries = args.recoveries if args.recoveries is not None else task.get("execution", {}).get("recoveries", 0)
                 max_calls = min(max(0, policy["max_agent_calls"] - (task.get("usage") or {}).get("agent_calls", 0)),
@@ -704,7 +726,7 @@ def dispatch(args):
                 task.update(verification=None, review=None, status="ready")
                 store.save(task, "check_added")
             elif args.command == "assign":
-                if task.get("katakuri_goal") and args.reviewer == "none":
+                if goal_policy.state(task) and args.reviewer == "none":
                     raise WorkflowError("목표의 독립 검토자를 지정하세요.")
                 if args.owner == args.reviewer:
                     raise WorkflowError("실행 담당과 검토자는 달라야 합니다.")
@@ -741,6 +763,8 @@ def main():
         result = dispatch(args)
         print(result if isinstance(result, str) else encode(result))
         if args.command == "recommend-checks" and result["status"] == "review_incomplete":
+            raise SystemExit(3)
+        if args.command in ("measure-checks", "measure-review") and result["status"] != "complete":
             raise SystemExit(3)
     except (WorkflowError, OSError, ValueError, subprocess.TimeoutExpired, KeyboardInterrupt) as exc:
         print(f"agent-workflow: {exc}", file=sys.stderr)

@@ -30,7 +30,10 @@ jobs:
       - name: Test state, evidence, recovery, releases, and HTTP APIs
         env:
           PYTHONDONTWRITEBYTECODE: '1'
-        run: python -m unittest discover -s tests -v
+        run: |
+          python -m unittest discover -s tests -v
+          python -m unittest discover -s pilots/p1-second-model -p test_score.py -v
+          python -m unittest discover -s pilots/p1-handoff -p test_score.py -v
       - name: Verify installed package includes the observatory
         run: |
           python -m pip install . --no-deps

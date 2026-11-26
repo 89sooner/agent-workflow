@@ -93,6 +93,12 @@ try {
   await until(async()=>await $('ledger').inputValue()===f.foreign,'explicit foreign ledger');
   await openManagement();
   assert.equal(await button('워크플로 실행').count(),0,'foreign ledger cannot execute');
+  await choose('UI-RECOVERY');
+  const resumePanel = panel().getByRole('region',{name:'작업 재개 정보',exact:true});
+  const foreignDetail = await (await page.request.get(f.url+'/api/tasks/UI-RECOVERY?ledger='+f.foreign)).json();
+  await resumePanel.getByRole('heading',{name:foreignDetail.resume_packet.goal,exact:true}).waitFor();
+  assert.equal(foreignDetail.resume_packet.goal,'다른 원장의 같은 ID');
+  assert.deepEqual(foreignDetail.resume_packet.valid_evidence,[]);
   await button('관리 원장에서 새 작업 등록').click();
   await $('create-profile').selectOption('fixture-project');
   assert.equal(await $('ledger').inputValue(),f.primary);
@@ -158,7 +164,9 @@ try {
   await $('create-dialog').waitFor({state:'hidden'});
   await openManagement();
   await panel().getByText('작업 계약과 검사 결과',{exact:true}).click();
-  await panel().getByText(f.criteria[0],{exact:true}).waitFor();
+  const originalCriterion = panel().locator('#resume-criterion-1');
+  await originalCriterion.waitFor();
+  assert.equal(await originalCriterion.textContent(), f.criteria[0]);
   assert.equal(await page.evaluate(()=>typeof window.injected),'undefined');
   const recommendation = panel().locator('details').filter({has:page.getByText('검사 추천과 실제 작업 결과',{exact:true})});
   await recommendation.locator('summary').first().click();
@@ -188,6 +196,74 @@ try {
   assert.equal(queued.timeout,60);
   assert.equal(queued.repairs,0);
   await clickPost('UI-NEW 대기 취소','/api/cancel');
+  const writesBeforeDiagnosis = requests.length;
+  await choose('UI-RECOVERY'); await openManagement();
+  const realDetail = await task('UI-RECOVERY');
+  const recovery = realDetail.recovery;
+  assert.equal(recovery.stage,'checks');
+  assert.equal(recovery.action,'review');
+  assert.ok(recovery.confirmed_effects.length);
+  const recoveryPanel = panel().getByRole('region',{name:'중단 복구'});
+  async function assertRecovery(expected, stageLabel, sharedNext = false) {
+    const summary = recoveryPanel.getByText('중단 복구 · '+stageLabel,{exact:true});
+    await summary.waitFor();
+    if(!await summary.evaluate(node=>node.parentElement.open)) await summary.click();
+    await recoveryPanel.getByText(expected.reason,{exact:true}).waitFor();
+    await (sharedNext ? resumePanel : recoveryPanel).getByText(expected.next_action,{exact:true}).waitFor();
+    if(sharedNext) assert.equal(await recoveryPanel.getByText(expected.next_action,{exact:true}).count(),0);
+    await until(async()=>JSON.stringify(await recoveryPanel.getByRole('listitem').allTextContents())
+      === JSON.stringify(expected.confirmed_effects),'all confirmed effects from the selected diagnosis');
+    assert.equal(await recoveryPanel.getByRole('button').count(),0);
+  }
+  const packet = realDetail.resume_packet;
+  assert.equal(packet.task_id,'UI-RECOVERY');
+  assert.notEqual(packet.goal,foreignDetail.resume_packet.goal);
+  await resumePanel.getByRole('heading',{name:packet.goal,exact:true}).waitFor();
+  await resumePanel.getByRole('heading',{name:'남은 조건 · '+packet.remaining_criteria.length+'개'}).waitFor();
+  for (const row of packet.remaining_criteria) assert.ok((await resumePanel.innerText()).includes(row.text));
+  const firstCriterion = packet.remaining_criteria[0];
+  await resumePanel.getByRole('link',{name:firstCriterion.text,exact:true}).click();
+  await until(async()=>page.locator('#resume-criterion-'+firstCriterion.id).evaluate(node =>
+    node === document.activeElement && node.checkVisibility()),'opens source acceptance criterion');
+  await assertRecovery(recovery,'검사',true);
+  const receipt = packet.valid_evidence.find(row=>row.kind==='verification');
+  assert.ok(receipt);
+  await resumePanel.getByText(receipt.description,{exact:true}).click();
+  const record = receipt.source.substring(1).split('/').reduce((value,key)=>value[key],realDetail.task);
+  await until(async()=>JSON.stringify(JSON.parse(await resumePanel.getByLabel('근거 원문').textContent()))===JSON.stringify(record),
+    'opens the actual selected-ledger source receipt');
+  for(const message of packet.uncertainties) await resumePanel.getByText(message,{exact:true}).waitFor();
+  assert.equal(requests.length,writesBeforeDiagnosis);
+  assert.deepEqual(await jobs('UI-RECOVERY'),[]);
+  console.log('PASS recovery diagnosis shows recorded check effects and next review without enqueueing work');
+  // Older recovery receipts can still be displayed when the source has no common resume packet.
+  const pilot = JSON.parse(await fs.readFile(new URL('../pilots/p1-recovery/results.json',import.meta.url),'utf8'));
+  const views = [
+    [pilot.implementation.diagnosis,'구현'],
+    [pilot.before_review.diagnosis,'검사'],
+    [pilot.github.after_create_response_loss,'PR 생성'],
+    [pilot.github.after_merge_response_loss,'병합'],
+    [pilot.github.after_repeated_resume,'병합'],
+    [pilot.deployment_with_version.after_acknowledgement_loss,'배포'],
+    [pilot.deployment_with_version.different_observed_revision,'배포'],
+    [pilot.deployment_with_version.after_repeated_resume,'배포'],
+    [pilot.deployment_without_version.after_repeated_resume,'배포'],
+  ];
+  const taskRoute = url => url.pathname === '/api/tasks/UI-RECOVERY';
+  let projection;
+  await page.route(taskRoute, route=>route.fulfill({json:{...realDetail,resume_packet:null,recovery:projection}}));
+  try {
+    for (const [snapshot, stageLabel] of views) {
+      projection = snapshot;
+      await button('기록 새로고침').click();
+      await assertRecovery(snapshot,stageLabel);
+    }
+  } finally {
+    await page.unroute(taskRoute);
+  }
+  assert.equal(requests.length,writesBeforeDiagnosis);
+  assert.deepEqual(await jobs('UI-RECOVERY'),[]);
+  console.log('PASS read-only UI projection of nine measured local, GitHub, and deployment recovery states');
   await choose('UI-HEALTH'); await openManagement();
   await panel().getByText('원장에 기록된 릴리스 결과',{exact:true}).click();
   const phases=panel().locator('details').filter({has:page.getByText('원장에 기록된 릴리스 결과',{exact:true})});
@@ -249,6 +325,25 @@ try {
   await panel().getByText(/작업 폴더 상태 확인 불가/).waitFor({state:'hidden'});
 
   await $('new-task').click();
+  await $('create-profile').selectOption('project-ui-goal');
+  await page.getByLabel('프로젝트 목표 연속 실행').check();
+  assert.equal(await page.getByLabel('종목 (선택)').count(),0);
+  assert.equal(await $('create-isolate').isDisabled(),true);
+  await $('create-goal').fill('프로젝트 지침에 따른 로컬 값 검사');
+  await $('create-id').fill('AW-GENERIC-UI');
+  const projectGoal=(await clickPost('작업 등록','/api/goals')).task;
+  assert.equal(projectGoal.goal_mode.phase,'planning');
+  assert.equal(projectGoal.katakuri_goal,undefined);
+  await openManagement();
+  const projectPanel=page.getByRole('region',{name:'프로젝트 목표 진행'});
+  await projectPanel.getByText('누적 예산 조정').click();
+  await projectPanel.getByLabel('총 모델 호출 수').fill('18');
+  await clickPost('예산 저장','/api/goals/budget');
+  assert.equal((await task('AW-GENERIC-UI')).goal_mode.max_agent_calls,18);
+  assert.equal((await jobs('AW-GENERIC-UI')).length,0);
+  console.log('PASS project goals: registration without Katakuri documents, domain fields or implicit execution');
+
+  await $('new-task').click();
   await $('create-profile').selectOption('kb-ui');
   await page.getByLabel('Katakuri 목표 연속 실행').check();
   assert.equal(await $('create-isolate').isDisabled(),true);
@@ -271,6 +366,40 @@ try {
   assert.equal(supplied.criteria[0].state,'pending');
   assert.equal(supplied.agent_calls,0);
   console.log('PASS goal-only creation, progress, budget editing and supplying new evidence');
+  await choose('KG-PROOF');
+  await openManagement();
+  const proof = await task('KG-PROOF');
+  const proofRows = proof.katakuri_goal.criteria;
+  assert.deepEqual(proofRows.map(row=>row.check_evidence.state), ['passed','skipped']);
+  const passedReceipt = proof.resume_packet.valid_evidence.find(row=>row.result_id===proofRows[0].check_evidence.result_id && row.kind==='criterion_check');
+  assert.ok(passedReceipt);
+  await resumePanel.getByText(passedReceipt.description,{exact:true}).waitFor();
+  for (const [i, statusText] of ['통과','건너뜀'].entries()) {
+    const ev = proofRows[i].check_evidence;
+    const summary = goalPanel.getByText('조건 검사 · '+statusText,{exact:true});
+    await summary.click();
+    const details = summary.locator('..');
+    await details.getByText(ev.testcase,{exact:true}).waitFor();
+    await details.getByText(ev.report_sha256,{exact:true}).waitFor();
+    await details.getByText(ev.fingerprint,{exact:true}).waitFor();
+    const original = details.getByRole('link',{name:'원본 검사 결과 보기'});
+    await original.click();
+    const receipt = page.locator('[id="goal-check-'+ev.result_id+'"]');
+    await receipt.waitFor({state:'visible'});
+    assert.equal(await receipt.evaluate(node=>node===document.activeElement), true);
+    assert.ok((await receipt.innerText()).includes('종료 코드 0'));
+    assert.ok((await receipt.innerText()).includes(ev.result_id));
+  }
+  await fs.appendFile(join(f.proof_project,'app.py'),'\n# changed after checks\n');
+  await page.getByRole('button',{name:'기록 새로고침'}).click();
+  await goalPanel.getByText('조건 검사 · 통과 · 재검증 필요',{exact:true}).waitFor();
+  const stalePacket = (await task('KG-PROOF')).resume_packet;
+  assert.equal(stalePacket.valid_evidence.some(item=>item.result_id===passedReceipt.result_id),false);
+  assert.ok(stalePacket.uncertainties.length);
+  for(const message of stalePacket.uncertainties) await resumePanel.getByText(message,{exact:true}).waitFor();
+  assert.equal(await resumePanel.getByText(passedReceipt.description,{exact:true}).count(),0);
+  console.log('PASS same-ID ledger identity, receipt source inspection and stale evidence removal in resume packet');
+  console.log('PASS criterion-specific pass and skip, linked original result, stale receipt after worktree change');
   await choose('OBS-TRACE');
   for(const width of [375,768,1440]){
     await page.setViewportSize({width,height:heightFor(width)});

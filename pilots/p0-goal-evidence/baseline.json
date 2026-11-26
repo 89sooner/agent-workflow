@@ -1,0 +1,325 @@
+{
+  "arm": "baseline",
+  "reference_commit": "9b0c443da3e72fc490ed487289b5ef62ae0242cf",
+  "engine_python_sha256": "e3cca9f00a968e75c7883f0ffdeafc17012ce3ad9a02aca9f9b5d2bfb7938745",
+  "evaluator_sha256": "0010ad2f993552dc6a9ce5d7f09090f4892027405b9c26d57019c894114bd0f5",
+  "final_criterion_links": 0,
+  "verified_final_links": 0,
+  "python": "3.12.3",
+  "pytest": "pytest 9.0.2",
+  "cases_passed": 3,
+  "trials_passed": 5,
+  "false_completions": 1,
+  "false_blocks": 0,
+  "correct_terminal_waits": 1,
+  "driver_resumes_after_interruption": 1,
+  "trials": [
+    {
+      "case": "partial",
+      "variant": "missing_bundle",
+      "fixture_commit": "0fce1c81382450f1781693674590f59e4ae9a845",
+      "checkpoints": [],
+      "final": {
+        "status": "completed",
+        "phase": "complete",
+        "agent_calls": 3,
+        "states": [
+          "accepted",
+          "accepted"
+        ],
+        "checks": [
+          {
+            "check": "fixtures",
+            "exit": 0
+          },
+          {
+            "check": "web-boundary",
+            "exit": 0,
+            "bundle_test": "skipped"
+          }
+        ],
+        "criterion_links": [],
+        "fixture_matches": true,
+        "bundle_matches": false
+      },
+      "file_writes": [
+        29
+      ],
+      "assertions": {
+        "expected_outcome": false,
+        "correct_completion": false,
+        "yielded_without_completion": false
+      },
+      "pass": false,
+      "false_completion": true,
+      "false_block": false,
+      "expected_final_phase": "waiting"
+    },
+    {
+      "case": "partial",
+      "variant": "valid",
+      "fixture_commit": "16d03b3ff9f7ffcf785fa8c790fb89492e341908",
+      "checkpoints": [],
+      "final": {
+        "status": "completed",
+        "phase": "complete",
+        "agent_calls": 3,
+        "states": [
+          "accepted",
+          "accepted"
+        ],
+        "checks": [
+          {
+            "check": "fixtures",
+            "exit": 0
+          },
+          {
+            "check": "web-boundary",
+            "exit": 0,
+            "bundle_test": "passed"
+          }
+        ],
+        "criterion_links": [],
+        "fixture_matches": true,
+        "bundle_matches": true
+      },
+      "file_writes": [
+        29
+      ],
+      "assertions": {
+        "expected_outcome": true,
+        "correct_completion": true
+      },
+      "pass": true,
+      "false_completion": false,
+      "false_block": false,
+      "expected_final_phase": "complete"
+    },
+    {
+      "case": "interrupted",
+      "variant": "resume",
+      "fixture_commit": "0fce1c81382450f1781693674590f59e4ae9a845",
+      "checkpoints": [
+        {
+          "status": "blocked",
+          "phase": "stopped",
+          "agent_calls": 1,
+          "states": [
+            "pending"
+          ],
+          "checks": [],
+          "criterion_links": [],
+          "fixture_matches": true,
+          "bundle_matches": false
+        }
+      ],
+      "final": {
+        "status": "completed",
+        "phase": "complete",
+        "agent_calls": 3,
+        "states": [
+          "accepted"
+        ],
+        "checks": [
+          {
+            "check": "fixtures",
+            "exit": 0
+          },
+          {
+            "check": "web-boundary",
+            "exit": 0,
+            "bundle_test": "skipped"
+          }
+        ],
+        "criterion_links": [],
+        "fixture_matches": true,
+        "bundle_matches": false
+      },
+      "file_writes": [
+        29
+      ],
+      "assertions": {
+        "expected_outcome": true,
+        "correct_completion": true,
+        "one_write_and_durable_budget": true
+      },
+      "pass": true,
+      "false_completion": false,
+      "false_block": false,
+      "expected_final_phase": "complete"
+    },
+    {
+      "case": "external",
+      "variant": "supply",
+      "fixture_commit": "0fce1c81382450f1781693674590f59e4ae9a845",
+      "checkpoints": [
+        {
+          "status": "blocked",
+          "phase": "waiting",
+          "agent_calls": 2,
+          "states": [
+            "proposed",
+            "waiting"
+          ],
+          "checks": [
+            {
+              "check": "fixtures",
+              "exit": 0
+            },
+            {
+              "check": "web-boundary",
+              "exit": 0,
+              "bundle_test": "skipped"
+            }
+          ],
+          "criterion_links": [],
+          "fixture_matches": true,
+          "bundle_matches": false
+        },
+        {
+          "status": "blocked",
+          "phase": "waiting",
+          "agent_calls": 2,
+          "states": [
+            "proposed",
+            "waiting"
+          ],
+          "checks": [
+            {
+              "check": "fixtures",
+              "exit": 0
+            },
+            {
+              "check": "web-boundary",
+              "exit": 0,
+              "bundle_test": "skipped"
+            }
+          ],
+          "criterion_links": [],
+          "fixture_matches": true,
+          "bundle_matches": false
+        }
+      ],
+      "final": {
+        "status": "completed",
+        "phase": "complete",
+        "agent_calls": 4,
+        "states": [
+          "accepted",
+          "accepted"
+        ],
+        "checks": [
+          {
+            "check": "fixtures",
+            "exit": 0
+          },
+          {
+            "check": "web-boundary",
+            "exit": 0,
+            "bundle_test": "skipped"
+          }
+        ],
+        "criterion_links": [],
+        "fixture_matches": true,
+        "bundle_matches": false
+      },
+      "file_writes": [
+        29
+      ],
+      "assertions": {
+        "expected_outcome": true,
+        "correct_completion": true,
+        "independent_work_then_sleep": true,
+        "resumed_with_supplied_input": true
+      },
+      "pass": true,
+      "false_completion": false,
+      "false_block": false,
+      "expected_final_phase": "complete"
+    },
+    {
+      "case": "regression",
+      "variant": "regressed",
+      "fixture_commit": "16d03b3ff9f7ffcf785fa8c790fb89492e341908",
+      "checkpoints": [],
+      "final": {
+        "status": "blocked",
+        "phase": "waiting",
+        "agent_calls": 4,
+        "states": [
+          "waiting",
+          "waiting"
+        ],
+        "checks": [
+          {
+            "check": "fixtures",
+            "exit": 1
+          },
+          {
+            "check": "web-boundary",
+            "exit": 0,
+            "bundle_test": "passed"
+          }
+        ],
+        "criterion_links": [],
+        "fixture_matches": false,
+        "bundle_matches": true
+      },
+      "file_writes": [
+        29,
+        28
+      ],
+      "assertions": {
+        "expected_outcome": true,
+        "correct_completion": true,
+        "yielded_without_completion": true,
+        "final_tree_checked": true
+      },
+      "pass": true,
+      "false_completion": false,
+      "false_block": false,
+      "expected_final_phase": "waiting"
+    },
+    {
+      "case": "regression",
+      "variant": "valid_alternative",
+      "fixture_commit": "16d03b3ff9f7ffcf785fa8c790fb89492e341908",
+      "checkpoints": [],
+      "final": {
+        "status": "completed",
+        "phase": "complete",
+        "agent_calls": 3,
+        "states": [
+          "accepted",
+          "accepted"
+        ],
+        "checks": [
+          {
+            "check": "fixtures",
+            "exit": 0
+          },
+          {
+            "check": "web-boundary",
+            "exit": 0,
+            "bundle_test": "passed"
+          }
+        ],
+        "criterion_links": [],
+        "fixture_matches": true,
+        "bundle_matches": true
+      },
+      "file_writes": [
+        29,
+        29
+      ],
+      "assertions": {
+        "expected_outcome": true,
+        "correct_completion": true
+      },
+      "pass": true,
+      "false_completion": false,
+      "false_block": false,
+      "expected_final_phase": "complete"
+    }
+  ]
+}

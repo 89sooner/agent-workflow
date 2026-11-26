@@ -87,6 +87,7 @@ class CommunicationTests(unittest.TestCase):
         task = self.checked(self.task())
         complete(self.store, task)
         task['release'] = {'stage': 'configured'}
+        self.store.save(task, "release_configured")
         (self.project / 'app.py').write_text('VALUE = 2\n')
         directory = Path(export_handoff(self.store, task))
         text = (directory / 'resume.txt').read_text()

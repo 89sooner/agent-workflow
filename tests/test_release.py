@@ -182,7 +182,8 @@ class ReleaseTests(unittest.TestCase):
         return self.task
 
     def pr(self, **extra):
-        return {"head": {"sha": "a" * 40, "ref": "work/release"}, "base": {"ref": "main"},
+        return {"number": 7, "head": {"sha": "a" * 40, "ref": "work/release", "repo": {"full_name": "owner/repo"}},
+                "base": {"ref": "main", "repo": {"full_name": "owner/repo"}},
                 "state": "open", "draft": False, "mergeable": True, "mergeable_state": "clean", **extra}
 
     def test_github_head_mismatch_never_merges(self):

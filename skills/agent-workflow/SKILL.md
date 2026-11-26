@@ -28,6 +28,14 @@ The controller adds this policy to generated briefs and resume prompts.
 Observation-only plugins do not change an external session's instructions.
 See [the communication policy](../../docs/AGENT_COMMUNICATION.ko.md).
 
+## Project goals
+
+Use `goal create ID --profile NAME --goal TEXT` for a project with a registered goal policy.
+Read its instructions, editable paths, checks, reviewer, and accepted evidence formats from the profile.
+Use `goal status ID` to inspect the saved contract. Resume with `goal run ID`.
+Use `goal supply ID --criterion N --ref FILE` when a criterion waits for external evidence.
+See [project goal profiles](../../profiles/README.md#project-goals).
+
 ## Katakuri goals
 
 Use `katakuri-goal create ID --profile NAME --goal TEXT` for a new Katakuri development goal.
@@ -45,8 +53,10 @@ See [the operator guide](../../docs/KATAKURI_GOAL.ko.md).
   Return the worklog and resume paths.
 - For an informal continuation (이어서 진행, 어디까지 했지), run `agent-workflow pickup` in the intended project.
   Compare the saved next action with current Git status and project context documents.
-  Read each registered task's evidence, rerun_checks, reason, and release_status.
-  Use its show command for details. Check unavailable evidence before deciding whether to repeat verification.
+  Match the requested goal and ledger to a registered task's `resume_packet`.
+  Read its scope, remaining criteria, valid evidence, uncertainties, and next action.
+  Follow its `show` command to inspect original receipt pointers under `task`.
+  The saved note describes its authoring session. Refresh the live packet before acting on it.
   Check the current diff when file contents matter.
   Use the registered ledger when the user identifies a managed task.
 - For recurring usage analysis, run `agent-workflow patterns`.
@@ -56,8 +66,8 @@ See [the operator guide](../../docs/KATAKURI_GOAL.ko.md).
 
 ## Start or resume
 
-1. Run `agent-workflow list` and `show ID`. Read current Git state, checkpoint,
-   relevant reference documents, and applicable project instructions. Do not load
+1. For a known task, run `agent-workflow --home LEDGER resume-view ID`. Use `show ID` in that ledger for referenced receipts.
+   Read applicable project instructions and the reference documents needed for the next action. Do not load
    entire transcript archives by default.
 2. Reuse the requested task. If none exists, register one with `create`: explicit
    project path, goal, acceptance criteria, relevant document paths, and trusted
@@ -77,7 +87,8 @@ Inspect `routing_decision` before interpreting automatic second-provider selecti
 
 When the user asks to measure a resumption, start `pickup --measure` or `resume-time start` for their usual method.
 When the user confirms the correct first action, run `resume-time finish` in that worktree, then proceed.
-Record reported wrong picks or re-explanations. Do not infer confirmation just because a timer is running.
+Record reported wrong picks or re-explanations. Use `--used-stale-evidence` or `--no-stale-evidence` only with explicit feedback.
+Use `pickup --classic --measure` to measure the previous format. Do not infer confirmation just because a timer is running.
 Use `evaluate-checks REPORT --expected-group GROUP` for a retrospective with human labels.
 Recommendation evidence and execution evidence have separate purposes.
 See the [current manual](../../docs/USER_GUIDE.ko.md) and [worked cases](../../docs/USE_CASES.ko.md).

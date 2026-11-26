@@ -13,8 +13,17 @@
   ],
   "checks": [
     ["python3", "scripts/generate_web_fixtures.py", "--check"],
-    ["python3", "-m", "pytest", "-q", "tests/test_web_boundary.py"]
+    ["python3", "-m", "pytest", "-q", "tests/test_web_boundary.py", "--junitxml=$WORKFLOW_EVIDENCE_DIR/junit.xml"]
   ],
+  "criterion_checks": {
+    "웹 fixture가 생성기 결과와 일치한다": {
+      "check": ["python3", "scripts/generate_web_fixtures.py", "--check"]
+    },
+    "빌드된 웹 번들의 경계 검사가 통과한다": {
+      "check": ["python3", "-m", "pytest", "-q", "tests/test_web_boundary.py", "--junitxml=$WORKFLOW_EVIDENCE_DIR/junit.xml"],
+      "testcase": "tests.test_web_boundary::test_16_bundle_scan_when_built"
+    }
+  },
   "allowed_paths": [
     "web/fixtures",
     "agent-context/todos.md",

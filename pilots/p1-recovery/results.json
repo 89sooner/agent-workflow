@@ -1,0 +1,162 @@
+{
+  "implementation": {
+    "test": "test_local_resume.LocalResumeTests.test_owner_crash_hands_preserved_change_to_checks",
+    "diagnosis": {
+      "stage": "implementation",
+      "reason": "파일 변경 후 구현 단계 결과가 기록되지 않았습니다.",
+      "confirmed_effects": [
+        "구현 호출 직전과 같은 HEAD에서 작업 파일·인덱스 지문이 달라졌습니다 (26006bfa043f).",
+        "호출 직전과 다른 경로 1개 · app.py"
+      ],
+      "action": "verify_partial",
+      "next_action": "남은 변경을 등록 검사와 독립 리뷰에 제출합니다."
+    },
+    "before": [
+      "owner",
+      "write"
+    ],
+    "after": [
+      "owner",
+      "write",
+      "check",
+      "review"
+    ],
+    "agent_calls": 2,
+    "status": "completed",
+    "uncertain_seconds": 5,
+    "after_repeated_run": [
+      "owner",
+      "write",
+      "check",
+      "review"
+    ]
+  },
+  "before_review": {
+    "test": "test_local_resume.LocalResumeTests.test_checks_crash_resumes_at_review",
+    "diagnosis": {
+      "stage": "checks",
+      "reason": "현재 입력의 검사 통과 후 독립 리뷰 결과를 기다립니다.",
+      "confirmed_effects": [
+        "코드 지문 c51b799fbab4에서 등록 검사 1개가 통과했습니다."
+      ],
+      "action": "review",
+      "next_action": "기존 검사 기록을 사용해 독립 리뷰를 진행합니다."
+    },
+    "before": [
+      "owner",
+      "write",
+      "check"
+    ],
+    "after": [
+      "owner",
+      "write",
+      "check",
+      "review"
+    ],
+    "agent_calls": 2,
+    "status": "completed",
+    "uncertain_seconds": 0,
+    "after_repeated_run": [
+      "owner",
+      "write",
+      "check",
+      "review"
+    ]
+  },
+  "github": {
+    "test": "test_release_resume.ReleaseResumeTests.test_lost_pr_creation_and_merge_responses",
+    "after_create_response_loss": {
+      "stage": "pull_request",
+      "reason": "PR 생성 요청 의도를 기록했습니다. 일치하는 PR의 응답은 아직 확인되지 않았습니다.",
+      "confirmed_effects": [
+        "후보 커밋 94711900dd25dab508ef687258f620c149d63d24"
+      ],
+      "action": "reconcile_pr",
+      "next_action": "재개 시 원격 저장소·양쪽 브랜치·후보 SHA가 일치하는 PR을 조회합니다. 호스트에서 생성이 취소됐음을 확인한 경우 같은 대상으로 PR을 생성하고 재개하세요."
+    },
+    "after_merge_response_loss": {
+      "stage": "merge",
+      "reason": "PR 병합 요청 의도를 기록했습니다. 병합 결과는 아직 확인되지 않았습니다.",
+      "confirmed_effects": [
+        "후보 커밋 94711900dd25dab508ef687258f620c149d63d24",
+        "team/project PR #17 · work/release → main"
+      ],
+      "action": "reconcile_merge",
+      "next_action": "재개 시 같은 PR의 병합 여부와 병합 커밋 SHA를 조회합니다. 호스트에서 이전 요청이 종료됐고 PR이 열려 있으면 정책에 따라 병합한 뒤 재개하세요."
+    },
+    "after_repeated_resume": {
+      "stage": "merge",
+      "reason": "원격 대상에서 확인한 효과를 릴리스 기록에 연결했습니다.",
+      "confirmed_effects": [
+        "후보 커밋 94711900dd25dab508ef687258f620c149d63d24",
+        "team/project PR #17 · work/release → main",
+        "병합 커밋 372170e0df2faf5d3abb2447a5ce536ad90d9420"
+      ],
+      "action": "complete",
+      "next_action": "릴리스가 완료됐습니다."
+    },
+    "create_requests": 1,
+    "merge_requests": 1,
+    "remote_merge_commit": "372170e0df2faf5d3abb2447a5ce536ad90d9420"
+  },
+  "deployment_with_version": {
+    "test": "test_release_resume.ReleaseResumeTests.test_unknown_deployment_reconciles_version_before_health",
+    "after_acknowledgement_loss": {
+      "stage": "deployment",
+      "reason": "배포 명령을 시도했습니다. 대상 버전 적용 여부를 확정할 수 없습니다.",
+      "confirmed_effects": [
+        "후보 커밋 9b513ea8d7673e85a738cf4a6959aa95ccbef6e9",
+        "병합 커밋 ff62c34a27c5d70b555d3709fcc727dff15fa38e"
+      ],
+      "action": "observe_deployment",
+      "next_action": "재개 시 등록한 조회 명령으로 대상 버전을 확인하고 병합 SHA와 같으면 상태 검사로 진행합니다."
+    },
+    "different_observed_revision": {
+      "stage": "deployment",
+      "reason": "배포 명령을 시도했습니다. 대상 버전 적용 여부를 확정할 수 없습니다.",
+      "confirmed_effects": [
+        "후보 커밋 9b513ea8d7673e85a738cf4a6959aa95ccbef6e9",
+        "병합 커밋 ff62c34a27c5d70b555d3709fcc727dff15fa38e",
+        "배포 대상에서 조회한 버전 0000000000000000000000000000000000000000"
+      ],
+      "action": "confirm_deployment",
+      "next_action": "대상 버전 조회로 적용을 확인하지 못했습니다. 대상을 확인하고 재개해 다시 조회하세요. 재배포가 필요할 때만 --retry-deploy를 사용하세요."
+    },
+    "after_repeated_resume": {
+      "stage": "deployment",
+      "reason": "원격 대상에서 확인한 효과를 릴리스 기록에 연결했습니다.",
+      "confirmed_effects": [
+        "후보 커밋 9b513ea8d7673e85a738cf4a6959aa95ccbef6e9",
+        "병합 커밋 ff62c34a27c5d70b555d3709fcc727dff15fa38e",
+        "배포 대상에서 조회한 버전 ff62c34a27c5d70b555d3709fcc727dff15fa38e",
+        "배포 상태 검사 통과 ff62c34a27c5d70b555d3709fcc727dff15fa38e"
+      ],
+      "action": "complete",
+      "next_action": "릴리스가 완료됐습니다."
+    },
+    "target_revision": "ff62c34a27c5d70b555d3709fcc727dff15fa38e",
+    "calls": {
+      "deploy": 1,
+      "observe_revision": 2,
+      "health": 1
+    }
+  },
+  "deployment_without_version": {
+    "test": "test_release_resume.ReleaseResumeTests.test_unknown_deployment_requires_confirmation_without_observer",
+    "after_repeated_resume": {
+      "stage": "deployment",
+      "reason": "배포 명령을 시도했습니다. 대상 버전 적용 여부를 확정할 수 없습니다.",
+      "confirmed_effects": [
+        "후보 커밋 b2d4098cd6aeae77d81ae151c93c4e9457d153f1",
+        "병합 커밋 c321526b778f2bc5d67422101824b46a3b3a8bf6"
+      ],
+      "action": "confirm_deployment",
+      "next_action": "대상에 적용된 버전을 직접 확인하세요. 재배포가 필요할 때만 --retry-deploy를 사용하세요."
+    },
+    "calls": {
+      "deploy": 1,
+      "observe_revision": 0,
+      "health": 0
+    }
+  }
+}

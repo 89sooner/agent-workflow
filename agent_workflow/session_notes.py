@@ -15,11 +15,12 @@ import stat
 import subprocess
 import tempfile
 import time
+from contextlib import closing
 
 from . import resume_metrics
 
 from .connections import ledger_home, load_registry, project_key, state_home
-from .core import WorkflowError, atomic_write, now, snapshot
+from .core import Store, WorkflowError, atomic_write, now, snapshot
 
 
 PATH_LIMIT = 100
@@ -57,12 +58,13 @@ def _filter_overrides(drivers):
     return args
 
 
-def _evidence_snapshot(project):
-    """Use the evidence hash format with read-only Git, including in nested repositories."""
+def read_only_git():
+    """Create a read-only Git reader with per-observation filter configuration."""
     filters = {}
     all_drivers = set()
 
     def read_git(root, *args, binary=False):
+        root = Path(root)
         if root not in filters:
             git_root = os.fsdecode(_git(root, "rev-parse", "--show-toplevel").removesuffix(b"\n"))
             if root != Path(git_root):
@@ -78,7 +80,11 @@ def _evidence_snapshot(project):
                 raise WorkflowError("외부 Git 필터가 적용된 파일의 검증 지문을 조회할 수 없습니다.")
         return raw if binary else raw.decode("utf-8", errors="replace").strip()
 
-    return snapshot(project, read_git=read_git)
+    return read_git
+
+
+def _evidence_snapshot(project):
+    return snapshot(project, read_git=read_only_git())
 
 
 def _snapshot(project, notes_root, exclude=None):
@@ -255,20 +261,20 @@ def close_note(home, project, summary, next_action, worklog_dir=None):
         return _finish_close(home, {**_read(folder), "saved": True}, worklog_dir, started_ms)
 
 
-def _evidence(task, current, problem):
-    from .cli import freshness
+def _evidence(task, current, problem, *, flags=None):
+    from .task_observation import freshness
 
     verification = task.get("verification") or {}
     review = task.get("review") or {}
     review_required = task.get("reviewer") != "none"
-    flags = {}
-    if current is not None:
+    if current is not None and flags is None:
         try:
             flags = freshness(task, current)
-            if task.get("refs") and flags["refs_fingerprint"] is None:
-                problem = "등록된 참조 문서를 읽을 수 없습니다."
         except (OSError, WorkflowError, RuntimeError):
             problem = "등록된 검증 입력을 확인할 수 없습니다."
+    flags = flags or {}
+    if current is not None and task.get("refs") and flags.get("refs_fingerprint") is None:
+        problem = problem or "등록된 참조 문서를 읽을 수 없습니다."
 
     def state(receipt, is_current, succeeded):
         if not receipt:
@@ -292,12 +298,17 @@ def _evidence(task, current, problem):
         reason = "보호 경로 또는 보호 경로의 기준 기록이 변경됐습니다."
     elif checks == "stale" and task.get("refs") and verification.get("refs_fingerprint") != flags.get("refs_fingerprint"):
         reason = "검사 당시의 참조 문서 지문과 현재 지문이 다릅니다."
+    elif checks == "stale" and flags.get("check_context_is_current") is False:
+        reason = "검사 명령·환경 입력의 지문을 현재 설정과 대조해 재검사해야 합니다."
     elif checks == "stale":
         reason = "검사 당시의 작업 트리 지문과 현재 지문이 다르거나 기록에 지문이 없습니다."
     elif checks == "failed":
         reason = "현재 코드에서 마지막 검사가 실패했습니다."
     elif checks == "missing":
         reason = "검사 결과가 아직 등록되지 않았습니다."
+    elif task.get("status") != "completed" and flags.get("check_context_is_current") is None:
+        rerun = True
+        reason = "코드·참조 근거는 현재와 일치합니다. 이전 검사에 명령·환경 지문이 없어 재개 시 재검사합니다."
     elif reviewed in ("failed", "stale", "missing"):
         reason = "현재 코드와 검토자에 해당하는 독립 리뷰 통과 기록이 필요합니다."
     else:
@@ -307,7 +318,7 @@ def _evidence(task, current, problem):
             "bound_via_release": bool(flags.get("evidence_bound_via_release") and not problem)}
 
 
-def _registered_tasks(home, current):
+def _registered_tasks(home, current, *, classic=False):
     """List recorded checkpoints in this worktree and branch. Keep lookup independent of note storage."""
     primary = state_home(home)
     homes = {primary}
@@ -341,23 +352,23 @@ def _registered_tasks(home, current):
         """
         branch = current["branch"]
         try:
-            conn = sqlite3.connect(db.as_uri() + "?mode=ro", uri=True, timeout=1)
-            try:
-                rows = conn.execute(query, {"project": current["project"], "branch": branch or "",
+            with closing(Store(source, read_only=True)) as reader:
+                reader.db.execute("BEGIN")
+                rows = reader.db.execute(query, {"project": current["project"], "branch": branch or "",
                                             "head": current["head"]}).fetchall()
-            finally:
-                conn.close()
-        except sqlite3.Error:
+                # Holds and the revision counter are stored outside the task JSON.
+                for task_id, data in rows:
+                    task = json.loads(data) if classic else reader.get(task_id)
+                    matches.append((source, task_id, task))
+        except (sqlite3.Error, OSError, WorkflowError):
             unavailable.append(str(db))
             continue
-        for task_id, data in rows:
-            task = json.loads(data)
-            matches.append((source, task_id, task))
     matches.sort(key=lambda item: item[2].get("updated_at") or "", reverse=True)
     visible = matches[:5]
     observed, problem = None, None
+    from .resume_packet import needs_fingerprint
     if any(task.get("verification") or task.get("review") or task.get("status") == "completed"
-           for _, _, task in visible):
+           or (not classic and needs_fingerprint(task)) for _, _, task in visible):
         try:
             observed = _evidence_snapshot(current["project"])
             if observed["head"] != current["head"] or (observed["branch"] or None) != current["branch"]:
@@ -366,21 +377,31 @@ def _registered_tasks(home, current):
             problem = str(exc) if isinstance(exc, WorkflowError) else "현재 작업 트리의 지문을 읽을 수 없습니다."
 
     from .release_status import summarize_release
+    from .task_observation import observe
     tasks = []
     for source, task_id, task in visible:
         review = task.get("review") or {}
-        tasks.append({"id": task_id, "recorded_status": task.get("status"),
+        view = None
+        if not classic:
+            position = {"error": problem} if problem else observed or {"head": current["head"], "branch": current["branch"]}
+            view = observe(task, source, current=position)
+        row = {"id": task_id, "recorded_status": task.get("status"),
                       "updated_at": task.get("updated_at"), "next_action": (task.get("checkpoint") or {}).get("next"),
                       "recorded_checks_passed": (task.get("verification") or {}).get("passed"),
                       "recorded_review": review.get("outcome", review.get("verdict")),
-                      "evidence": _evidence(task, observed, problem),
+                      "evidence": _evidence(task, observed, view["observed_git"].get("error", problem) if view else problem,
+                                            flags=view["freshness"] if view else None),
                       "release_status": summarize_release(task),
-                      "show": shlex.join(["agent-workflow", "--home", str(source), "show", task_id])})
+                      "show": shlex.join(["agent-workflow", "--home", str(source), "show", task_id])}
+        if view:
+            row["resume_packet"] = view["resume_packet"]
+            row["next_action"] = view["resume_packet"]["next_action"]["text"]
+        tasks.append(row)
     return {"registered_tasks": tasks, "more_registered_tasks": len(matches) > 5,
             "unavailable_ledgers": unavailable}
 
 
-def pickup(home, project, *, measure=False):
+def pickup(home, project, *, measure=False, classic=False):
     started = resume_metrics.wall_ms() if measure else None
     notes_root = state_home(home) / "session-notes"
     current = _snapshot(project, notes_root)
@@ -388,7 +409,7 @@ def pickup(home, project, *, measure=False):
     project_context = [str(context_folder / name) for name in
                        ("_handoff/context-index.md", "session-summary.md", "todos.md")
                        if (context_folder / name).is_file()]
-    result = {"current": current, "project_context": project_context, **_registered_tasks(home, current)}
+    result = {"current": current, "project_context": project_context, **_registered_tasks(home, current, classic=classic)}
     latest = _latest(_location(notes_root, current))
     if latest is None:
         result.update(found=False, head_changed=None, dirty_paths_changed=None)
@@ -397,5 +418,5 @@ def pickup(home, project, *, measure=False):
         result.update(note, found=True, head_changed=note["git"]["head"] != current["head"],
                       dirty_paths_changed=note["git"]["dirty_digest"] != current["dirty_digest"])
     if measure:
-        result["measurement"] = resume_metrics.start_pickup(home, result, started)
+        result["measurement"] = resume_metrics.start_pickup(home, result, started, classic=classic)
     return result

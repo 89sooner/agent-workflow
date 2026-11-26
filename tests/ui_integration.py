@@ -18,6 +18,7 @@ from agent_workflow.check_advisor import recommend
 from agent_workflow.core import Store, create_task, git
 from agent_workflow.daemon import init_queue, run_daemon
 from agent_workflow.release import configure
+from agent_workflow.runner import run_checks
 from agent_workflow.server import handler
 from react_browser_fixture import prepare_workspace
 
@@ -33,6 +34,12 @@ def main():
                 "project": str(project), "checks": [[sys.executable, "-c", "print('base check')"]],
                 "check_groups": {"ui": [[sys.executable, "-c", "print('ui check')"]],
                                  "docs": [[sys.executable, "-c", "print('docs check')"]]},
+            })
+            profiles.save(store, "project-ui-goal", {
+                "project": str(project), "allowed_paths": ["app.py"],
+                "checks": [[sys.executable, "-c", "import app; assert app.VALUE == 1"]],
+                "goal_mode": {"version": 1, "scope": "Local UI fixture", "instructions": ["app.py"],
+                              "input_extensions": []},
             })
             from agent_workflow import katakuri_goal as kg
             kb = root / "katakuri-band-fixture"
@@ -51,6 +58,32 @@ def main():
             waiting["katakuri_goal"]["phase"] = "waiting"
             waiting["status"] = "blocked"
             store.save(waiting, "fixture_goal_waiting")
+            report = (
+                '<testsuites><testsuite name="web" tests="2" skipped="1">'
+                '<testcase classname="web" name="fixture"/>'
+                '<testcase classname="web" name="bundle"><skipped/></testcase>'
+                '</testsuite></testsuites>'
+            )
+            (kb / "fixture-report.xml").write_text(report)
+            git(kb, "add", "fixture-report.xml")
+            git(kb, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "commit", "-qm", "test input")
+            emit_report = [sys.executable, "-c",
+                           "import os; from pathlib import Path; "
+                           "(Path(os.environ['WORKFLOW_EVIDENCE_DIR']) / 'junit.xml').write_bytes(Path('fixture-report.xml').read_bytes())"]
+            criteria_checks = {"fixture 일치": {"check": emit_report, "testcase": "web::fixture"},
+                               "빌드된 번들 검사": {"check": emit_report, "testcase": "web::bundle"}}
+            profiles.save(store, "kb-ui-checks", {"project": str(kb), "allowed_paths": ["app.py"],
+                          "checks": [emit_report], "check_inputs": ["fixture-report.xml"], "criterion_checks": criteria_checks})
+            proof = kg.create(store, "KG-PROOF", "kb-ui-checks", "조건별 검사 결과 확인", list(criteria_checks))
+            with store.lock(proof["project"]) as fd:
+                run_checks(store, proof, 10, fd)
+            f["proof_project"] = proof["project"]
+            checked = create_task(store, "UI-RECOVERY", project, "검사 후 독립 리뷰 재개",
+                                  ["app.py가 존재한다"], [],
+                                  [[sys.executable, "-c", "from pathlib import Path; assert Path('app.py').is_file()"]],
+                                  "claude", "codex", "fixture")
+            with store.lock(project) as fd:
+                assert run_checks(store, checked, 10, fd)
             remote = root / "bare"
             remote.mkdir()
             git(remote, "init", "--bare", "-q")
@@ -72,6 +105,8 @@ def main():
         with closing(Store(other)) as foreign:
             create_task(foreign, "UI-FOREIGN", f["other_project"], "읽기 전용 작업", ["view only"],
                         [], [], "codex", "none", "fixture")
+            create_task(foreign, "UI-RECOVERY", f["other_project"], "다른 원장의 같은 ID",
+                        ["별도의 재개 조건"], [], [], "codex", "none", "foreign fixture")
             # Force discovery to order the foreign ledger first, as in the reported failure.
             with foreign.db:
                 task = foreign.get("UI-FOREIGN")

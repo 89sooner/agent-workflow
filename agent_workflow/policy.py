@@ -86,13 +86,13 @@ def protected_current(task):
             and baseline == protected_snapshot(task["project"], forbidden))
 
 
-def changed_files(project):
+def changed_files(project, *, read_git=git):
     project = Path(project).resolve()
-    names = git(project, "diff", "--no-renames", "--name-only", "-z", "HEAD", binary=True)
-    names += git(project, "diff", "--cached", "--no-renames", "--name-only", "-z", "HEAD", binary=True)
-    names += git(project, "ls-files", "--others", "--exclude-standard", "-z", binary=True)
+    names = read_git(project, "diff", "--no-renames", "--name-only", "-z", "HEAD", binary=True)
+    names += read_git(project, "diff", "--cached", "--no-renames", "--name-only", "-z", "HEAD", binary=True)
+    names += read_git(project, "ls-files", "--others", "--exclude-standard", "-z", binary=True)
     index_entries = {}
-    for record in git(project, "ls-files", "--stage", "-z", binary=True).split(b"\0"):
+    for record in read_git(project, "ls-files", "--stage", "-z", binary=True).split(b"\0"):
         if record:
             metadata, name = record.split(b"\t", 1)
             index_entries.setdefault(name, []).append(metadata)
@@ -113,7 +113,7 @@ def changed_files(project):
                 while chunk := stream.read(1024 * 1024):
                     digest.update(chunk)
         elif path.exists():
-            digest.update(b"directory:" + snapshot(path)["fingerprint"].encode())
+            digest.update(b"directory:" + snapshot(path, read_git=read_git)["fingerprint"].encode())
         else:
             digest.update(b"missing")
         result[name] = digest.hexdigest()
@@ -125,14 +125,17 @@ def under(name, parent):
     return base == Path(".") or p == base or base in p.parents
 
 
-def scope_check(task):
+def scope_check(task, *, read_git=git):
     cfg = task.get("project_config") or {}
     if not cfg:
         return
-    if git(task["project"], "rev-parse", "HEAD") != task["baseline"]["head"]:
+    if task.get("goal_mode") is not None:
+        from .goal_policy import check_checkout
+        check_checkout(Path(task["project"]), cfg, "project")
+    if read_git(task["project"], "rev-parse", "HEAD") != task["baseline"]["head"]:
         raise WorkflowError("관리 구현 중 기준 HEAD가 바뀌었습니다. 변경과 통합 상태를 확인하세요.")
     initial = task["baseline"].get("changed_files", {})
-    changes = changed_files(task["project"])
+    changes = changed_files(task["project"], read_git=read_git)
     paths = [name for name, digest in changes.items() if initial.get(name) != digest]
     # Restoring a pre-existing change is also a mutation requiring permission.
     paths.extend(name for name in initial if name not in changes)

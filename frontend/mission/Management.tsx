@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { configure, endpoint, get, usePoll } from "./api";
 import { label, when } from "./model";
 import type { Execution } from "./types";
@@ -6,6 +6,7 @@ import "./management.css";
 
 interface TaskRecord {
   id: string;
+  revision?: number;
   goal: string;
   project: string;
   project_source?: string;
@@ -26,6 +27,9 @@ interface TaskRecord {
   verification?: {
     passed?: boolean;
     results?: {
+      result_id?: string;
+      testcases?: Record<string, keyof typeof checkStates>;
+      artifacts?: string[];
       argv: string[];
       exit_code?: number;
       timed_out?: boolean;
@@ -113,7 +117,16 @@ interface Recommendation {
   unnecessary_review_check_seconds?: number | null;
 }
 interface TaskDetail {
+  resume_packet?: ResumePacket | null;
+  goal_mode?: GoalProgress | null;
   katakuri_goal?: GoalProgress | null;
+  recovery?: {
+    stage: string;
+    reason: string;
+    confirmed_effects: string[];
+    next_action: string;
+    action: string;
+  } | null;
   task: TaskRecord;
   observed_git?: {
     error?: string;
@@ -129,6 +142,28 @@ interface TaskDetail {
   release_status?: Record<string, unknown>;
   recommendation?: Recommendation | null;
   events: { seq: number; at: string; kind: string; data?: unknown }[];
+}
+interface ResumePacket {
+  version: number;
+  task_id: string;
+  revision: number | null;
+  goal: string;
+  scope: string;
+  limits: { allowed_paths: string[]; forbidden_paths: string[] };
+  remaining_criteria: {
+    id: number;
+    text: string;
+    state: string;
+    source: string;
+  }[];
+  valid_evidence: {
+    kind: string;
+    description: string;
+    source: string;
+    result_id?: string;
+  }[];
+  uncertainties: string[];
+  next_action: { action: string; text: string };
 }
 type Mutate = (
   path: string,
@@ -156,6 +191,13 @@ const phaseNames = {
   integration_check: "통합 검사",
   deployment: "배포 적용",
   health: "배포 후 상태 검사",
+};
+const recoveryStages: Record<string, string> = {
+  implementation: "구현",
+  checks: "검사",
+  pull_request: "PR 생성",
+  merge: "병합",
+  deployment: "배포",
 };
 const phaseLabels: Record<string, string> = {
   not_configured: "미설정",
@@ -517,9 +559,11 @@ function TaskControls({
 }
 
 interface GoalProgress {
+  kind?: "project" | "katakuri";
+  input_extensions?: string[];
   phase: string;
-  instrument: string | null;
-  milestone: string | null;
+  instrument?: string | null;
+  milestone?: string | null;
   agent_calls: number;
   max_agent_calls: number;
   reported_tokens: number;
@@ -534,10 +578,88 @@ interface GoalProgress {
     state: string;
     summary: string;
     next_action: string;
+    check_evidence?: CriterionCheck;
   }[];
   last_audit: {
     rows: { criterion: number; accepted: boolean; evidence: string }[];
   } | null;
+}
+
+const checkStates = {
+  passed: "통과",
+  failed: "실패",
+  skipped: "건너뜀",
+  missing: "근거 없음",
+  ambiguous: "중복 결과",
+  invalid: "유효하지 않은 결과",
+  pending: "검사 전",
+};
+
+interface CriterionCheck {
+  state: keyof typeof checkStates;
+  argv: string[];
+  result_id?: string;
+  testcase?: string;
+  report_sha256?: string;
+  at?: string;
+  fingerprint?: string;
+  refs_fingerprint?: string;
+}
+
+function CriterionReceipt({
+  check,
+  results,
+  current,
+}: {
+  check: CriterionCheck;
+  results: NonNullable<TaskRecord["verification"]>["results"];
+  current?: boolean;
+}) {
+  const id = check.result_id;
+  const hasResult = id && results?.some((result) => result.result_id === id);
+  return (
+    <details>
+      <summary>
+        조건 검사 · {checkStates[check.state]}
+        {hasResult && current === false && " · 재검증 필요"}
+      </summary>
+      <p>
+        등록 명령 · <code>{JSON.stringify(check.argv)}</code>
+      </p>
+      {check.testcase && (
+        <p>
+          JUnit 테스트 · <code>{check.testcase}</code>
+        </p>
+      )}
+      {id && (
+        <p>
+          검사 결과 ID · <code>{id}</code>
+        </p>
+      )}
+      {hasResult && <a href={"#goal-check-" + id}>원본 검사 결과 보기</a>}
+      {check.at && (
+        <p>
+          검사 시각 · <time dateTime={check.at}>{when(check.at)}</time>
+        </p>
+      )}
+      {id && (!hasResult || current === undefined) && <p>현재 유효성 미확인</p>}
+      {check.fingerprint && (
+        <p>
+          검사한 코드 지문 · <code>{check.fingerprint}</code>
+        </p>
+      )}
+      {check.refs_fingerprint && (
+        <p>
+          참조 문서 지문 · <code>{check.refs_fingerprint}</code>
+        </p>
+      )}
+      {check.report_sha256 && (
+        <p>
+          JUnit 보고서 SHA-256 · <code>{check.report_sha256}</code>
+        </p>
+      )}
+    </details>
+  );
 }
 
 const goalLabels: Record<string, string> = {
@@ -558,21 +680,33 @@ function GoalPanel({
   taskId,
   editable,
   mutate,
+  verification,
+  verificationCurrent,
+  hasResumePacket,
 }: {
   goal: GoalProgress;
   taskId: string;
   editable: boolean;
   mutate: Mutate;
+  verification: TaskRecord["verification"];
+  verificationCurrent?: boolean;
+  hasResumePacket: boolean;
 }) {
   const [input, setInput] = useState("");
   const [target, setTarget] = useState("");
+  const projectGoal = goal.kind === "project";
+  const endpoint = projectGoal ? "/api/goals" : "/api/katakuri-goals";
+  const title = projectGoal ? "프로젝트 목표" : "Katakuri 목표";
+  const formats = goal.input_extensions ?? [];
+  const [format, setFormat] = useState("");
+  const extension = formats.includes(format) ? format : formats[0];
   const waiting = goal.criteria.filter((row) => row.state === "waiting");
   const criterion =
     waiting.find((row) => String(row.id) === target)?.id ?? waiting[0]?.id;
   return (
-    <section className="mg-block" aria-label="Katakuri 목표 진행">
+    <section className="mg-block" aria-label={title + " 진행"}>
       <h4>
-        Katakuri 목표 ·{" "}
+        {title} ·{" "}
         {[goal.instrument, goal.milestone, goalLabels[goal.phase] ?? goal.phase]
           .filter(Boolean)
           .join(" · ")}
@@ -591,8 +725,15 @@ function GoalPanel({
           <li key={row.id}>
             {row.text} · {goalLabels[row.state] ?? row.state}
             {row.summary && <p>{row.summary}</p>}
-            {row.next_action && row.state !== "accepted" && (
-              <p>{row.next_action}</p>
+            {!hasResumePacket &&
+              row.next_action &&
+              row.state !== "accepted" && <p>{row.next_action}</p>}
+            {row.check_evidence && (
+              <CriterionReceipt
+                check={row.check_evidence}
+                results={verification?.results}
+                current={verificationCurrent}
+              />
             )}
             {goal.last_audit?.rows.find((r) => r.criterion === row.id)
               ?.evidence && (
@@ -607,14 +748,14 @@ function GoalPanel({
           </li>
         ))}
       </ol>
-      {editable && criterion !== undefined && (
+      {editable && criterion !== undefined && (!projectGoal || extension) && (
         <form
           onSubmit={async (e) => {
             e.preventDefault();
             if (
               await mutate(
-                "/api/katakuri-goals/input",
-                { task_id: taskId, criterion, evidence: input },
+                endpoint + "/input",
+                { task_id: taskId, criterion, evidence: input, ...(projectGoal ? { extension } : {}) },
                 "근거를 저장했습니다. 워크플로 실행을 누르면 이어갑니다.",
               )
             )
@@ -634,6 +775,14 @@ function GoalPanel({
               ))}
             </select>
           </label>
+          {projectGoal && (
+            <label>
+              근거 형식
+              <select value={extension} onChange={(e) => setFormat(e.target.value)}>
+                {formats.map((value) => <option key={value}>{value}</option>)}
+              </select>
+            </label>
+          )}
           <label>
             제출할 근거
             <textarea
@@ -660,7 +809,7 @@ function GoalPanel({
                     key === "clear_token_limit" ? true : Number(value);
               if (
                 await mutate(
-                  "/api/katakuri-goals/budget",
+                  endpoint + "/budget",
                   body,
                   "누적 예산을 변경했습니다.",
                 )
@@ -712,35 +861,224 @@ function GoalPanel({
   );
 }
 
+function receiptValue(task: TaskRecord, pointer: string): unknown {
+  if (!pointer.startsWith("/")) return undefined;
+  let value: unknown = task;
+  for (const part of pointer.slice(1).split("/")) {
+    const key = part.replace(/~1/g, "/").replace(/~0/g, "~");
+    if (
+      value === null ||
+      typeof value !== "object" ||
+      !Object.hasOwn(value, key)
+    )
+      return undefined;
+    value = (value as Record<string, unknown>)[key];
+  }
+  return value;
+}
+
+function ResumeEvidence({
+  item,
+  task,
+}: {
+  item: ResumePacket["valid_evidence"][number];
+  task: TaskRecord;
+}) {
+  const [open, setOpen] = useState(false);
+  const value = receiptValue(task, item.source);
+  if (value === undefined) return <>{item.description} · 원문 조회 불가</>;
+  return (
+    <details onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>{item.description}</summary>
+      <p>
+        원장 원문 · <code>{item.source}</code>
+      </p>
+      {open && (
+        <pre tabIndex={0} aria-label="근거 원문">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      )}
+    </details>
+  );
+}
+
+function ResumeRows({ rows, more }: { rows: ReactNode[]; more: string }) {
+  const limit = 5;
+  return (
+    <>
+      <ul>{rows.slice(0, limit)}</ul>
+      {rows.length > limit && (
+        <details>
+          <summary>
+            {more} {rows.length - limit}개
+          </summary>
+          <ul>{rows.slice(limit)}</ul>
+        </details>
+      )}
+    </>
+  );
+}
+
+function ResumeOverview({
+  packet,
+  task,
+}: {
+  packet: ResumePacket;
+  task: TaskRecord;
+}) {
+  const criteria = packet.remaining_criteria;
+  const rows = criteria.map((row) => (
+    <li key={row.id}>
+      <a href={"#resume-criterion-" + row.id}>{row.text}</a> ·{" "}
+      {goalLabels[row.state] ?? row.state}
+    </li>
+  ));
+  return (
+    <section className="mg-block" aria-label="작업 재개 정보">
+      <h3>{packet.goal}</h3>
+      <p className="mg-path">{task.project}</p>
+      <h4>다음 행동</h4>
+      <p>{packet.next_action.text}</p>
+      <h4>남은 조건 · {criteria.length}개</h4>
+      {criteria.length > 0 ? (
+        <ResumeRows rows={rows} more="나머지 조건" />
+      ) : (
+        <p>남은 조건 없음</p>
+      )}
+      <h4>유효한 근거</h4>
+      {packet.valid_evidence.length ? (
+        <ResumeRows
+          more="나머지 근거"
+          rows={packet.valid_evidence.map((item, i) => (
+            <li key={item.source + ":" + i}>
+              <ResumeEvidence item={item} task={task} />
+            </li>
+          ))}
+        />
+      ) : (
+        <p>현재 유효한 근거 없음</p>
+      )}
+      {!!packet.uncertainties.length && (
+        <>
+          <h4>확인할 사항</h4>
+          <ResumeRows
+            more="나머지 확인 항목"
+            rows={packet.uncertainties.map((item, i) => (
+              <li key={i}>{item}</li>
+            ))}
+          />
+        </>
+      )}
+      {packet.scope ||
+      packet.limits.allowed_paths.length ||
+      packet.limits.forbidden_paths.length ? (
+        <details>
+          <summary>작업 범위</summary>
+          {packet.scope && <p>{packet.scope}</p>}
+          {!!packet.limits.allowed_paths.length && (
+            <p>
+              허용 경로 · <code>{packet.limits.allowed_paths.join(", ")}</code>
+            </p>
+          )}
+          {!!packet.limits.forbidden_paths.length && (
+            <p>
+              금지 경로 ·{" "}
+              <code>{packet.limits.forbidden_paths.join(", ")}</code>
+            </p>
+          )}
+        </details>
+      ) : null}
+    </section>
+  );
+}
+
 function TaskDetails({
   data,
   writable,
   pending,
   busy,
   mutate,
+  fresh,
 }: {
   data: TaskDetail;
   writable: boolean;
   pending: boolean;
   busy: boolean;
   mutate: Mutate;
+  fresh: boolean;
 }) {
   const t = data.task;
+  const goal = data.goal_mode ?? data.katakuri_goal;
+  const flags = fresh ? data.freshness : undefined;
+  const packet =
+    fresh &&
+    data.resume_packet?.version === 1 &&
+    data.resume_packet.task_id === t.id &&
+    data.resume_packet.revision === t.revision
+      ? data.resume_packet
+      : null;
   return (
     <article className="mg-task" aria-label="선택한 작업 상세">
       <div className="mg-title">
         <code>{t.id}</code>
         <span>{label(t.status)}</span>
       </div>
-      <h3>{t.goal}</h3>
-      <p className="mg-path">{t.project}</p>
-      {data.katakuri_goal && (
+      {packet ? (
+        <ResumeOverview packet={packet} task={t} />
+      ) : (
+        <>
+          <h3>{t.goal}</h3>
+          <p className="mg-path">{t.project}</p>
+          <p className="mg-muted">
+            {fresh
+              ? "공통 재개 정보를 확인할 수 없습니다."
+              : "재개 정보의 현재 상태를 확인하고 있습니다."}
+          </p>
+        </>
+      )}
+      {fresh && data.recovery && (
+        <section className="mg-block" aria-label="중단 복구">
+          <details open={packet ? undefined : true}>
+            <summary>
+              중단 복구 ·{" "}
+              {recoveryStages[data.recovery.stage] ?? data.recovery.stage}
+            </summary>
+            <p>{data.recovery.reason}</p>
+            <dl className="mg-facts">
+              <div>
+                <dt>이미 확인된 효과</dt>
+                <dd>
+                  {data.recovery.confirmed_effects.length ? (
+                    <ul>
+                      {data.recovery.confirmed_effects.map((effect, i) => (
+                        <li key={i}>{effect}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    "확인된 효과 없음"
+                  )}
+                </dd>
+              </div>
+              {!packet && (
+                <div>
+                  <dt>다음 행동</dt>
+                  <dd>{data.recovery.next_action}</dd>
+                </div>
+              )}
+            </dl>
+          </details>
+        </section>
+      )}
+      {goal && (
         <GoalPanel
           key={t.id}
-          goal={data.katakuri_goal}
+          goal={goal}
           taskId={t.id}
           editable={writable && !pending && !busy && t.status !== "completed"}
           mutate={mutate}
+          verification={t.verification}
+          verificationCurrent={flags?.verification_is_current}
+          hasResumePacket={!!packet || !fresh}
         />
       )}
       <dl className="mg-facts">
@@ -756,10 +1094,7 @@ function TaskDetails({
         <div>
           <dt>필수 검사</dt>
           <dd>
-            {evidence(
-              t.verification?.passed,
-              data.freshness?.verification_is_current,
-            )}
+            {evidence(t.verification?.passed, flags?.verification_is_current)}
           </dd>
         </div>
         <div>
@@ -771,7 +1106,7 @@ function TaskDetails({
                   t.review?.verdict == null
                     ? undefined
                     : t.review.verdict === "pass",
-                  data.freshness?.review_is_current,
+                  flags?.review_is_current,
                 )}
           </dd>
         </div>
@@ -779,9 +1114,9 @@ function TaskDetails({
           <div>
             <dt>완료 증거</dt>
             <dd>
-              {data.freshness?.completion_is_current === true
+              {flags?.completion_is_current === true
                 ? "현재 코드에서 유효"
-                : data.freshness?.completion_is_current === false
+                : flags?.completion_is_current === false
                   ? "변경 후 재검증 필요"
                   : "현재 상태 확인 불가"}
             </dd>
@@ -809,8 +1144,12 @@ function TaskDetails({
       <div className="mg-continuity">
         <h4>최근 체크포인트</h4>
         <p>{t.checkpoint?.summary || "기록 없음"}</p>
-        <h4>다음 행동</h4>
-        <p>{t.checkpoint?.next || "기록 없음"}</p>
+        {fresh && !packet && !data.recovery && (
+          <>
+            <h4>다음 행동</h4>
+            <p>{t.checkpoint?.next || "기록 없음"}</p>
+          </>
+        )}
       </div>
       <details className="mg-block">
         <summary>작업 계약과 검사 결과</summary>
@@ -820,7 +1159,9 @@ function TaskDetails({
             <h4>완료 조건</h4>
             <ul>
               {t.criteria.map((s, i) => (
-                <li key={i}>{s}</li>
+                <li key={i} id={"resume-criterion-" + (i + 1)} tabIndex={-1}>
+                  {s}
+                </li>
               ))}
             </ul>
           </>
@@ -854,12 +1195,39 @@ function TaskDetails({
             <h4>최근 검사 결과</h4>
             <ul>
               {t.verification.results.map((r, i) => (
-                <li key={i}>
+                <li
+                  key={r.result_id || i}
+                  id={r.result_id ? "goal-check-" + r.result_id : undefined}
+                  tabIndex={r.result_id ? -1 : undefined}
+                >
                   <code>{JSON.stringify(r.argv)}</code> ·{" "}
                   {r.timed_out
                     ? "시간 초과"
                     : `종료 코드 ${r.exit_code ?? "미기록"}`}
                   {r.seconds != null && ` · ${r.seconds}초`}
+                  {r.result_id && (
+                    <p>
+                      검사 결과 ID · <code>{r.result_id}</code>
+                    </p>
+                  )}
+                  {r.testcases && (
+                    <>
+                      <ul aria-label="JUnit 검사 결과">
+                        {Object.entries(r.testcases).map(([name, state]) => (
+                          <li key={name}>
+                            <code>{name}</code> · {checkStates[state]}
+                          </li>
+                        ))}
+                      </ul>
+                      {r.artifacts
+                        ?.filter((path) => path.endsWith("/junit.xml"))
+                        .map((path) => (
+                          <p key={path}>
+                            JUnit 원본 파일 · <code>{path}</code>
+                          </p>
+                        ))}
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
@@ -1133,6 +1501,7 @@ function Workspace({
       {selected && (
         <TaskDetails
           data={selected}
+          fresh={detail.fresh}
           writable={writable && !detail.error}
           busy={busy}
           mutate={mutate}

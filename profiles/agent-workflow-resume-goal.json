@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "project": ".",
+  "owner": "claude",
+  "reviewer": "codex-session",
+  "goal_mode": {
+    "version": 1,
+    "scope": "Local agent-workflow development. Improve the resume packet for stale verification evidence.",
+    "instructions": ["docs/DEVELOPMENT.ko.md"],
+    "input_extensions": []
+  },
+  "allowed_paths": ["agent_workflow/resume_packet.py"],
+  "forbidden_paths": ["tests", "docs", "profiles"],
+  "checks": [
+    ["env", "PYTHONPATH=.:tests", "python3", "-B", "-m", "unittest", "test_resume_packet"],
+    ["env", "PYTHONPATH=.:tests", "python3", "-B", "-m", "unittest", "test_resume_fingerprint_notice"]
+  ],
+  "criterion_checks": {
+    "코드가 달라진 검사 근거에는 검사 당시와 현재 코드 지문 앞 12자리가 순서대로 표시되고, 참조만 바뀌거나 근거가 유효하면 이 표시가 없다.": {
+      "check": ["env", "PYTHONPATH=.:tests", "python3", "-B", "-m", "unittest", "test_resume_fingerprint_notice"]
+    }
+  },
+  "workspace": {"isolate": true},
+  "execution": {"timeout": 180, "max_agent_calls": 5, "max_seconds": 720}
+}
