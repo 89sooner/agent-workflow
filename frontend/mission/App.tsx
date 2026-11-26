@@ -1699,7 +1699,7 @@ export default function App() {
           )}
           <footer className="workspace-footer">
             {openCode
-              ? "실행 중은 OpenCode 상태 API의 busy입니다. 세션 대기와 응답 종료, 작업 검증 완료는 서로 다릅니다."
+              ? "실행 중은 OpenCode 상태 API의 busy 또는 running입니다. 세션 대기와 응답 종료, 작업 검증 완료는 서로 다릅니다."
               : "실행 중은 컨트롤러 프로세스의 생존 확인을 뜻합니다. 모델 내부 활동은 기록된 범위만 표시합니다."}
             <span>React · TypeScript · React Three Fiber</span>
           </footer>

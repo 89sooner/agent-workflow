@@ -214,7 +214,7 @@ def snapshot(home, observer, session_id=None, refresh=True):
                 waiting_complete = True
                 for endpoint, waiting_state in (("/question", "input"), ("/permission", "approval")):
                     try:
-                        requests = opencode.Client(source).get(endpoint)
+                        requests = opencode.Client(source).waits(endpoint)
                         if not isinstance(requests, list) or any(not isinstance(r, dict) or not isinstance(r.get("sessionID"), str) for r in requests):
                             raise WorkflowError("승인·질문 목록 형식을 확인할 수 없습니다.")
                         waiting.update({r["sessionID"]: waiting_state for r in requests})

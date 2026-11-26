@@ -69,11 +69,19 @@ jobs:
       - name: Verify real OpenCode 1.3.17 new-session discovery in Chromium
         env:
           WORKFLOW_PLAYWRIGHT_PATH: ${{ runner.temp }}/workflow-browser/node_modules/playwright
-          WORKFLOW_SCREENSHOT_DIR: ${{ runner.temp }}/workflow-screenshots
+          WORKFLOW_SCREENSHOT_DIR: ${{ runner.temp }}/workflow-screenshots/opencode-1.3.17
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
           npm install --prefix "$RUNNER_TEMP/workflow-opencode" --ignore-scripts --no-audit --no-fund opencode-linux-x64@1.3.17
-          bash tests/opencode_ci.sh "$RUNNER_TEMP/workflow-opencode/node_modules/opencode-linux-x64/bin/opencode"
+          bash tests/opencode_ci.sh "$RUNNER_TEMP/workflow-opencode/node_modules/opencode-linux-x64/bin/opencode" 1.3.17
+      - name: Verify real OpenCode 2.2.7 new-session discovery in Chromium
+        env:
+          WORKFLOW_PLAYWRIGHT_PATH: ${{ runner.temp }}/workflow-browser/node_modules/playwright
+          WORKFLOW_SCREENSHOT_DIR: ${{ runner.temp }}/workflow-screenshots/opencode-2.2.7
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          npm install --prefix "$RUNNER_TEMP/workflow-opencode-v2" --ignore-scripts --no-audit --no-fund @opencode/cli-linux-x64@2.2.7
+          bash tests/opencode_ci.sh "$RUNNER_TEMP/workflow-opencode-v2/node_modules/@opencode/cli-linux-x64/bin/opencode" 2.2.7
       - name: React management, observatory and controller-backed browser acceptance
         env:
           WORKFLOW_PLAYWRIGHT_PATH: ${{ runner.temp }}/workflow-browser/node_modules/playwright
