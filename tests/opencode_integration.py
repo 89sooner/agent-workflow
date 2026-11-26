@@ -26,6 +26,8 @@ def main():
                          name='OpenCode 실제 서버 검증')['source']
     server = fixture.server(handler(fixture.home, 'fixture', read_only=True, observer=True))
 
+    applied = []
+
     def controls():
         while not stop.wait(.05):
             if not control.exists():
@@ -33,10 +35,13 @@ def main():
             command = control.read_text()
             if command == 'fail':
                 fixture.fail = True
-            if command == 'recover':
+            elif command == 'recover':
                 fixture.fail = False
-            if command == 'history-limit':
+            elif command == 'history-limit':
                 fixture.messages = [{'info': {'role': 'user'}, 'parts': []} for _ in range(99)] + fixture.messages[-1:]
+            else:
+                raise ValueError(f'Unexpected OpenCode fixture command: {command!r}')
+            applied.append(command)
             control.unlink()
 
     thread = threading.Thread(target=controls, daemon=True)
@@ -46,6 +51,8 @@ def main():
                                     'native': native, 'control': str(control)}))
     try:
         result = subprocess.run(['node', 'tests/opencode_scenarios.mjs', str(manifest)], timeout=180)
+        if result.returncode == 0:
+            assert applied == ['history-limit', 'fail', 'recover'], applied
         assert all(c[0] == 'GET' for c in fixture.calls)
         assert not (fixture.home / 'state.sqlite3').exists()
         return result.returncode

@@ -16,6 +16,21 @@ const until = async (fn, timeout=20000)=>{
   while(Date.now()<end){if(await fn())return; await page.waitForTimeout(100);}
   throw Error('OpenCode browser state not observed');
 };
+async function sendCommand(command) {
+  const pending = f.control + '.next';
+  await fs.writeFile(pending, command);
+  await fs.rename(pending, f.control);
+  // The fixture removes the file after applying the command.
+  await until(async () => {
+    try {
+      await fs.access(f.control);
+      return false;
+    } catch (error) {
+      if (error.code === 'ENOENT') return true;
+      throw error;
+    }
+  });
+}
 const screenshot=async name=>{
   if(!process.env.WORKFLOW_SCREENSHOT_DIR)return;
   await fs.mkdir(process.env.WORKFLOW_SCREENSHOT_DIR,{recursive:true});
@@ -37,13 +52,13 @@ try{
   assert.equal(await page.locator('.sidebar-bottom a').count(),0);
   assert.equal(await page.getByRole('button',{name:'▶ 기록 재생',exact:true}).isDisabled(),true);
   assert.ok(!(await page.locator('body').innerText()).includes('SECRET_'));
-  await fs.writeFile(f.control,'history-limit');
+  await sendCommand('history-limit');
   await until(async()=>await page.getByTestId('history-limit').count()===1);
   await screenshot('opencode-fixture-desktop');
-  await fs.writeFile(f.control,'fail');
+  await sendCommand('fail');
   await until(async()=>!!await page.locator('.notice.error').count());
   assert.equal(await page.locator('.mission-shell').getAttribute('data-mode'),'paused');
-  await fs.writeFile(f.control,'recover');
+  await sendCommand('recover');
   await until(async()=>!await page.locator('.notice.error').count(),30000);
   await page.setViewportSize({width:390,height:844});
   await screenshot('opencode-fixture-mobile');
