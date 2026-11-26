@@ -1,3 +1,4 @@
+import base64
 import copy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -11,7 +12,7 @@ from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-from agent_workflow.core import WorkflowError
+from agent_workflow.core import WorkflowError, atomic_write
 from agent_workflow.opencode import Client, Observer, connect, disconnect, endpoint, sources
 from agent_workflow.server import handler
 
@@ -38,6 +39,7 @@ class OpenCodeTests(unittest.TestCase):
         self.fail = False
         self.redirect = False
         self.require_auth = False
+        self.expected_auth = None
         self.version = '1.3.17'
         test = self
 
@@ -50,6 +52,10 @@ class OpenCodeTests(unittest.TestCase):
                 if test.redirect:
                     self.send_response(302)
                     self.send_header('Location', test.url + '/redirect-target')
+                    self.end_headers()
+                    return
+                if test.expected_auth and self.headers.get('Authorization') != test.expected_auth:
+                    self.send_response(401)
                     self.end_headers()
                     return
                 if test.fail or (test.require_auth and not self.headers.get('Authorization')):
@@ -244,6 +250,36 @@ class OpenCodeTests(unittest.TestCase):
         self.assertEqual(Client(source).waits('/permission'), [])
         self.assertEqual(Client(source).waits('/question'), [{'sessionID': 'ses_one'}])
         self.assertTrue(all(method == 'GET' for method, _, _ in self.calls))
+
+    def test_local_service_follows_credentials_without_reregistering(self):
+        descriptor = Path(self.temp.name) / 'opencode/service.json'
+        self.v2 = {
+            '/api/info': {'version': '2.2.7', 'pid': os.getpid()},
+            '/api/session': {'data': [{'id': 'ses_before', 'location': {'directory': self.project}, 'time': {}}]},
+            '/api/session/active': {'data': {}},
+        }
+
+        def set_password(password):
+            self.expected_auth = 'Basic ' + base64.b64encode(f'opencode:{password}'.encode()).decode()
+            atomic_write(descriptor, json.dumps({
+                'url': self.url, 'pid': os.getpid(), 'version': '2.2.7', 'password': password,
+            }))
+
+        with patch.dict(os.environ, {'XDG_STATE_HOME': self.temp.name}):
+            set_password('test-only-first')
+            source = self.connect(follow_local_service=True)
+            registry = (self.home / 'opencode.json').read_bytes()
+            observer = Observer(self.home)
+            self.assertEqual(observer.view(source['id'])['tasks'][0]['id'], 'ses_before')
+
+            descriptor.chmod(0o644)
+            self.assertEqual(observer.ledgers()[0]['status'], 'unavailable')
+            self.v2['/api/session']['data'][0]['id'] = 'ses_after'
+            set_password('test-only-second')
+            self.assertEqual(observer.view(source['id'])['tasks'][0]['id'], 'ses_after')
+            self.assertEqual(observer.ledgers()[0]['status'], 'available')
+            self.assertEqual((self.home / 'opencode.json').read_bytes(), registry)
+            self.assertNotIn(b'test-only-', registry)
 
     def test_session_limit_and_empty_response(self):
         source = self.connect()
