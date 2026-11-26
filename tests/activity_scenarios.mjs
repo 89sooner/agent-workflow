@@ -52,7 +52,8 @@ try{
  }
  await page.emulateMedia({reducedMotion:'reduce'});
  console.log(JSON.stringify({activityMarkerPixels:pixels}));
- await page.waitForFunction(element=>element.checked,await page.getByLabel('움직임 줄이기',{exact:true}).elementHandle());
+ const nativeMotion=page.getByRole('main').getByRole('checkbox',{name:'움직임 줄이기',exact:true});
+ await page.waitForFunction(element=>element.checked && element.disabled,await nativeMotion.elementHandle());
  assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);
  console.log(JSON.stringify({passed:true,checks:['explicit Read/Edit/Bash starts','completion returns generic work','3D selected activity','actual Edit/Bash canvas color pixels appear and clear','normal and reduced-motion','no page errors or writes']}));
 }finally{await browser.close()}
