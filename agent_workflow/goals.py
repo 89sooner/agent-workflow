@@ -459,7 +459,9 @@ def plan_goal(store, task, timeout, fd, current, refs):
     # Planning can add detail, but may not drop a registered check the original
     # objective already selected, including when the planner paraphrases it.
     required = [task["criteria"][number - 1] for number in criterion_checks.bindings(task)]
-    task["criteria"] = validate_plan({"criteria": list(dict.fromkeys([*required, *plan["criteria"]]))})["criteria"]
+    # invoke already validated the planner's 1–12 items. A pre-existing
+    # requirement does not consume one of those slots.
+    task["criteria"] = list(dict.fromkeys([*required, *plan["criteria"]]))
     g.update(needs_plan=False, items=[new_item(n) for n in range(1, len(task["criteria"]) + 1)])
     save_goal(store, task, "plan_created", {"criteria": task["criteria"]})
 

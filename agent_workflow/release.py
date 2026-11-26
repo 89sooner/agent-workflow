@@ -403,9 +403,14 @@ def release_diagnosis(task):
         else:
             action, next_action = "confirm_deployment", "대상에 적용된 버전을 직접 확인하세요. 재배포가 필요할 때만 --retry-deploy를 사용하세요."
     elif state == "applied" and r.get("stage") != "deployed":
-        stage, reason = "deployment", "배포 적용 기록이 있고 최종 상태 검사 성공을 기다립니다."
+        stage = "deployment"
         effects.append(f"적용 기록 {r.get('merge_commit')}")
-        action, next_action = "health", "재개 시 상태 검사를 실행합니다."
+        if recorded_integration(r) == "succeeded":
+            reason = "배포 적용 기록이 있고 최종 상태 검사 성공을 기다립니다."
+            action, next_action = "health", "재개 시 상태 검사를 실행합니다."
+        else:
+            reason = "적용은 기록됐고 상태 검사에 필요한 통합 검사 근거를 다시 확인해야 합니다."
+            action, next_action = "verify_integration", "병합 커밋의 통합 검사를 확인한 뒤 상태 검사를 진행합니다."
     elif r.get("commit") or r.get("stage") == "preparing":
         reason = ("원격 대상에서 확인한 효과를 릴리스 기록에 연결했습니다." if reconciled else
                   "원장에 기록된 마지막 릴리스 단계와 영수증을 확인했습니다.")

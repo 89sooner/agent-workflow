@@ -114,6 +114,8 @@ class ResumePacketTests(unittest.TestCase):
               "integration_verification": {"revision": merge, "finished_at": "now", "passed": False}}, "verify_integration"),
             ({"integration_verification": {"revision": merge, "finished_at": "now", "passed": True}}, "deploy"),
             ({"stage": "deploying", "deployment_state": "applied"}, "health"),
+            ({"integration_verification": {"revision": merge, "finished_at": "again", "passed": False}}, "verify_integration"),
+            ({"integration_verification": {"revision": merge, "finished_at": "again", "passed": True}}, "health"),
             ({"stage": "deployed", "deployed_revision": merge}, "inspect_release"),
             ({"health_result": {"exit_code": 0, "timed_out": False}}, "complete"),
         ]

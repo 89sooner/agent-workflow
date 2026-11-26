@@ -145,6 +145,22 @@ class CriterionCheckTests(unittest.TestCase):
         self.assertEqual([r["text"] for r in waiting["criteria"]], [REQUIREMENT, REQUIREMENT + "."])
         self.assertEqual(waiting["criteria"][0]["check_evidence"]["state"], "skipped")
 
+    def test_full_planner_response_can_coexist_with_the_bound_objective(self):
+        command = self.command()
+        profiles.save(self.store, "full-plan", {**self.cfg, "checks": [command],
+                      "execution": {"max_agent_calls": 1},
+                      "criterion_checks": {REQUIREMENT: {"check": command}}})
+        self.cli("create", "MAX", "--profile", "full-plan", "--goal", REQUIREMENT)
+        additional = [f"Planned check {i}" for i in range(12)]
+        self.script({"criteria": additional})
+        for _ in range(2):
+            with self.assertRaisesRegex(WorkflowError, "호출 한도"):
+                self.cli("run", "MAX")
+        task = self.store.get("MAX")
+        self.assertEqual(task["criteria"], [REQUIREMENT, *additional])
+        self.assertFalse(task["katakuri_goal"]["needs_plan"])
+        self.assertEqual(task["usage"]["agent_calls"], 1)
+
     def test_completed_goal_evidence_is_bound_to_verified_source(self):
         task = self.create()
         source = self.root / "report.xml"
