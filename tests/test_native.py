@@ -180,21 +180,21 @@ class NativeTests(unittest.TestCase):
         observer = Mock()
         observer.view.return_value = {"tasks": [{"id": "ses_wait", "project": str(self.project),
             "goal": "test", "status": "idle"}]}
-        source = {"id": "opencode-fixture"}
+        source = {"id": "opencode-fixture", "url": "http://127.0.0.1:4096", "directory": str(self.project)}
         def response(endpoint):
             return [{"sessionID": "ses_wait"}] if endpoint == "/permission" else []
-        with patch.object(opencode, "sources", return_value=[source]), patch.object(opencode, "Client") as client:
-            client.return_value.get.side_effect = response
+        with patch.object(opencode, "sources", return_value=[source]), patch.object(opencode.Client, "get") as get:
+            get.side_effect = response
             with patch("agent_workflow.native.time.time", return_value=1000):
                 row = native.snapshot(self.home, observer)["sessions"][0]
                 self.assertEqual(row["waiting_since"], 1000)
-            client.return_value.get.side_effect = WorkflowError("temporary failure")
+            get.side_effect = WorkflowError("temporary failure")
             with patch("agent_workflow.native.time.time", return_value=1100):
                 failed = native.snapshot(self.home, observer)
                 self.assertTrue(failed["errors"])
                 self.assertEqual(failed["sessions"][0]["state"], "unknown")
                 self.assertEqual(failed["sessions"][0]["observed_state"], "approval")
-            client.return_value.get.side_effect = response
+            get.side_effect = response
             with patch("agent_workflow.native.time.time", return_value=1200):
                 row = native.snapshot(self.home, observer)["sessions"][0]
                 self.assertEqual(row["waiting_since"], 1000)

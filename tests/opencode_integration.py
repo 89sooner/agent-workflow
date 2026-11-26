@@ -23,7 +23,7 @@ def main():
     native = None
     if os.environ.get('OPENCODE_TEST_URL'):
         native = connect(fixture.home, os.environ['OPENCODE_TEST_URL'], os.environ['OPENCODE_TEST_PROJECT'],
-                         name='OpenCode 실제 서버 검증')['source']
+                         name='OpenCode 실제 서버 검증', password_env=os.environ.get('OPENCODE_TEST_PASSWORD_ENV'))['source']
     server = fixture.server(handler(fixture.home, 'fixture', read_only=True, observer=True))
 
     applied = []

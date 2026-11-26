@@ -57,11 +57,19 @@ class OpenCodeTests(unittest.TestCase):
                     self.end_headers()
                     return
                 path = urlsplit(self.path).path
+                if hasattr(test, 'v2') and path == '/global/health':
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'text/html')
+                    self.end_headers()
+                    self.wfile.write(b'<html></html>')
+                    return
                 value = ({'healthy': True, 'version': test.version} if path == '/global/health' else
                          test.rows if path == '/session' else test.statuses if path == '/session/status' else
                          getattr(test, 'permissions', []) if path == '/permission' else
                          getattr(test, 'questions', []) if path == '/question' else
                          test.messages if path.endswith('/message') else {'error': 'unknown'})
+                if hasattr(test, 'v2'):
+                    value = test.v2.get(path)
                 body = json.dumps(value).encode()
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
@@ -208,6 +216,34 @@ class OpenCodeTests(unittest.TestCase):
         with self.assertRaises(WorkflowError):
             self.connect()
         self.assertFalse((self.home / 'opencode.json').exists())
+
+    def test_v2_session_scope_activity_and_message_metadata(self):
+        self.v2 = {
+            '/api/info': {'version': '2.2.7'},
+            '/api/session': {'data': [
+                {'id': 'ses_one', 'location': {'directory': self.project}, 'time': {'updated': 3}},
+                {'id': 'ses_other', 'location': {'directory': '/elsewhere'}, 'time': {'updated': 4}}]},
+            '/api/session/active': {'data': {'ses_one': {'type': 'running'}}},
+            '/api/form': {'data': [{'sessionID': 'ses_one'}]},
+            '/api/permission/request': {'data': []},
+            '/api/session/ses_one/message': {'data': [{
+                'id': 'msg_one', 'type': 'assistant', 'agent': 'reviewer', 'time': {'created': 1},
+                'model': {'providerID': 'provider', 'id': 'model'},
+                'content': [{'id': 'tool_one', 'type': 'tool', 'name': 'read', 'time': {'ran': 2},
+                             'state': {'status': 'running', 'input': {'text': 'PRIVATE_INPUT'}}},
+                            {'type': 'text', 'text': 'PRIVATE_OUTPUT'}]}]},
+        }
+        source = self.connect()
+        observer = Observer(self.home)
+        self.assertEqual([task['id'] for task in observer.view(source['id'])['tasks']], ['ses_one'])
+        detail = observer.view(source['id'], 'ses_one')
+        self.assertEqual(detail['task']['status'], 'running')
+        self.assertEqual(detail['actors'][0]['observed_model'], 'provider/model')
+        self.assertEqual(detail['spans'][1]['label'], 'read')
+        self.assertNotIn('PRIVATE_', json.dumps(detail))
+        self.assertEqual(Client(source).waits('/permission'), [])
+        self.assertEqual(Client(source).waits('/question'), [{'sessionID': 'ses_one'}])
+        self.assertTrue(all(method == 'GET' for method, _, _ in self.calls))
 
     def test_session_limit_and_empty_response(self):
         source = self.connect()

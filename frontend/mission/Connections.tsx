@@ -25,7 +25,7 @@ export function diagnosis(error: string) {
     return {
       title: "지원 범위를 확인해 주세요",
       action:
-        "OpenCode 1.x 서버의 세션 API가 필요합니다. 다른 도구는 아래 지원 범위를 확인하세요.",
+        "OpenCode 1.x 또는 2.2.7 서버의 세션 API가 필요합니다. 다른 도구는 아래 지원 범위를 확인하세요.",
     };
   if (/프로젝트|디렉터리|경로/.test(error))
     return {

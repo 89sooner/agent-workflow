@@ -63,7 +63,7 @@ python3 -m agent_workflow --home /path/to/observer opencode disconnect opencode-
 | 항목 | 의미 |
 |---|---|
 | 세션 목록 | 지정한 directory에서 읽은 최근 세션, 제목·네이티브 ID·마지막 갱신 |
-| 실행 중 | OpenCode 상태 API의 `busy`; 로컬 workflow controller PID의 생존 여부와 다름 |
+| 실행 중 | OpenCode 상태 API의 `busy`(1.x) 또는 `running`(2.2.7); 로컬 workflow controller PID의 생존 여부와 다름 |
 | 대기 | `idle`; OpenCode 1.3.17은 idle 세션을 상태 목록에서 제거함 |
 | 재시도 대기 | `retry`; 현재 재시도 상세 본문은 수집하지 않음 |
 | 상태 미확인 | 해석할 수 없는 상태 또는 끝나지 않은 과거 메시지·도구 |
@@ -86,12 +86,13 @@ python3 -m agent_workflow --home /path/to/observer opencode disconnect opencode-
 
 연결 최대 8개, 세션 최근 200개, 메시지 최근 100개, HTTP 응답 4 MiB로 제한한다.
 조회 범위 밖 세션/응답은 없는 기록으로 추정하지 않고 오류 또는 잘림을 표시한다.
-OpenCode 1.3.17에서 실제 검증했다. 1.x라도 API 차이는 별도 확인이 필요하며 2.x는
-현재 연결 단계에서 지원하지 않는 버전으로 안내한다.
+1.3.17과 2.2.7은 별도 API를 사용한다. 2.2.7 서버가 시작할 때 발급한 비밀번호를
+관제실 환경변수에 넣고 연결 시 변수 이름을 지정한다. 연결기는 Basic 인증으로
+`/api/info`, `/api/session`, `/api/session/active`를 조회한다. 2.x 지원 범위는 2.2.7이다.
 
 ## 확인 결과와 개발 검사
 
-- 실제 OpenCode 1.3.17: health·세션 API 조회, 브라우저를 연 뒤 만든 새 세션의 자동 발견.
+- 실제 OpenCode 1.3.17 및 2.2.7: 버전·세션 API 조회, 브라우저를 연 뒤 만든 새 세션의 자동 발견.
 - 합성 실행 fixture: 실제 이름·모델 필드, 도구 그래프, 이전 응답, 인증 실패, 단절·복구.
 - 관측 요청은 GET만 사용하고 workflow DB/task/job을 생성하지 않음을 검사.
 - 실제 유료 모델 호출로 생성한 실행의 수용 검증은 이번 검사에 포함하지 않았다.

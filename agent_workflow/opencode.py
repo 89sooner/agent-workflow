@@ -65,6 +65,10 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
+class _HTMLResponse(WorkflowError):
+    """The 2.2.7 web server serves its HTML shell on legacy paths."""
+
+
 class Client:
     def __init__(self, source):
         self.source = source
@@ -72,7 +76,8 @@ class Client:
 
     def get(self, path, **params):
         # All callers use fixed read endpoints; neither redirects nor environment proxies are followed.
-        params = {"directory": self.source["directory"], **params}
+        if not path.startswith("/api/"):
+            params = {"directory": self.source["directory"], **params}
         headers = {"Accept": "application/json"}
         env = self.source.get("password_env")
         if env:
@@ -84,6 +89,8 @@ class Client:
         request = Request(self.url + path + "?" + urlencode(params), headers=headers, method="GET")
         try:
             with build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=3) as response:
+                if response.headers.get_content_type() == "text/html":
+                    raise _HTMLResponse("OpenCode JSON API 대신 HTML 응답을 받았습니다.")
                 raw = response.read(MAX_BYTES + 1)
             if len(raw) > MAX_BYTES:
                 raise WorkflowError("OpenCode 응답이 조회 한도(4 MiB)를 넘었습니다.")
@@ -93,6 +100,53 @@ class Client:
             raise WorkflowError(f"OpenCode HTTP {exc.code}. {hint}") from None
         except (URLError, OSError, ValueError):
             raise WorkflowError("OpenCode 응답을 읽지 못했습니다. 서버 연결과 JSON API 지원을 확인하세요.") from None
+
+    def page(self, path, expected, **params):
+        response = self.get(path, **params)
+        if not isinstance(response, dict) or not isinstance(response.get("data"), expected):
+            raise WorkflowError("지원되지 않는 OpenCode API 응답입니다.")
+        return response["data"]
+
+    def waits(self, path):
+        if self.source.get("version") == "2.2.7":
+            api = {"/question": "/api/form", "/permission": "/api/permission/request"}
+            return self.page(api[path], list, **{"location[directory]": self.source["directory"]})
+        return self.get(path)
+
+    def messages(self, task_id):
+        path = "/session/" + quote(task_id, safe="") + "/message"
+        if self.source.get("version") != "2.2.7":
+            return self.get(path, limit=MAX_MESSAGES)
+        rows = self.page("/api" + path, list, limit=MAX_MESSAGES, order="desc")
+        return [_message_v2(row, task_id) for row in rows]
+
+
+def _message_v2(row, task_id):
+    if not isinstance(row, dict) or not isinstance(row.get("type"), str):
+        raise WorkflowError("지원되지 않는 OpenCode 메시지 응답입니다.")
+    info = {"role": row["type"], "sessionID": task_id}
+    parts = []
+    if row["type"] == "assistant":
+        model = row.get("model")
+        content = row.get("content")
+        if not isinstance(model, dict) or not isinstance(content, list):
+            raise WorkflowError("지원되지 않는 OpenCode assistant 메시지입니다.")
+        info.update({key: row.get(key) for key in ("id", "time", "agent", "finish", "error")})
+        info.update(providerID=model.get("providerID"), modelID=model.get("id"))
+        for part in content:
+            if not isinstance(part, dict):
+                raise WorkflowError("지원되지 않는 OpenCode 메시지 part입니다.")
+            if part.get("type") == "tool":
+                state, times = part.get("state"), part.get("time")
+                if not isinstance(state, dict) or not isinstance(times, dict):
+                    raise WorkflowError("지원되지 않는 OpenCode 도구 상태입니다.")
+                status = state.get("status")
+                parts.append({"id": part.get("id"), "sessionID": task_id, "messageID": info["id"],
+                              "type": "tool", "tool": part.get("name"),
+                              "state": {"status": "pending" if status == "streaming" else status,
+                                        "time": {"start": times.get("ran", times.get("created")),
+                                                 "end": times.get("completed")}}})
+    return {"info": info, "parts": parts}
 
 
 def connect(home, url, directory, name="OpenCode", password_env=None, username="opencode"):
@@ -105,12 +159,19 @@ def connect(home, url, directory, name="OpenCode", password_env=None, username="
     record = {"id": source_id(url, directory), "url": url, "directory": directory,
               "name": name, "password_env": password_env, "username": username}
     client = Client(record)
-    health = client.get("/global/health")
-    if not isinstance(health, dict) or health.get("healthy") is not True or not isinstance(health.get("version"), str):
-        raise WorkflowError("OpenCode health/version 응답을 확인할 수 없습니다.")
-    record["version"] = health["version"]
-    if not record["version"].startswith("1."):
-        raise WorkflowError("이 연결기는 OpenCode 1.x 세션 API용입니다. 서버 버전 호환성을 확인하세요.")
+    try:
+        health = client.get("/global/health")
+    except _HTMLResponse:
+        info = client.get("/api/info")
+        if not isinstance(info, dict) or info.get("version") != "2.2.7":
+            raise WorkflowError("지원되지 않는 OpenCode 서버 버전입니다.")
+        record["version"] = info["version"]
+    else:
+        if not isinstance(health, dict) or health.get("healthy") is not True or not isinstance(health.get("version"), str):
+            raise WorkflowError("OpenCode health/version 응답을 확인할 수 없습니다.")
+        if not health["version"].startswith("1."):
+            raise WorkflowError("지원되지 않는 OpenCode 서버 버전입니다.")
+        record["version"] = health["version"]
     _sessions(client)  # Validate the selected instance before persisting a connection.
     with _registry_lock(state_home(home)):
         records = [s for s in sources(home) if s["id"] != record["id"]] + [record]
@@ -130,8 +191,15 @@ def disconnect(home, identifier):
 
 
 def _sessions(client):
-    rows = client.get("/session", limit=MAX_SESSIONS + 1)
-    statuses = client.get("/session/status")
+    if client.source.get("version") == "2.2.7":
+        rows = client.page("/api/session", list, directory=client.source["directory"], limit=MAX_SESSIONS + 1)
+        if any(not isinstance(s, dict) or not isinstance(s.get("location"), dict) for s in rows):
+            raise WorkflowError("지원되지 않는 OpenCode 세션 위치입니다.")
+        rows = [{**s, "directory": s["location"].get("directory")} for s in rows]
+        statuses = client.page("/api/session/active", dict)
+    else:
+        rows = client.get("/session", limit=MAX_SESSIONS + 1)
+        statuses = client.get("/session/status")
     if (not isinstance(rows, list) or not isinstance(statuses, dict)
             or any(not isinstance(s, dict) or not isinstance(s.get("id"), str)
                    or not isinstance(s.get("directory"), str) or not isinstance(s.get("time"), dict) for s in rows)
@@ -155,7 +223,7 @@ def _iso(value):
 
 def _status(sid, statuses):
     # OpenCode 1.3.17 SessionStatus removes idle entries; absent entry is idle on a successful snapshot.
-    return {"busy": "running", "idle": "idle", "retry": "retrying"}.get(statuses.get(sid, {}).get("type", "idle"), "unknown")
+    return {"busy": "running", "running": "running", "idle": "idle", "retry": "retrying"}.get(statuses.get(sid, {}).get("type", "idle"), "unknown")
 
 
 def _task(session, statuses):
@@ -240,7 +308,7 @@ class Observer:
             raise WorkflowError("이 연결의 최근 세션 목록에 없는 ID입니다. 프로젝트와 세션 목록을 확인하세요.")
         task = _task(session, statuses)
         data["task"] = task
-        messages = Client(source).get("/session/" + quote(task_id, safe="") + "/message", limit=MAX_MESSAGES)
+        messages = Client(source).messages(task_id)
         if not isinstance(messages, list):
             raise WorkflowError("지원되지 않는 OpenCode 메시지 응답입니다.")
         valid = []

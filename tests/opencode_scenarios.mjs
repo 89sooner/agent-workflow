@@ -70,10 +70,19 @@ try{
     // Explicit fixture creation on the isolated native test server, outside the observed browser.
     // No prompt/model APIs are called. The connector itself remains GET-only.
     const title='자동 발견 검증 '+Date.now();
-    const response=await fetch(f.native.url+'/session?'+new URLSearchParams({directory:f.native.directory}),{
-      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
+    const v2 = f.native.version === '2.2.7';
+    const headers = {'Content-Type':'application/json'};
+    if (f.native.password_env) {
+      const credential = f.native.username + ':' + process.env[f.native.password_env];
+      headers.Authorization = 'Basic ' + Buffer.from(credential).toString('base64');
+    }
+    const route = v2 ? '/api/session' : '/session?' + new URLSearchParams({directory:f.native.directory});
+    const body = v2 ? {title, location:{directory:f.native.directory}} : {title};
+    const response = await fetch(f.native.url + route, {method:'POST', headers, body:JSON.stringify(body)});
     assert.equal(response.ok,true);
-    const session=await response.json();
+    const result = await response.json();
+    const session = v2 ? result.data : result;
+    assert.equal(typeof session.id, 'string');
     await until(async()=>!!await page.locator('.task-item').filter({hasText:title}).count());
     await page.locator('.task-item').filter({hasText:title}).click();
     await until(async()=>(await page.locator('.page-heading').innerText()).includes(session.id));
