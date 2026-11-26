@@ -17,7 +17,10 @@ const until = async fn => {
   throw Error('Expected onboarding state did not appear');
 };
 const command = async value => {
-  await fs.writeFile(f.control,value);
+  // Publish only complete commands to the polling fixture.
+  const pending = f.control + '.next';
+  await fs.writeFile(pending,value);
+  await fs.rename(pending,f.control);
   await until(async()=>{try{await fs.access(f.control);return false;}catch{return true;}});
 };
 const screenshot = async name => {
