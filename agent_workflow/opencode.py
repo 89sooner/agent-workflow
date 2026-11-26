@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import threading
 import time
 from urllib.error import HTTPError, URLError
@@ -20,6 +21,7 @@ from .core import WorkflowError, atomic_write, now
 MAX_SESSIONS = 200
 MAX_MESSAGES = 100
 MAX_BYTES = 4 * 1024 * 1024
+LOCAL_SERVICE_VERSION = "2.2.7"
 
 
 def endpoint(value):
@@ -51,6 +53,11 @@ def sources(home):
                 raise ValueError()
             if item.get("password_env") and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", item["password_env"]):
                 raise ValueError()
+            if (type(item.get("follow_local_service", False)) is not bool
+                    or item.get("follow_local_service") and
+                    (item.get("version") != LOCAL_SERVICE_VERSION or item.get("password_env")
+                     or item.get("username") != "opencode")):
+                raise ValueError()
         return data["sources"]
     except (ValueError, TypeError, AttributeError, KeyError):
         raise WorkflowError("OpenCode 연결 설정이 손상되었습니다. opencode connect로 연결을 다시 설정하세요.") from None
@@ -58,6 +65,31 @@ def sources(home):
 
 def source_id(url, directory):
     return "opencode-" + hashlib.sha256((url + "\0" + directory).encode()).hexdigest()[:20]
+
+
+def _local_service():
+    state = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state")
+    path = state / "opencode/service.json"
+    try:
+        flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+        with os.fdopen(os.open(path, flags), "rb") as descriptor:
+            info = os.fstat(descriptor.fileno())
+            if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                    or stat.S_IMODE(info.st_mode) & 0o077):
+                raise ValueError()
+            raw = descriptor.read(16_385)
+        if len(raw) > 16_384:
+            raise ValueError()
+        service = json.loads(raw)
+        pid, password = service["pid"], service["password"]
+        if (service["version"] != LOCAL_SERVICE_VERSION or type(pid) is not int or pid <= 0
+                or not isinstance(password, str) or not password.strip()):
+            raise ValueError()
+        url = endpoint(service["url"])
+        os.kill(pid, 0)
+        return url, pid, password
+    except (OSError, ValueError, KeyError, TypeError, OverflowError, WorkflowError):
+        raise WorkflowError("로컬 OpenCode 2.2.7 서비스 정보를 읽을 수 없습니다. 서비스를 확인하세요.") from None
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -72,18 +104,30 @@ class _HTMLResponse(WorkflowError):
 class Client:
     def __init__(self, source):
         self.source = source
-        self.url = endpoint(source["url"])
+        self.service_pid = None
+        self._password = None
+        if source.get("follow_local_service"):
+            self.url, self.service_pid, self._password = _local_service()
+        else:
+            self.url = endpoint(source["url"])
+
+    def cache_key(self):
+        # A credential change on the same port invalidates the cached snapshot too.
+        password_digest = hashlib.sha256(self._password.encode()).digest() if self._password else None
+        return json.dumps(self.source, sort_keys=True), self.url, self.service_pid, password_digest
 
     def get(self, path, **params):
         # All callers use fixed read endpoints; neither redirects nor environment proxies are followed.
         if not path.startswith("/api/"):
             params = {"directory": self.source["directory"], **params}
         headers = {"Accept": "application/json"}
+        password = self._password
         env = self.source.get("password_env")
         if env:
             password = os.environ.get(env)
             if not password:
                 raise WorkflowError(f"OpenCode 인증 환경변수가 없습니다: {env}")
+        if password:
             credential = (self.source.get("username", "opencode") + ":" + password).encode()
             headers["Authorization"] = "Basic " + base64.b64encode(credential).decode()
         request = Request(self.url + path + "?" + urlencode(params), headers=headers, method="GET")
@@ -149,7 +193,8 @@ def _message_v2(row, task_id):
     return {"info": info, "parts": parts}
 
 
-def connect(home, url, directory, name="OpenCode", password_env=None, username="opencode"):
+def connect(home, url, directory, name="OpenCode", password_env=None, username="opencode", *,
+            follow_local_service=False):
     url = endpoint(url)
     directory = str(Path(directory).expanduser().resolve())
     if not name.strip() or len(name) > 120 or any(ord(c) < 32 for c in name + username):
@@ -158,7 +203,37 @@ def connect(home, url, directory, name="OpenCode", password_env=None, username="
         raise WorkflowError("password-env에는 비밀번호 대신 환경변수 이름을 지정하세요.")
     record = {"id": source_id(url, directory), "url": url, "directory": directory,
               "name": name, "password_env": password_env, "username": username}
-    client = Client(record)
+    if follow_local_service:
+        if password_env or username != "opencode":
+            raise WorkflowError("로컬 서비스 연결은 OpenCode 서비스 파일의 인증을 사용합니다.")
+        record.update(follow_local_service=True, version=LOCAL_SERVICE_VERSION)
+        client = Client(record)
+        if client.url != url:
+            raise WorkflowError("지정한 주소가 현재 로컬 OpenCode 서비스 주소와 다릅니다.")
+        info = client.get("/api/info")
+        if (not isinstance(info, dict) or info.get("version") != LOCAL_SERVICE_VERSION
+                or info.get("pid") != client.service_pid):
+            raise WorkflowError("로컬 OpenCode 서비스의 버전과 프로세스를 확인할 수 없습니다.")
+    else:
+        client = Client(record)
+        _validate_static_connection(client)
+    _sessions(client)  # Validate the selected instance before persisting a connection.
+    with _registry_lock(state_home(home)):
+        registered = sources(home)
+        if follow_local_service:
+            existing = next((item for item in registered if item.get("follow_local_service")
+                             and item["directory"] == directory), None)
+            if existing:
+                record.update(id=existing["id"], url=existing["url"])
+        records = [s for s in registered if s["id"] != record["id"]] + [record]
+        if len(records) > 8:
+            raise WorkflowError("OpenCode 연결은 최대 8개까지 지원합니다.")
+        atomic_write(state_home(home) / "opencode.json", json.dumps({"version": 1, "sources": records}, ensure_ascii=False, indent=2))
+    return {"source": record, "execution_started": False, "next": "같은 home으로 watch를 실행하고 /mission에서 OpenCode 연결을 선택하세요."}
+
+
+def _validate_static_connection(client):
+    record = client.source
     try:
         health = client.get("/global/health")
     except _HTMLResponse:
@@ -172,13 +247,6 @@ def connect(home, url, directory, name="OpenCode", password_env=None, username="
         if not health["version"].startswith("1."):
             raise WorkflowError("지원되지 않는 OpenCode 서버 버전입니다.")
         record["version"] = health["version"]
-    _sessions(client)  # Validate the selected instance before persisting a connection.
-    with _registry_lock(state_home(home)):
-        records = [s for s in sources(home) if s["id"] != record["id"]] + [record]
-        if len(records) > 8:
-            raise WorkflowError("OpenCode 연결은 최대 8개까지 지원합니다.")
-        atomic_write(state_home(home) / "opencode.json", json.dumps({"version": 1, "sources": records}, ensure_ascii=False, indent=2))
-    return {"source": record, "execution_started": False, "next": "같은 home으로 watch를 실행하고 /mission에서 OpenCode 연결을 선택하세요."}
 
 
 def disconnect(home, identifier):
@@ -261,13 +329,13 @@ class Observer:
             raise WorkflowError("등록되지 않은 OpenCode 연결입니다. opencode connect로 연결하세요.")
         return source
 
-    def snapshot(self, source):
-        key = json.dumps(source, sort_keys=True)
+    def snapshot(self, client):
+        key = client.cache_key()
         with self.lock:
             cached = self.cache.get(key)
             if cached and time.monotonic() - cached[0] < 2:
                 return cached[1]
-            value = _sessions(Client(source))
+            value = _sessions(client)
             self.cache = {k: v for k, v in self.cache.items() if time.monotonic() - v[0] < 2}
             self.cache[key] = (time.monotonic(), value)
             return value
@@ -279,7 +347,9 @@ class Observer:
                     "task_count": 0, "matching_task_count": 0, "status": "available",
                     "projects": [{"id": source["id"], "path": source["directory"]}]}
             try:
-                rows, _, truncated = self.snapshot(source)
+                client = Client(source)
+                item["home"] = client.url
+                rows, _, truncated = self.snapshot(client)
                 item.update(task_count=len(rows), matching_task_count=len(rows), truncated=truncated)
             except WorkflowError as exc:
                 item.update(status="unavailable", error=str(exc))
@@ -288,7 +358,8 @@ class Observer:
 
     def view(self, identifier, task_id=None, run_id=None, project=None):
         source = self.source(identifier)
-        rows, statuses, truncated = self.snapshot(source)
+        client = Client(source)
+        rows, statuses, truncated = self.snapshot(client)
         data = _empty()
         if project and project != source["directory"]:
             rows = []
@@ -308,7 +379,7 @@ class Observer:
             raise WorkflowError("이 연결의 최근 세션 목록에 없는 ID입니다. 프로젝트와 세션 목록을 확인하세요.")
         task = _task(session, statuses)
         data["task"] = task
-        messages = Client(source).messages(task_id)
+        messages = client.messages(task_id)
         if not isinstance(messages, list):
             raise WorkflowError("지원되지 않는 OpenCode 메시지 응답입니다.")
         valid = []

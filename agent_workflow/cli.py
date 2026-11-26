@@ -209,6 +209,8 @@ def parser():
     o.add_argument("--name", default="OpenCode")
     o.add_argument("--password-env", help="OpenCode 서버 비밀번호를 담은 환경변수 이름")
     o.add_argument("--username", default="opencode")
+    o.add_argument("--follow-local-service", action="store_true",
+                   help="OpenCode 2.2.7 로컬 서비스의 현재 주소와 인증 사용")
     oc.add_parser("list", help="저장된 OpenCode 연결 조회")
     o = oc.add_parser("disconnect", help="관측 연결만 해제; OpenCode 세션·서버 보존")
     o.add_argument("id")
@@ -508,7 +510,8 @@ def dispatch(args):
     if args.command == "opencode":
         from . import opencode
         if args.opencode_command == "connect":
-            return opencode.connect(args.home, args.url, args.project, args.name, args.password_env, args.username)
+            return opencode.connect(args.home, args.url, args.project, args.name, args.password_env,
+                                    args.username, follow_local_service=args.follow_local_service)
         if args.opencode_command == "disconnect":
             return opencode.disconnect(args.home, args.id)
         return opencode.sources(args.home)

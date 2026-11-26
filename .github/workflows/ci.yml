@@ -82,6 +82,12 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/workflow-opencode-v2" --ignore-scripts --no-audit --no-fund @opencode/cli-linux-x64@2.2.7
           bash tests/opencode_ci.sh "$RUNNER_TEMP/workflow-opencode-v2/node_modules/@opencode/cli-linux-x64/bin/opencode" 2.2.7
+      - name: Verify OpenCode 2.2.7 reconnect after port and password change
+        env:
+          WORKFLOW_PLAYWRIGHT_PATH: ${{ runner.temp }}/workflow-browser/node_modules/playwright
+          WORKFLOW_SCREENSHOT_DIR: ${{ runner.temp }}/workflow-screenshots/opencode-reconnect
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: node tests/opencode_reconnect.mjs "$RUNNER_TEMP/workflow-opencode-v2/node_modules/@opencode/cli-linux-x64/bin/opencode"
       - name: React management, observatory and controller-backed browser acceptance
         env:
           WORKFLOW_PLAYWRIGHT_PATH: ${{ runner.temp }}/workflow-browser/node_modules/playwright

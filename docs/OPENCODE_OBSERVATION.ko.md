@@ -58,6 +58,15 @@ python3 -m agent_workflow --home /path/to/observer opencode disconnect opencode-
 저장하지 않는다. 연결 해제는 observer 설정만 지우며 OpenCode 서버와 세션을 보존한다.
 이 동작은 승인·프롬프트 전송·세션 중단·파일 변경·큐 실행을 수행하지 않는다.
 
+### 로컬 2.2.7 서비스 재연결
+
+`opencode service start`로 관리하는 로컬 2.2.7이라면 `opencode connect`에 현재 주소와
+`--follow-local-service`를 지정할 수 있다. 이미 등록한 주소와 프로젝트로 이 옵션을 적용하면
+기존 연결 ID가 유지된다. 관제실은 조회할 때 사용자 전용 OpenCode 서비스 파일에서 현재
+주소와 인증값을 읽는다. 포트나 비밀번호가 바뀌어도 같은 연결에서 탐색을 재개한다.
+OpenCode와 관제실은 같은 사용자와 상태 디렉터리 설정으로 실행한다.
+고정 주소의 서버에는 기존 `--password-env` 옵션을 사용한다.
+
 ## 표시되는 정보와 해석
 
 | 항목 | 의미 |
