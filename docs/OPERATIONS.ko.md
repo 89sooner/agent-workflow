@@ -1,6 +1,6 @@
 # 관제실 운영 반영과 복구
 
-[문서 찾기](README.md) · [포트와 원장](#servers) · [운영 반영](#rollout) · [실패와 복구](#rollback)
+[문서 찾기](README.md) · [포트와 원장](#servers) · [운영 반영](#rollout) · [실패와 복구](#rollback) · [OpenCode 접속 변경 검증](#opencode-live-rotation)
 
 이 절차는 관제실 프로그램을 업데이트할 때 사용한다. 특정 개발 작업의 배포 여부는 [작업별 릴리스 상태](USER_GUIDE.ko.md#release)에서 확인한다.
 
@@ -34,7 +34,8 @@ process_identity·read_only를 확인하고 `/proc/<pid>/cmdline`, cwd, 실제 �
 - 일반 `serve`: 연결 설정과 기본 원장의 작업 관리를 제공한다. 다른 원장을 관측 중이면 **관리 원장에서 새 작업 등록**으로 기본 원장에 전환한다. worker는 기존 원장의 큐를 처리한다.
 
 `connections.json`과 `opencode.json`은 해당 관제실의 home에 저장된다. 기존 연결을 유지하려면
-업그레이드·이전 시 이 파일도 보존한다. OpenCode 인증 환경변수는 새 서버 프로세스에 별도로 전달한다.
+업그레이드·이전 시 이 파일도 보존한다. 고정 주소 OpenCode의 인증 환경변수는 서버 프로세스에 전달한다.
+로컬 서비스 추적 연결은 현재 주소와 인증을 OpenCode 서비스 파일에서 읽는다.
 읽기 전용 연결을 위해 기존 관리 서버를 중단할 필요는 없다. 별도 observer home과 빈 포트의
 `watch`에서 연결 UI를 사용할 수 있다. 배포 전후 상태와 실제 브라우저 결과를 별도로 기록한다.
 
@@ -94,6 +95,249 @@ python3 -m agent_workflow --home /tmp/katakuri-h-local-queue-workflow-20261029  
 ## 정적 UI만 변경된 경우
 
 배포 전후 Python·서버·worker 코드가 같고 /api/capabilities 등 필요한 API가 정상 제공되는 경우에는 서버 재시작 없이 checkout을 fast-forward할 수 있다. 서버는 요청마다 정적 자산을 읽고 no-store로 제공한다. 이때도 원장 온라인 백업·jobs/batches·직접 실행·프로세스 식별자를 기록하고 배포 후 HTTP 해시 및 실제 브라우저를 검사한다. 서버·worker PID와 시작 식별자가 그대로인지 확인한다. 기존 탭은 새로고침해야 새 JS를 불러온다. API 미지원이나 Python 변경이 있으면 이 절차로 전체 배포를 완료했다고 판단하지 않는다.
+
+<a id="opencode-live-rotation"></a>
+
+## 실제 OpenCode 2.2.7 접속 정보 변경과 원복
+
+이 절차는 **이미 연결한 로컬 OpenCode 2.2.7 관리 서비스**의 포트와 비밀번호를 잠시
+바꿔 8776의 자동 복구를 확인하는 시험이다. OpenCode를 두 번 재시작하므로 진행 중인
+작업과 승인·질문이 없는 시간에 실행한다. 8776의 관리 프로세스와 기존 원장은 시험
+내내 유지한다. 명령은 저장소 루트에서 연 별도 Bash 셸 하나에서 순서대로 실행한다. `opencode --version`이
+2.2.7이고 `python3`, `curl`, `jq`를 사용할 수 있어야 한다.
+
+### 1. 기존 연결과 원래 설정 확인
+
+8776의 `/mission`에서 **작업 원장 / 연결**의 OpenCode를 선택하고 기존 세션이 보이는 탭을 앞에 둔다.
+화면을 새로고침하면 자동 탐색 시험은 다시 시작한다. `opencode.json`에서 이 프로젝트의
+기존 연결에 `follow_local_service: true`가 있는지 확인한다. 이 값이 없으면 먼저
+[재연결 설정 안내](OPENCODE_OBSERVATION.ko.md#follow-local-opencode)를 따른다.
+
+아래 명령은 기본 8776 원장을 사용한다. 실행 중인 8776의 원장 경로가 다르면
+`aw_state`에 그 경로를 지정한다. 비밀번호가 들어 있는 OpenCode 파일은 사용자만 열 수
+있는 임시 디렉터리에 백업한다.
+
+```bash
+set -o pipefail
+umask 077
+aw_verify=$(mktemp -d /tmp/aw-opencode-rotation.XXXXXX)
+printf '검증 백업 디렉터리 %s\n' "$aw_verify"
+aw_state="$HOME/.local/state/agent-workflow"
+aw_dashboard=http://127.0.0.1:8776
+aw_project=$(pwd -P)
+oc_config="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/service.json"
+oc_runtime="${XDG_STATE_HOME:-$HOME/.local/state}/opencode/service.json"
+
+opencode --version
+jq -e '{url,pid,version} | select(.version == "2.2.7")' "$oc_runtime"
+aw_source_id=$(jq -er --arg project "$aw_project" \
+  '[.sources[] | select(.directory == $project and .follow_local_service == true)]
+   | select(length == 1) | .[0].id' \
+  "$aw_state/opencode.json")
+printf 'OpenCode connection: %s\n' "$aw_source_id"
+jq -er .pid "$aw_state/server.json" > "$aw_verify/dashboard-pid"
+oc_original_url=$(jq -er '.url | select(test("^http://127[.]0[.]0[.]1:[0-9]+$"))' "$oc_runtime")
+oc_original_port=${oc_original_url##*:}
+oc_original_pid=$(jq -er .pid "$oc_runtime")
+cp -p -- "$oc_config" "$aw_verify/original-service.json"
+sha256sum "$aw_state/connections.json" "$aw_state/opencode.json" > "$aw_verify/registries.sha256"
+{
+  declare -p aw_verify aw_state aw_dashboard aw_source_id oc_config oc_runtime oc_original_url oc_original_port
+  for aw_env in XDG_CONFIG_HOME XDG_STATE_HOME XDG_DATA_HOME XDG_CACHE_HOME TMPDIR; do
+    declare -p "$aw_env" 2>/dev/null || printf 'unset %s\n' "$aw_env"
+  done
+} > "$aw_verify/paths.bash"
+
+aw_ledgers() {
+  curl --noproxy '*' -fsS "$aw_dashboard/api/connections" |
+    jq -eS --arg id "$aw_source_id" --arg url "$1" '
+      .ledgers
+      | select(any(.[]; .kind != "opencode"))
+      | select(all(.[]; .status == "available"))
+      | select(any(.[]; .id == $id and .kind == "opencode" and .home == $url))
+      | map({id,kind,status}) | sort_by(.id)'
+}
+oc_idle() {
+  opencode api GET /api/session/active | jq -e '.data | type == "object" and length == 0' &&
+    opencode api GET /api/permission/request | jq -e '.data | type == "array" and length == 0' &&
+    opencode api GET /api/form | jq -e '.data | type == "array" and length == 0'
+}
+aw_ledgers "$oc_original_url" | tee "$aw_verify/ledgers-before.json"
+oc_idle
+```
+
+기존 원장과 OpenCode 연결 상태가 모두 `available`이고 마지막 세 점검이 모두 `true`인지
+확인한다. 하나라도 다르면 시험을 시작하기 전에 원인을 확인한다. 접속 정보 파일 전체나
+인증 헤더를 화면·공유 로그에 출력하지 않는다.
+
+### 2. 임시 포트와 비밀번호로 바꾸기
+
+원래 설정의 다른 항목은 보존한다. 아래 함수는 같은 디렉터리에 모드 `0600`의 임시 파일을
+쓴 뒤 한 번에 교체한다. 터미널에는 포트·PID·버전만 표시한다.
+
+```bash
+oc_write_config() {
+  python3 - "$oc_config" "$aw_verify/original-service.json" "$@" <<'PY'
+import json
+import os
+from pathlib import Path
+import secrets
+import socket
+import sys
+import tempfile
+
+target, backup = map(Path, sys.argv[1:3])
+payload = backup.read_bytes()
+mode = sys.argv[3]
+if mode == "rotate":
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    data = json.loads(payload)
+    data.update(port=port, password=secrets.token_urlsafe(32))
+    payload = json.dumps(data).encode()
+    with backup.with_name("temporary-service.json").open("xb") as temporary:
+        temporary.write(payload)
+elif mode == "rebind":
+    data = json.loads(payload)
+    data["port"] = int(sys.argv[4])
+    payload = json.dumps(data).encode()
+elif mode != "restore":
+    raise SystemExit("Unknown configuration action")
+
+with tempfile.NamedTemporaryFile(dir=target.parent, prefix=".service-", delete=False) as file:
+    file.write(payload)
+    pending = Path(file.name)
+try:
+    os.replace(pending, target)
+finally:
+    pending.unlink(missing_ok=True)
+PY
+}
+
+oc_check_auth() {
+  python3 - "$oc_runtime" "$@" <<'PY'
+import base64
+import http.client
+import json
+from pathlib import Path
+import sys
+from urllib.parse import urlsplit
+
+runtime_path, expected, credential_path = sys.argv[1:]
+runtime, credential = (json.loads(Path(arg).read_bytes()) for arg in (runtime_path, credential_path))
+url = urlsplit(runtime["url"])
+if url.scheme != "http" or url.hostname != "127.0.0.1" or not url.port:
+    raise SystemExit("Expected the loopback HTTP service")
+token = base64.b64encode(("opencode:" + credential["password"]).encode()).decode()
+connection = http.client.HTTPConnection("127.0.0.1", url.port, timeout=6)
+try:
+    connection.request("GET", "/api/info", headers={"Authorization": "Basic " + token})
+    response = connection.getresponse()
+    print("HTTP", response.status)
+    if response.status != int(expected):
+        raise SystemExit(f"Expected HTTP {expected}")
+    if response.status == 200:
+        info = json.load(response)
+        if info["version"] != "2.2.7" or info["pid"] != runtime["pid"]:
+            raise SystemExit("Unexpected OpenCode version or PID")
+finally:
+    connection.close()
+PY
+}
+
+aw_ledgers "$oc_original_url" > /dev/null &&
+  oc_idle && cmp -s "$oc_config" "$aw_verify/original-service.json" &&
+  oc_check_auth 200 "$aw_verify/original-service.json" &&
+  oc_write_config rotate && opencode service restart &&
+  jq -e --arg url "$oc_original_url" --argjson pid "$oc_original_pid" \
+    'select(.version == "2.2.7" and .url != $url and .pid != $pid) | {url,pid,version}' "$oc_runtime" &&
+  oc_check_auth 200 "$aw_verify/temporary-service.json" &&
+  oc_check_auth 401 "$aw_verify/original-service.json"
+```
+
+새 주소에는 임시 비밀번호로 HTTP 200, 이전 비밀번호로 HTTP 401이 나와야 한다.
+파일을 바꾸기 전에 점검이 실패하면 중지한다. 파일을 바꾼 뒤에 재시작이나 인증 확인이
+실패하면 바로 원복 단계로 이동한다.
+
+### 3. 새로고침 없이 새 세션 확인
+
+원래 선택한 OpenCode 연결에서 **이미 열어 둔 탭**을 그대로 사용한다. OpenCode에서 같은
+프로젝트의 빈 세션을 만든다. 아래 명령은 테스트 세션만 만들며 모델에 메시지를 보내지 않는다.
+
+```bash
+oc_title="8776 OpenCode 재연결 검증 $(date +%Y%m%d-%H%M%S)"
+oc_payload=$(jq -nc --arg title "$oc_title" --arg dir "$aw_project" \
+  '{title:$title,location:{directory:$dir}}')
+opencode api POST /api/session --data "$oc_payload" | jq -er '.data.id'
+```
+
+새 제목이 나타나면 항목을 열어 화면의 세션 ID와 명령의 ID를 대조한다. 연결에 표시되는
+주소는 새 포트여야 한다. 세션을 연 화면 URL의 `ledger` 값은 `aw_source_id`와 일치해야 한다.
+기존 원장 목록도 준비 단계와 같아야 한다.
+연결 목록은 주기적으로 갱신되므로 화면의 주소와 세션 목록이 바뀌는 시점은 다를 수 있다.
+탭을 앞에 두고 **최대 40초** 동안 기다려도 같은 연결에서 새 세션이 안 보이면 실패로 남기고
+원복한다. 연결 해제·재등록이나 8776 재시작으로 결과를 대체하지 않는다.
+
+```bash
+aw_ledgers "$(jq -er .url "$oc_runtime")" > "$aw_verify/ledgers-rotated.json" &&
+  cmp "$aw_verify/ledgers-before.json" "$aw_verify/ledgers-rotated.json" &&
+  sha256sum -c "$aw_verify/registries.sha256" &&
+  test "$(jq -er .pid "$aw_state/server.json")" = "$(cat "$aw_verify/dashboard-pid")"
+```
+
+### 4. 원래 설정으로 돌리고 연결 확인
+
+파일을 바꾼 뒤에는 시험 결과와 관계없이 백업한 설정을 그대로 돌리고 OpenCode만 재시작한다.
+셸이 닫혔다면 같은 사용자로 Bash를 연다. 처음 출력한 백업 디렉터리의 `paths.bash`를
+`source`로 읽어 관제실 경로, OpenCode의 XDG 경로와 원래 주소를 복원한다. 이 파일에는
+경로와 식별자만 들어 있다. 1단계의 `aw_ledgers`와 2단계의 두 함수 정의만 복사하고,
+백업이나 변경 명령은 다시 실행하지 않는다. 새 셸에서도 `set -o pipefail`을 적용한다.
+
+```bash
+oc_write_config restore && opencode service restart
+jq -e '{url,pid,version}' "$oc_runtime"
+```
+
+사용 중인 서비스가 원래 포트로 돌아오면 같은 Chromium 탭이 원래 주소와 같은 연결 ID를
+표시하는지 확인한다. 새 세션을 만든 시험에서는 같은 세션이 계속 열리는지도 확인한다.
+서비스 주소가 다를 때는
+`oc_write_config rebind "$oc_original_port"`로 원래 포트를 한 번 명시한 후
+`opencode service restart`로 적용한다. 적용 결과는 `oc_runtime`의 `url`로 확인한다.
+이 경우 최종적으로 `oc_write_config restore`를 실행해 원래 설정 파일까지 복원한다.
+마지막 파일 복원 후에는 현재 서비스가 원래 포트에서 계속 실행된다. 원본 설정에서 포트를
+자동으로 정했다면 이후 서비스 재시작 때는 원본의 포트 선택 방식이 적용된다. 원래 포트가 다른 프로세스에
+점유된 경우에는 해당 프로세스를 종료하지 말고 원복이 필요한 상태로 보고하고 백업을 보존한다.
+
+```bash
+test "$(jq -er .url "$oc_runtime")" = "$oc_original_url" &&
+  cmp "$oc_config" "$aw_verify/original-service.json" &&
+  oc_check_auth 200 "$aw_verify/original-service.json" &&
+  oc_check_auth 401 "$aw_verify/temporary-service.json" &&
+  aw_ledgers "$oc_original_url" > "$aw_verify/ledgers-restored.json" &&
+  cmp "$aw_verify/ledgers-before.json" "$aw_verify/ledgers-restored.json" &&
+  sha256sum -c "$aw_verify/registries.sha256" &&
+  test "$(jq -er .pid "$aw_state/server.json")" = "$(cat "$aw_verify/dashboard-pid")" &&
+  printf '원복 확인 완료\n'
+```
+
+원복이 확인되면 임시 디렉터리에 복사한 `original-service.json`과
+`temporary-service.json`을 삭제한다. 공개 기록에는 날짜, 버전, 포트, 연결 ID·세션 ID,
+화면 인식 시간과 원복 여부만 남긴다.
+
+### 2026-11-27 실제 8776 검증 결과
+
+| 항목 | 관측값 |
+|---|---|
+| 실행 버전 | `main` `4da6fff`, 실제 로컬 OpenCode `2.2.7` |
+| 포트 | `49374 → 34277 → 49374` |
+| 인증 | 변경 후 이전 비밀번호는 HTTP 401. 원복 후 원래 비밀번호로 조회 성공, 임시 비밀번호는 HTTP 401 |
+| 관제실과 원장 | 8776 PID `109920` 유지. 기존 workflow 원장 2개 모두 `available`. `connections.json`, `opencode.json` 내용 일치 |
+| OpenCode 연결 | `opencode-6d897ab191771b76257c` 유지 |
+| 새 세션 | `ses_de5a60050ffel9lJVRAm6DeSj8`이 열린 탭에서 약 2.9초 만에 표시됨. 원복 뒤 동일 세션 조회 성공 |
+
+포트와 인증값이 함께 바뀌는 격리 시나리오도 병합 커밋의 GitHub Actions에서 통과했다.
+[자동 재연결 PR #24](https://github.com/89sooner/agent-workflow/pull/24) · [병합 커밋의 브라우저 검사](https://github.com/89sooner/agent-workflow/actions/runs/45913758253/job/140227957077)
 
 ## 과거 반영 기록
 
