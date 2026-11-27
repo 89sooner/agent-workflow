@@ -2,6 +2,8 @@
 
 [처음 설치하기](USER_GUIDE.ko.md#setup) · [8776 관리 화면 열기](http://127.0.0.1:8776/) · [전체 CLI 명령](USER_GUIDE.ko.md#commands) · [저장소 홈](../README.md)
 
+[2026-11-27 릴리즈 노트](FOLLOWUP_STATUS.ko.md#release-2026-11-27) · [실제 OpenCode 접속 변경과 원복](OPERATIONS.ko.md#opencode-live-rotation)
+
 ## 일상 개발
 
 | 필요한 결과 | 절차와 예제 |

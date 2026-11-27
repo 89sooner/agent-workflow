@@ -1,6 +1,6 @@
 # OpenCode 세션 관측
 
-2026-11-04 · UI 연결과 OpenCode 관측 안내. 소스 병합과 운영 적용은 별도이며, 운영 8776/8777에는 아직 반영하지 않았다.
+UI 연결과 OpenCode 관측 안내. 8776에 반영된 접속 정보 변경 검증은 [운영 문서](OPERATIONS.ko.md#opencode-live-rotation)에 기록한다.
 
 OpenCode 서버와 프로젝트를 **한 번 연결하면 이후 새 세션을 자동으로 표시**한다.
 세션마다 agent-workflow `create`/`start`를 실행할 필요가 없다. 기존 Codex·Claude의
@@ -58,6 +58,8 @@ python3 -m agent_workflow --home /path/to/observer opencode disconnect opencode-
 저장하지 않는다. 연결 해제는 observer 설정만 지우며 OpenCode 서버와 세션을 보존한다.
 이 동작은 승인·프롬프트 전송·세션 중단·파일 변경·큐 실행을 수행하지 않는다.
 
+<a id="follow-local-opencode"></a>
+
 ### 로컬 2.2.7 서비스 재연결
 
 `opencode service start`로 관리하는 로컬 2.2.7이라면 `opencode connect`에 현재 주소와
@@ -65,7 +67,8 @@ python3 -m agent_workflow --home /path/to/observer opencode disconnect opencode-
 기존 연결 ID가 유지된다. 관제실은 조회할 때 사용자 전용 OpenCode 서비스 파일에서 현재
 주소와 인증값을 읽는다. 포트나 비밀번호가 바뀌어도 같은 연결에서 탐색을 재개한다.
 OpenCode와 관제실은 같은 사용자와 상태 디렉터리 설정으로 실행한다.
-고정 주소의 서버에는 기존 `--password-env` 옵션을 사용한다.
+고정 주소의 서버에는 기존 `--password-env` 옵션을 사용한다. 실제 서비스에서 변경을 시험할 때는
+[자동 탐색과 원복 절차](OPERATIONS.ko.md#opencode-live-rotation)를 따른다.
 
 ## 표시되는 정보와 해석
 
