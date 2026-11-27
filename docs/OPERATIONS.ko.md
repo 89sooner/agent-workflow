@@ -115,15 +115,17 @@ python3 -m agent_workflow --home /tmp/katakuri-h-local-queue-workflow-20261029  
 
 아래 명령은 기본 8776 원장을 사용한다. 실행 중인 8776의 원장 경로가 다르면
 `aw_state`에 그 경로를 지정한다. 비밀번호가 들어 있는 OpenCode 파일은 사용자만 열 수
-있는 임시 디렉터리에 백업한다.
+있는 임시 디렉터리에 백업한다. 격리 관제실에서 연습할 때는 `AW_DASHBOARD_URL`을
+그 관제실의 로컬 주소로 지정한다.
 
+<!-- opencode-runbook:prepare -->
 ```bash
 set -o pipefail
 umask 077
-aw_verify=$(mktemp -d /tmp/aw-opencode-rotation.XXXXXX)
+aw_verify=$(mktemp -d "${TMPDIR:-/tmp}/aw-opencode-rotation.XXXXXX")
 printf '검증 백업 디렉터리 %s\n' "$aw_verify"
 aw_state="$HOME/.local/state/agent-workflow"
-aw_dashboard=http://127.0.0.1:8776
+aw_dashboard="${AW_DASHBOARD_URL:-http://127.0.0.1:8776}"
 aw_project=$(pwd -P)
 oc_config="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/service.json"
 oc_runtime="${XDG_STATE_HOME:-$HOME/.local/state}/opencode/service.json"
@@ -147,7 +149,10 @@ sha256sum "$aw_state/connections.json" "$aw_state/opencode.json" > "$aw_verify/r
     declare -p "$aw_env" 2>/dev/null || printf 'unset %s\n' "$aw_env"
   done
 } > "$aw_verify/paths.bash"
+```
 
+<!-- opencode-runbook:ledger-helpers -->
+```bash
 aw_ledgers() {
   curl --noproxy '*' -fsS "$aw_dashboard/api/connections" |
     jq -eS --arg id "$aw_source_id" --arg url "$1" '
@@ -162,6 +167,10 @@ oc_idle() {
     opencode api GET /api/permission/request | jq -e '.data | type == "array" and length == 0' &&
     opencode api GET /api/form | jq -e '.data | type == "array" and length == 0'
 }
+```
+
+<!-- opencode-runbook:preflight -->
+```bash
 aw_ledgers "$oc_original_url" | tee "$aw_verify/ledgers-before.json"
 oc_idle
 ```
@@ -175,6 +184,7 @@ oc_idle
 원래 설정의 다른 항목은 보존한다. 아래 함수는 같은 디렉터리에 모드 `0600`의 임시 파일을
 쓴 뒤 한 번에 교체한다. 터미널에는 포트·PID·버전만 표시한다.
 
+<!-- opencode-runbook:service-helpers -->
 ```bash
 oc_write_config() {
   python3 - "$oc_config" "$aw_verify/original-service.json" "$@" <<'PY'
@@ -245,7 +255,10 @@ finally:
     connection.close()
 PY
 }
+```
 
+<!-- opencode-runbook:rotate -->
+```bash
 aw_ledgers "$oc_original_url" > /dev/null &&
   oc_idle && cmp -s "$oc_config" "$aw_verify/original-service.json" &&
   oc_check_auth 200 "$aw_verify/original-service.json" &&
@@ -289,11 +302,20 @@ aw_ledgers "$(jq -er .url "$oc_runtime")" > "$aw_verify/ledgers-rotated.json" &&
 ### 4. 원래 설정으로 돌리고 연결 확인
 
 파일을 바꾼 뒤에는 시험 결과와 관계없이 백업한 설정을 그대로 돌리고 OpenCode만 재시작한다.
-셸이 닫혔다면 같은 사용자로 Bash를 연다. 처음 출력한 백업 디렉터리의 `paths.bash`를
-`source`로 읽어 관제실 경로, OpenCode의 XDG 경로와 원래 주소를 복원한다. 이 파일에는
-경로와 식별자만 들어 있다. 1단계의 `aw_ledgers`와 2단계의 두 함수 정의만 복사하고,
-백업이나 변경 명령은 다시 실행하지 않는다. 새 셸에서도 `set -o pipefail`을 적용한다.
+셸이 닫혔다면 같은 사용자로 Bash를 연다. `AW_OPENCODE_RECOVERY_DIR`에 1단계에서
+출력한 백업 디렉터리 경로를 지정하고 아래 블록을 실행한다. `paths.bash`에서 관제실 경로,
+OpenCode의 XDG 경로와 원래 주소를 복원한다.
 
+<!-- opencode-runbook:load-saved-paths -->
+```bash
+set -o pipefail
+source "${AW_OPENCODE_RECOVERY_DIR:?검증 백업 디렉터리 경로를 지정하세요}/paths.bash"
+```
+
+새 셸에서는 1단계의 원장·활동 조회 함수 블록과 2단계의 설정·인증 함수 블록도 다시
+실행한다. 그다음 원복 명령을 실행한다. 1단계 백업이나 2단계 변경 명령은 다시 실행하지 않는다.
+
+<!-- opencode-runbook:restore -->
 ```bash
 oc_write_config restore && opencode service restart
 jq -e '{url,pid,version}' "$oc_runtime"
@@ -309,6 +331,7 @@ jq -e '{url,pid,version}' "$oc_runtime"
 자동으로 정했다면 이후 서비스 재시작 때는 원본의 포트 선택 방식이 적용된다. 원래 포트가 다른 프로세스에
 점유된 경우에는 해당 프로세스를 종료하지 말고 원복이 필요한 상태로 보고하고 백업을 보존한다.
 
+<!-- opencode-runbook:verify-restore -->
 ```bash
 test "$(jq -er .url "$oc_runtime")" = "$oc_original_url" &&
   cmp "$oc_config" "$aw_verify/original-service.json" &&
@@ -338,6 +361,10 @@ test "$(jq -er .url "$oc_runtime")" = "$oc_original_url" &&
 
 포트와 인증값이 함께 바뀌는 격리 시나리오도 병합 커밋의 GitHub Actions에서 통과했다.
 [자동 재연결 PR #24](https://github.com/89sooner/agent-workflow/pull/24) · [병합 커밋의 브라우저 검사](https://github.com/89sooner/agent-workflow/actions/runs/45913758253/job/140227957077)
+
+GitHub Actions의 [셸 종료 후 원복 검사](../tests/opencode_runbook_recovery.py)는 이 문서의
+Bash 코드 블록을 직접 읽는다. 격리 서비스의 포트와 비밀번호를 바꾼 뒤 첫 셸을 강제 종료하고,
+새 셸에서 저장된 경로를 불러와 원래 설정과 원장 연결을 확인한다.
 
 ## 과거 반영 기록
 

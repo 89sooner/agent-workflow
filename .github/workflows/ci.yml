@@ -88,6 +88,8 @@ jobs:
           WORKFLOW_SCREENSHOT_DIR: ${{ runner.temp }}/workflow-screenshots/opencode-reconnect
           PYTHONDONTWRITEBYTECODE: '1'
         run: node tests/opencode_reconnect.mjs "$RUNNER_TEMP/workflow-opencode-v2/node_modules/@opencode/cli-linux-x64/bin/opencode"
+      - name: Verify documented OpenCode recovery after killing Bash
+        run: python tests/opencode_runbook_recovery.py "$RUNNER_TEMP/workflow-opencode-v2/node_modules/@opencode/cli-linux-x64/bin/opencode"
       - name: React management, observatory and controller-backed browser acceptance
         env:
           WORKFLOW_PLAYWRIGHT_PATH: ${{ runner.temp }}/workflow-browser/node_modules/playwright
